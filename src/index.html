@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CheetahNote - 极速 Markdown 笔记</title>
+    <link rel="stylesheet" href="styles.css">
+    <meta name="description" content="高性能 Markdown 笔记软件 - 内存占用极低，启动速度极快">
+</head>
+<body>
+    <!-- 主应用容器 -->
+    <div id="app" class="app-container">
+        <!-- 标题栏 -->
+        <header class="app-header">
+            <div class="logo-section">
+                <div class="logo">🐆</div>
+                <h1 class="app-title">CheetahNote</h1>
+                <span class="app-subtitle">极速 Markdown 笔记</span>
+            </div>
+            
+            <!-- 性能指标显示 -->
+            <div class="performance-indicators">
+                <div class="indicator">
+                    <span class="indicator-label">内存目标</span>
+                    <span class="indicator-value">&lt; 50MB</span>
+                </div>
+                <div class="indicator">
+                    <span class="indicator-label">启动目标</span>
+                    <span class="indicator-value">&lt; 500ms</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主内容区域 -->
+        <main class="main-content">
+            <!-- Hello World 交互区域 -->
+            <section class="welcome-section">
+                <div class="welcome-card">
+                    <h2>🚀 欢迎使用 CheetahNote</h2>
+                    <p class="welcome-description">
+                        这是一个追求极致性能的 Markdown 笔记软件演示版本。
+                        <br>
+                        请输入您的名字来体验前后端交互功能：
+                    </p>
+                    
+                    <!-- 用户交互表单 -->
+                    <div class="interaction-form">
+                        <div class="input-group">
+                            <label for="nameInput">您的名字:</label>
+                            <input 
+                                type="text" 
+                                id="nameInput" 
+                                placeholder="请输入您的名字..."
+                                autocomplete="off"
+                                maxlength="50"
+                            >
+                        </div>
+                        
+                        <div class="button-group">
+                            <button id="greetBtn" class="primary-btn">
+                                <span class="btn-icon">👋</span>
+                                问候
+                            </button>
+                            <button id="appInfoBtn" class="secondary-btn">
+                                <span class="btn-icon">ℹ️</span>
+                                应用信息
+                            </button>
+                            <button id="performanceBtn" class="accent-btn">
+                                <span class="btn-icon">⚡</span>
+                                性能检查
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 结果显示区域 -->
+                    <div id="resultArea" class="result-area hidden">
+                        <div class="result-content">
+                            <div class="result-header">
+                                <span class="result-icon">✨</span>
+                                <span class="result-title">响应结果</span>
+                                <button id="clearResult" class="clear-btn" title="清除结果">×</button>
+                            </div>
+                            <div id="resultText" class="result-text"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 功能预览区域 -->
+            <section class="features-preview">
+                <h3>🎯 核心特性预览</h3>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h4>极速启动</h4>
+                        <p>冷启动时间 &lt; 500ms</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🪶</div>
+                        <h4>轻量内存</h4>
+                        <p>运行内存 &lt; 50MB</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔄</div>
+                        <h4>流畅编辑</h4>
+                        <p>支持大文件无卡顿</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">💾</div>
+                        <h4>本地优先</h4>
+                        <p>数据本地存储</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 状态栏 -->
+        <footer class="status-bar">
+            <div class="status-left">
+                <span id="appStatus" class="status-text">就绪</span>
+            </div>
+            <div class="status-right">
+                <span class="status-text">版本 0.1.0</span>
+                <span class="status-separator">|</span>
+                <span class="status-text">Tauri 2.8.5</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 加载指示器 -->
+    <div id="loadingIndicator" class="loading-indicator hidden">
+        <div class="loading-spinner"></div>
+        <span class="loading-text">处理中...</span>
+    </div>
+
+    <!-- 错误提示 -->
+    <div id="errorToast" class="error-toast hidden">
+        <span class="error-icon">⚠️</span>
+        <span id="errorMessage" class="error-message"></span>
+        <button id="closeError" class="close-error">×</button>
+    </div>
+
+    <!-- 引入主脚本 -->
+    <script type="module" src="main.js"></script>
+</body>
+</html>

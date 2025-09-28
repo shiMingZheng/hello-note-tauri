@@ -1,0 +1,26 @@
+[package]
+name = "cheetah-note"
+version = "0.1.0"
+description = "高性能 Markdown 笔记软件"
+authors = ["CheetahNote Team"]
+license = "MIT"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.0.0-rc.8", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.0-rc.8", features = [] }
+tauri-plugin-shell = "2.0.0-rc.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+panic = "abort"
+
+[profile.dev]
+opt-level = 1
+debug = true

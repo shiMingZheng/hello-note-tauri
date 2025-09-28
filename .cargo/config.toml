@@ -1,0 +1,6 @@
+[build]
+rustc-wrapper = "sccache"
+[env]
+# 将缓存目录设置在项目根目录下的 .sccache 文件夹内
+# 这个路径是相对于项目根目录的
+SCCACHE_DIR = ".sccache"
