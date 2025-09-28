@@ -9,6 +9,10 @@ cd cheetah-note
 # 2. 安装前端依赖 (如果使用 npm)
 npm install
 
+运行开发服务器
+bash# 确保在项目根目录中
+node dev-server.js
+
 # 3. 开发模式运行 (热重载)
 cargo tauri dev
 
