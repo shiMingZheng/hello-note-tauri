@@ -18,7 +18,25 @@ cargo tauri dev
 
 # 或者使用 npm 脚本
 npm run tauri dev
+
+
 ```
+### 热重载功能：
+服务器会监控 src/ 目录中的 .html、.css、.js 文件变化，当文件修改时自动通知浏览器刷新。
+💡 可选的自动刷新脚本：
+如果您想要更好的热重载体验，可以在 index.html 的 </body> 标签前添加：
+html<script>
+  // 热重载支持
+  if (location.hostname === "localhost") {
+    const eventSource = new EventSource("/live-reload");
+    eventSource.onmessage = (event) => {
+      if (event.data === "reload") {
+        location.reload();
+      }
+    };
+  }
+</script>
+这个开发服务器专为 CheetahNote 项目优化，提供了完整的开发体验！
 
 ### 构建生产版本
 
