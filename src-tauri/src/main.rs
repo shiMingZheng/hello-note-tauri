@@ -255,6 +255,76 @@ async fn get_parent_directory(path: String) -> Result<String, String> {
     }
 }
 
+// 创建新文件
+#[tauri::command]
+async fn create_new_file(dir_path: String, file_name: String) -> Result<String, String> {
+    let dir = PathBuf::from(&dir_path);
+    
+    // 确保目录存在
+    if !dir.exists() || !dir.is_dir() {
+        return Err(format!("目标目录不存在: {}", dir_path));
+    }
+    
+    // 构建完整文件路径
+    let file_path = dir.join(&file_name);
+    
+    // 检查文件是否已存在
+    if file_path.exists() {
+        return Err(format!("文件已存在: {}", file_name));
+    }
+    
+    // 创建文件
+    fs::File::create(&file_path)
+        .map_err(|e| format!("创建文件失败: {}", e))?;
+    
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+// 创建新文件夹
+#[tauri::command]
+async fn create_new_folder(parent_path: String, folder_name: String) -> Result<String, String> {
+    let parent = PathBuf::from(&parent_path);
+    
+    // 确保父目录存在
+    if !parent.exists() || !parent.is_dir() {
+        return Err(format!("父目录不存在: {}", parent_path));
+    }
+    
+    // 构建完整文件夹路径
+    let folder_path = parent.join(&folder_name);
+    
+    // 检查文件夹是否已存在
+    if folder_path.exists() {
+        return Err(format!("文件夹已存在: {}", folder_name));
+    }
+    
+    // 创建文件夹
+    fs::create_dir(&folder_path)
+        .map_err(|e| format!("创建文件夹失败: {}", e))?;
+    
+    Ok(folder_path.to_string_lossy().to_string())
+}
+
+// 删除项目（文件）
+#[tauri::command]
+async fn delete_item(path: String) -> Result<(), String> {
+    let item_path = PathBuf::from(&path);
+    
+    // 验证路径存在
+    if !item_path.exists() {
+        return Err(format!("路径不存在: {}", path));
+    }
+    
+    // 只处理文件删除
+    if item_path.is_file() {
+        fs::remove_file(&item_path)
+            .map_err(|e| format!("删除文件失败: {}", e))?;
+        Ok(())
+    } else {
+        Err("当前只支持删除文件，不支持删除文件夹".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     Builder::default()
@@ -266,9 +336,12 @@ pub fn run() {
             get_app_info,
             check_performance,
             list_dir_contents,
-            list_dir_tree,  // 注册新命令
+            list_dir_tree,
             read_file_content,
-            get_parent_directory
+            get_parent_directory,
+            create_new_file,
+            create_new_folder,
+            delete_item
         ])
         .setup(|app| {
             println!("🚀 CheetahNote 正在启动...");
