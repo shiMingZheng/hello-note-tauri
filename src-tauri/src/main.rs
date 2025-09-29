@@ -45,6 +45,8 @@ pub struct FileInfo {
     pub name: String,
     pub path: String,
     pub is_dir: bool,
+    pub level: usize,  // 新增：目录层级
+    pub is_expanded: bool,  // 新增：是否展开
 }
 
 // 问候命令
@@ -120,6 +122,8 @@ async fn list_dir_contents(path: String) -> Result<Vec<FileInfo>, String> {
             name: file_name,
             path: file_path,
             is_dir: metadata.is_dir(),
+            level: 0,  // 顶层目录
+            is_expanded: false,
         });
     }
     
@@ -133,6 +137,82 @@ async fn list_dir_contents(path: String) -> Result<Vec<FileInfo>, String> {
     });
     
     Ok(files)
+}
+
+// 递归列出目录树（带层级信息）
+#[tauri::command]
+async fn list_dir_tree(path: String, max_depth: Option<usize>) -> Result<Vec<FileInfo>, String> {
+    let dir_path = PathBuf::from(&path);
+    
+    if !dir_path.exists() {
+        return Err(format!("路径不存在: {}", path));
+    }
+    
+    if !dir_path.is_dir() {
+        return Err(format!("路径不是目录: {}", path));
+    }
+    
+    let max = max_depth.unwrap_or(10); // 默认最大深度10层
+    let mut result = Vec::new();
+    
+    fn scan_directory(
+        dir_path: &PathBuf,
+        level: usize,
+        max_depth: usize,
+        result: &mut Vec<FileInfo>
+    ) -> Result<(), String> {
+        if level >= max_depth {
+            return Ok(());
+        }
+        
+        let entries = fs::read_dir(dir_path)
+            .map_err(|e| format!("读取目录失败: {}", e))?;
+        
+        let mut items = Vec::new();
+        
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("读取条目失败: {}", e))?;
+            let metadata = entry.metadata()
+                .map_err(|e| format!("读取元数据失败: {}", e))?;
+            
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            let file_path = entry.path().to_string_lossy().to_string();
+            let is_dir = metadata.is_dir();
+            
+            items.push((file_name, file_path, is_dir));
+        }
+        
+        // 排序：文件夹优先
+        items.sort_by(|a, b| {
+            match (a.2, b.2) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a.0.to_lowercase().cmp(&b.0.to_lowercase()),
+            }
+        });
+        
+        // 添加到结果并递归处理子目录
+        for (name, path, is_dir) in items {
+            result.push(FileInfo {
+                name: name.clone(),
+                path: path.clone(),
+                is_dir,
+                level,
+                is_expanded: is_dir,
+            });
+            
+            if is_dir {
+                let sub_path = PathBuf::from(&path);
+                let _ = scan_directory(&sub_path, level + 1, max_depth, result);
+            }
+        }
+        
+        Ok(())
+    }
+    
+    scan_directory(&dir_path, 0, max, &mut result)?;
+    
+    Ok(result)
 }
 
 // 读取文件内容 - 新增命令
@@ -155,6 +235,26 @@ async fn read_file_content(path: String) -> Result<String, String> {
         .map_err(|e| format!("读取文件失败: {}. 错误: {}", path, e))
 }
 
+// 获取父目录 - 新增命令
+#[tauri::command]
+async fn get_parent_directory(path: String) -> Result<String, String> {
+    let current_path = PathBuf::from(&path);
+    
+    // 尝试获取父目录
+    match current_path.parent() {
+        Some(parent) => {
+            let parent_str = parent.to_string_lossy().to_string();
+            // 如果父路径为空（到达根目录），返回原路径
+            if parent_str.is_empty() {
+                Ok(path)
+            } else {
+                Ok(parent_str)
+            }
+        },
+        None => Ok(path) // 已经是根目录，返回原路径
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     Builder::default()
@@ -166,7 +266,9 @@ pub fn run() {
             get_app_info,
             check_performance,
             list_dir_contents,
-            read_file_content  // 注册新命令
+            list_dir_tree,  // 注册新命令
+            read_file_content,
+            get_parent_directory
         ])
         .setup(|app| {
             println!("🚀 CheetahNote 正在启动...");
