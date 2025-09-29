@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 use tauri::{Builder, Manager};
 
 // 应用状态结构
@@ -39,61 +39,12 @@ impl<T> ApiResponse<T> {
     }
 }
 
-// 文件信息结构体
+// 文件信息结构
 #[derive(Serialize, Deserialize, Clone)]
 pub struct FileInfo {
     pub name: String,
+    pub path: String,
     pub is_dir: bool,
-}
-
-// 列出目录内容的命令
-#[tauri::command]
-async fn list_dir_contents(path: String) -> Result<Vec<FileInfo>, String> {
-    let dir_path = Path::new(&path);
-    
-    // 检查路径是否存在
-    if !dir_path.exists() {
-        return Err(format!("路径不存在: {}", path));
-    }
-    
-    // 检查是否为目录
-    if !dir_path.is_dir() {
-        return Err(format!("指定的路径不是目录: {}", path));
-    }
-    
-    // 读取目录内容
-    let entries = fs::read_dir(dir_path)
-        .map_err(|e| format!("读取目录失败: {}", e))?;
-    
-    let mut file_list = Vec::new();
-    
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
-        let path = entry.path();
-        
-        let file_name = entry
-            .file_name()
-            .to_string_lossy()
-            .to_string();
-        
-        let is_directory = path.is_dir();
-        
-        file_list.push(FileInfo {
-            name: file_name,
-            is_dir: is_directory,
-        });
-    }
-    
-    // 排序：目录在前，文件在后，同类按名称排序
-    file_list.sort_by(|a, b| {
-        match (a.is_dir, b.is_dir) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-        }
-    });
-    
-    Ok(file_list)
 }
 
 // 问候命令
@@ -134,17 +85,88 @@ async fn check_performance() -> Result<ApiResponse<HashMap<String, String>>, Str
     Ok(ApiResponse::success(perf))
 }
 
+// 列出目录内容
+#[tauri::command]
+async fn list_dir_contents(path: String) -> Result<Vec<FileInfo>, String> {
+    let dir_path = PathBuf::from(&path);
+    
+    if !dir_path.exists() {
+        return Err(format!("路径不存在: {}", path));
+    }
+    
+    if !dir_path.is_dir() {
+        return Err(format!("路径不是目录: {}", path));
+    }
+    
+    let entries = fs::read_dir(&dir_path)
+        .map_err(|e| format!("读取目录失败: {}", e))?;
+    
+    let mut files = Vec::new();
+    
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("读取条目失败: {}", e))?;
+        let metadata = entry.metadata()
+            .map_err(|e| format!("读取元数据失败: {}", e))?;
+        
+        let file_name = entry.file_name()
+            .to_string_lossy()
+            .to_string();
+        
+        let file_path = entry.path()
+            .to_string_lossy()
+            .to_string();
+        
+        files.push(FileInfo {
+            name: file_name,
+            path: file_path,
+            is_dir: metadata.is_dir(),
+        });
+    }
+    
+    // 按文件夹优先、名称排序
+    files.sort_by(|a, b| {
+        match (a.is_dir, b.is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+        }
+    });
+    
+    Ok(files)
+}
+
+// 读取文件内容 - 新增命令
+#[tauri::command]
+async fn read_file_content(path: String) -> Result<String, String> {
+    let file_path = PathBuf::from(&path);
+    
+    // 验证路径存在
+    if !file_path.exists() {
+        return Err(format!("文件不存在: {}", path));
+    }
+    
+    // 验证是文件而不是目录
+    if file_path.is_dir() {
+        return Err(format!("路径是目录，不是文件: {}", path));
+    }
+    
+    // 读取文件内容
+    fs::read_to_string(&file_path)
+        .map_err(|e| format!("读取文件失败: {}. 错误: {}", path, e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_dialog::init())  // 添加 dialog 插件
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             get_app_info,
             check_performance,
-            list_dir_contents
+            list_dir_contents,
+            read_file_content  // 注册新命令
         ])
         .setup(|app| {
             println!("🚀 CheetahNote 正在启动...");
