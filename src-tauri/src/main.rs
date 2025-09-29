@@ -3,12 +3,13 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 use tauri::{Builder, Manager};
 
 // 应用状态结构
 #[derive(Default)]
 pub struct AppState {
-    // 预留：存储应用级别的状态
     pub notes_cache: std::sync::Mutex<HashMap<String, String>>,
 }
 
@@ -38,7 +39,64 @@ impl<T> ApiResponse<T> {
     }
 }
 
-// 问候命令 - Hello World 版本
+// 文件信息结构体
+#[derive(Serialize, Deserialize, Clone)]
+pub struct FileInfo {
+    pub name: String,
+    pub is_dir: bool,
+}
+
+// 列出目录内容的命令
+#[tauri::command]
+async fn list_dir_contents(path: String) -> Result<Vec<FileInfo>, String> {
+    let dir_path = Path::new(&path);
+    
+    // 检查路径是否存在
+    if !dir_path.exists() {
+        return Err(format!("路径不存在: {}", path));
+    }
+    
+    // 检查是否为目录
+    if !dir_path.is_dir() {
+        return Err(format!("指定的路径不是目录: {}", path));
+    }
+    
+    // 读取目录内容
+    let entries = fs::read_dir(dir_path)
+        .map_err(|e| format!("读取目录失败: {}", e))?;
+    
+    let mut file_list = Vec::new();
+    
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+        let path = entry.path();
+        
+        let file_name = entry
+            .file_name()
+            .to_string_lossy()
+            .to_string();
+        
+        let is_directory = path.is_dir();
+        
+        file_list.push(FileInfo {
+            name: file_name,
+            is_dir: is_directory,
+        });
+    }
+    
+    // 排序：目录在前，文件在后，同类按名称排序
+    file_list.sort_by(|a, b| {
+        match (a.is_dir, b.is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+        }
+    });
+    
+    Ok(file_list)
+}
+
+// 问候命令
 #[tauri::command]
 async fn greet(name: String) -> Result<ApiResponse<String>, String> {
     let response = if name.trim().is_empty() {
@@ -68,7 +126,6 @@ async fn get_app_info() -> Result<ApiResponse<HashMap<String, String>>, String> 
 async fn check_performance() -> Result<ApiResponse<HashMap<String, String>>, String> {
     let mut perf = HashMap::new();
     
-    // 获取当前进程信息
     let process_id = std::process::id();
     perf.insert("process_id".to_string(), process_id.to_string());
     perf.insert("status".to_string(), "运行中".to_string());
@@ -77,47 +134,24 @@ async fn check_performance() -> Result<ApiResponse<HashMap<String, String>>, Str
     Ok(ApiResponse::success(perf))
 }
 
-// 应用菜单事件处理 (Tauri 2.x 版本)
-// 注意：在 Tauri 2.x 中，菜单事件处理方式已更改
-// 这里先注释掉，后续版本中根据需要实现
-/*
-fn handle_menu_event(app: &AppHandle<R>, event: MenuEvent) {
-    match event.id.as_ref() {
-        "quit" => {
-            std::process::exit(0);
-        }
-        "about" => {
-            // 显示关于对话框
-            let _ = app.emit_all("show-about", ());
-        }
-        _ => {}
-    }
-}
-*/
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 构建 Tauri 应用
     Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             get_app_info,
-            check_performance
+            check_performance,
+            list_dir_contents
         ])
-        // 注释掉菜单事件处理，在 Tauri 2.x 中需要不同的实现方式
-        // .on_menu_event(handle_menu_event)
         .setup(|app| {
-            // 应用启动时的初始化逻辑
             println!("🚀 CheetahNote 正在启动...");
             
-            // 在 Tauri 2.x 中使用 get_webview_window
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("CheetahNote - 极速 Markdown 笔记");
             }
-            
-            // 预留：初始化数据库、文件系统监控等
             
             Ok(())
         })

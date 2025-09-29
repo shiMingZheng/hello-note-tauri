@@ -4,16 +4,17 @@
   "identifier": "com.cheetahnote.desktop",
   "build": {
     "devUrl": "http://localhost:1420",
-    "frontendDist": "./src"
+    "frontendDist": "../src"
   },
   "app": {
-    "withGlobalTauri": false,
+    "withGlobalTauri": true,
     "security": {
       "csp": {
         "default-src": "'self'",
         "script-src": "'self' 'unsafe-inline'",
         "style-src": "'self' 'unsafe-inline'"
-      }
+      },
+	    "capabilities": ["default"]   
     },
     "windows": [
       {

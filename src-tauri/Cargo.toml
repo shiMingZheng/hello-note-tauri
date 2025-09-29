@@ -10,20 +10,18 @@ edition = "2021"
 tauri-build = { version = "2.0.0-rc.8", features = [] }
 
 [dependencies]
-# 🎯 保持您的原始版本，只优化编译配置
 tauri = { version = "2.0.0-rc.8", features = [] }
 tauri-plugin-shell = "2.0.0-rc.4"
+tauri-plugin-dialog = "2.0.0-rc.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [profile.release]
-# 🎯 极致优化配置
-opt-level = 3          # 最高优化级别
-lto = true            # 链接时优化
-strip = true          # 移除调试符号
-panic = "abort"       # 减少二进制大小
+opt-level = 3
+lto = true
+strip = true
+panic = "abort"
 
 [profile.dev]
-# 开发时的平衡配置
 opt-level = 1
 debug = true
