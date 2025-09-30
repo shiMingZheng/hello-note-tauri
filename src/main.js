@@ -1,65 +1,30 @@
 /**
  * CheetahNote - 高性能 Markdown 笔记软件
- * 优化版：文件夹展开/收起 + 滚动位置修复
+ * 主前端脚本 - 集成全文搜索功能
  */
 
 console.log('📜 main.js 开始加载...');
 
+// 全局变量
 let invoke, open;
-let openFolderBtn, fileListElement, welcomeScreen, editorWrapper;
-let markdownEditor, htmlPreview, editModeBtn, previewModeBtn;
+let openFolderBtn, fileListElement, searchBox, searchInput, clearSearchBtn;
+let searchResultsList, welcomeScreen, editorWrapper;
+let markdownEditor, htmlPreview, editModeBtn, previewModeBtn, saveBtn;
 let contextMenu, newNoteBtn, newFolderBtn, deleteFileBtn;
-let customConfirmDialog, dialogTitle, dialogMessage, dialogCancelBtn, dialogConfirmBtn, dialogIcon;
+let customConfirmDialog;
 
+// 应用状态
 const appState = {
-    currentPath: null,
     rootPath: null,
-    files: [],
     activeFilePath: null,
-    activeFile: null,
-    currentViewMode: 'edit',
-    contextTarget: null,
     hasUnsavedChanges: false,
-    expandedFolders: new Set() // 记录展开的文件夹
+    contextTarget: null,
+    expandedFolders: new Set(),
+    currentViewMode: 'edit',
+    searchQuery: '',
+    isSearching: false,
+    dbInitialized: false
 };
-
-/**
- * 自定义确认对话框
- */
-function showCustomConfirm(title, message, icon = '⚠️') {
-    return new Promise((resolve) => {
-        dialogTitle.textContent = title;
-        dialogMessage.textContent = message;
-        dialogIcon.textContent = icon;
-        
-        customConfirmDialog.classList.add('show');
-        
-        const handleConfirm = () => {
-            customConfirmDialog.classList.remove('show');
-            dialogConfirmBtn.removeEventListener('click', handleConfirm);
-            dialogCancelBtn.removeEventListener('click', handleCancel);
-            resolve(true);
-        };
-        
-        const handleCancel = () => {
-            customConfirmDialog.classList.remove('show');
-            dialogConfirmBtn.removeEventListener('click', handleConfirm);
-            dialogCancelBtn.removeEventListener('click', handleCancel);
-            resolve(false);
-        };
-        
-        dialogConfirmBtn.addEventListener('click', handleConfirm);
-        dialogCancelBtn.addEventListener('click', handleCancel);
-        
-        const handleEsc = (e) => {
-            if (e.key === 'Escape') {
-                handleCancel();
-                document.removeEventListener('keydown', handleEsc);
-            }
-        };
-        document.addEventListener('keydown', handleEsc);
-    });
-}
 
 /**
  * 等待 Tauri API 加载
@@ -106,121 +71,442 @@ async function initApp() {
         
         console.log('✅ Tauri API 已导入');
         
+        // 获取 DOM 元素
         openFolderBtn = document.getElementById('open-folder-btn');
         fileListElement = document.getElementById('file-list');
+        searchBox = document.getElementById('search-box');
+        searchInput = document.getElementById('search-input');
+        clearSearchBtn = document.getElementById('clear-search-btn');
+        searchResultsList = document.getElementById('search-results-list');
         welcomeScreen = document.getElementById('welcome-screen');
         editorWrapper = document.getElementById('editor-wrapper');
         markdownEditor = document.getElementById('markdown-editor');
         htmlPreview = document.getElementById('html-preview');
         editModeBtn = document.getElementById('edit-mode-btn');
         previewModeBtn = document.getElementById('preview-mode-btn');
+        saveBtn = document.getElementById('save-btn');
         contextMenu = document.getElementById('context-menu');
         newNoteBtn = document.getElementById('new-note-btn');
         newFolderBtn = document.getElementById('new-folder-btn');
         deleteFileBtn = document.getElementById('delete-file-btn');
-        
         customConfirmDialog = document.getElementById('custom-confirm-dialog');
-        dialogTitle = document.getElementById('dialog-title');
-        dialogMessage = document.getElementById('dialog-message');
-        dialogCancelBtn = document.getElementById('dialog-cancel-btn');
-        dialogConfirmBtn = document.getElementById('dialog-confirm-btn');
-        dialogIcon = document.getElementById('dialog-icon');
         
-        if (!openFolderBtn || !fileListElement || !welcomeScreen || !editorWrapper) {
-            throw new Error('缺少必需的 DOM 元素');
+        if (!openFolderBtn || !fileListElement) {
+            throw new Error('必要的 DOM 元素未找到');
         }
         
-        console.log('✅ DOM 元素已找到');
+        console.log('✅ DOM 元素已初始化');
         
-        openFolderBtn.addEventListener('click', handleOpenFolder);
-        editModeBtn.addEventListener('click', () => switchViewMode('edit'));
-        previewModeBtn.addEventListener('click', () => switchViewMode('preview'));
+        // 绑定事件
+        bindEvents();
         
-        document.addEventListener('keydown', handleKeyboardShortcuts);
-        
-        initContextMenu();
-        
-        customConfirmDialog.addEventListener('click', (e) => {
-            if (e.target === customConfirmDialog) {
-                customConfirmDialog.classList.remove('show');
-            }
-        });
-        
-        console.log('✅ 事件监听器已绑定');
-        console.log('✅ CheetahNote 初始化完成！');
-        
-        fileListElement.innerHTML = '<li style="color: #6c757d; font-style: italic;">点击上方按钮选择文件夹</li>';
+        console.log('✅ CheetahNote 初始化完成');
         
     } catch (error) {
         console.error('❌ 初始化失败:', error);
-        alert('应用初始化失败: ' + error.message + '\n\n请刷新页面重试。');
+        alert('应用初始化失败: ' + error.message);
     }
 }
 
 /**
- * 初始化右键菜单
+ * 绑定事件处理器
  */
-function initContextMenu() {
-    fileListElement.addEventListener('contextmenu', handleContextMenu);
+function bindEvents() {
+    console.log('🔗 开始绑定事件...');
     
-    document.addEventListener('click', (e) => {
-        if (!contextMenu.contains(e.target)) {
-            hideContextMenu();
-        }
-    });
+    // 打开文件夹按钮
+    openFolderBtn.addEventListener('click', handleOpenFolder);
     
+    // 搜索功能
+    searchInput.addEventListener('input', debounce(handleSearch, 300));
+    clearSearchBtn.addEventListener('click', clearSearch);
+    
+    // 编辑器模式切换
+    editModeBtn.addEventListener('click', () => switchViewMode('edit'));
+    previewModeBtn.addEventListener('click', () => switchViewMode('preview'));
+    
+    // 保存按钮
+    saveBtn.addEventListener('click', handleSaveFile);
+    
+    // 右键菜单
     newNoteBtn.addEventListener('click', handleCreateNote);
     newFolderBtn.addEventListener('click', handleCreateFolder);
     deleteFileBtn.addEventListener('click', handleDeleteFile);
+    
+    // 全局点击事件（隐藏右键菜单）
+    document.addEventListener('click', () => hideContextMenu());
+    
+    // 监听编辑器内容变化
+    markdownEditor.addEventListener('input', () => {
+        appState.hasUnsavedChanges = true;
+    });
+    
+    // 键盘快捷键
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            handleSaveFile();
+        }
+    });
+    
+    console.log('✅ 事件绑定完成');
 }
 
 /**
- * 处理右键菜单显示
+ * 防抖函数
  */
-function handleContextMenu(e) {
-    e.preventDefault();
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+/**
+ * 处理打开文件夹
+ */
+async function handleOpenFolder() {
+    console.log('📂 打开文件夹对话框...');
     
-    const target = e.target.closest('.file-item');
-    
-    if (!target) {
-        if (e.target.closest('.file-list-container') && appState.rootPath) {
-            showContextMenu(e.clientX, e.clientY, {
-                path: appState.currentPath || appState.rootPath,
-                isDir: true,
-                name: '当前目录',
-                element: null
-            });
+    try {
+        const selected = await open({
+            directory: true,
+            multiple: false,
+            title: '选择笔记文件夹'
+        });
+        
+        if (selected && typeof selected === 'string') {
+            console.log('✅ 已选择文件夹:', selected);
+            appState.rootPath = selected;
+            
+            // 初始化数据库
+            await initDatabase(selected);
+            
+            // 索引文件
+            await indexFiles(selected);
+            
+            // 加载文件树
+            await loadFolderTree(selected);
+            
+            // 显示搜索框
+            searchBox.classList.add('active');
         }
+    } catch (error) {
+        console.error('❌ 打开文件夹失败:', error);
+        showError('打开文件夹失败: ' + error);
+    }
+}
+
+/**
+ * 初始化数据库
+ */
+async function initDatabase(basePath) {
+    try {
+        console.log('🔧 初始化数据库...');
+        await invoke('init_or_load_db', { basePath });
+        appState.dbInitialized = true;
+        console.log('✅ 数据库初始化成功');
+    } catch (error) {
+        console.error('❌ 数据库初始化失败:', error);
+        showError('数据库初始化失败: ' + error);
+    }
+}
+
+/**
+ * 索引文件
+ */
+async function indexFiles(basePath) {
+    try {
+        console.log('📝 开始索引文件...');
+        await invoke('index_files', { basePath });
+        console.log('✅ 文件索引完成');
+    } catch (error) {
+        console.error('❌ 文件索引失败:', error);
+        // 不显示错误，因为这不是关键操作
+    }
+}
+
+/**
+ * 处理搜索
+ */
+async function handleSearch() {
+    const query = searchInput.value.trim();
+    
+    if (!query) {
+        clearSearch();
         return;
     }
     
-    const path = target.dataset.path;
-    const isDir = target.dataset.isDir === 'true';
-    const name = target.textContent.trim();
+    if (!appState.dbInitialized) {
+        console.warn('数据库未初始化');
+        return;
+    }
     
-    appState.contextTarget = { path, isDir, name, element: target };
+    appState.searchQuery = query;
+    clearSearchBtn.style.display = 'block';
     
-    showContextMenu(e.clientX, e.clientY, appState.contextTarget);
+    try {
+        console.log('🔍 搜索:', query);
+        appState.isSearching = true;
+        
+        const results = await invoke('search_notes', { 
+            basePath: appState.rootPath, 
+            query 
+        });
+        
+        displaySearchResults(results);
+        
+    } catch (error) {
+        console.error('❌ 搜索失败:', error);
+    } finally {
+        appState.isSearching = false;
+    }
+}
+
+/**
+ * 显示搜索结果
+ */
+function displaySearchResults(results) {
+    // 隐藏文件列表，显示搜索结果
+    fileListElement.style.display = 'none';
+    searchResultsList.style.display = 'block';
+    searchResultsList.innerHTML = '';
+    
+    if (results.length === 0) {
+        searchResultsList.innerHTML = '<li style="text-align: center; color: rgba(255,255,255,0.5);">没有找到相关笔记</li>';
+        return;
+    }
+    
+    results.forEach(result => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <div class="search-result-title">${result.title}</div>
+            <div class="search-result-snippet">${result.snippet}</div>
+        `;
+        li.addEventListener('click', () => loadFileToEditor(result.path));
+        searchResultsList.appendChild(li);
+    });
+}
+
+/**
+ * 清除搜索
+ */
+function clearSearch() {
+    searchInput.value = '';
+    appState.searchQuery = '';
+    clearSearchBtn.style.display = 'none';
+    
+    // 显示文件列表，隐藏搜索结果
+    fileListElement.style.display = 'block';
+    searchResultsList.style.display = 'none';
+    searchResultsList.innerHTML = '';
+}
+
+/**
+ * 加载文件夹树
+ */
+async function loadFolderTree(path) {
+    console.log('🌲 加载文件夹树:', path);
+    
+    try {
+        const files = await invoke('list_dir_tree', { 
+            path, 
+            maxDepth: 5 
+        });
+        
+        console.log(`✅ 加载了 ${files.length} 个项目`);
+        renderFileTree(files);
+        
+    } catch (error) {
+        console.error('❌ 加载文件夹失败:', error);
+        showError('加载文件夹失败: ' + error);
+    }
+}
+
+/**
+ * 渲染文件树
+ */
+function renderFileTree(files) {
+    fileListElement.innerHTML = '';
+    
+    if (!files || files.length === 0) {
+        fileListElement.innerHTML = '<li style="text-align: center; color: rgba(255,255,255,0.5);">文件夹为空</li>';
+        return;
+    }
+    
+    files.forEach(file => {
+        const li = document.createElement('li');
+        const indent = '  '.repeat(file.level);
+        const icon = file.is_dir ? '📁' : '📄';
+        const name = file.name.replace(/\\/g, '/').split('/').pop();
+        
+        li.textContent = `${indent}${icon} ${name}`;
+        li.className = file.is_dir ? 'folder' : 'file';
+        li.style.paddingLeft = `${12 + file.level * 20}px`;
+        
+        li.dataset.path = file.path;
+        li.dataset.isDir = file.is_dir;
+        li.dataset.name = name;
+        
+        // 文件点击事件
+        if (!file.is_dir) {
+            li.addEventListener('click', () => loadFileToEditor(file.path));
+        }
+        
+        // 右键菜单
+        li.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showContextMenu(e, file);
+        });
+        
+        fileListElement.appendChild(li);
+    });
+}
+
+/**
+ * 加载文件到编辑器
+ */
+async function loadFileToEditor(path) {
+    console.log('📄 加载文件:', path);
+    
+    try {
+        const content = await invoke('read_file_content', { path });
+        
+        markdownEditor.value = content;
+        appState.activeFilePath = path;
+        appState.hasUnsavedChanges = false;
+        
+        // 更新文件标题
+        const fileName = path.split(/[/\\]/).pop();
+        document.getElementById('file-title').textContent = fileName;
+        
+        // 显示编辑器，隐藏欢迎屏幕
+        welcomeScreen.style.display = 'none';
+        editorWrapper.style.display = 'flex';
+        
+        // 如果在预览模式，更新预览
+        if (appState.currentViewMode === 'preview') {
+            updatePreview();
+        }
+        
+        // 高亮活动文件
+        document.querySelectorAll('.file-list li').forEach(li => {
+            li.classList.remove('active');
+            if (li.dataset.path === path) {
+                li.classList.add('active');
+            }
+        });
+        
+        console.log('✅ 文件加载成功');
+        
+    } catch (error) {
+        console.error('❌ 加载文件失败:', error);
+        showError('加载文件失败: ' + error);
+    }
+}
+
+/**
+ * 清空编辑器
+ */
+function clearEditor() {
+    markdownEditor.value = '';
+    appState.activeFilePath = null;
+    appState.hasUnsavedChanges = false;
+    document.getElementById('file-title').textContent = '无标题';
+    welcomeScreen.style.display = 'block';
+    editorWrapper.style.display = 'none';
+}
+
+/**
+ * 切换视图模式
+ */
+function switchViewMode(mode) {
+    appState.currentViewMode = mode;
+    
+    if (mode === 'edit') {
+        markdownEditor.style.display = 'block';
+        htmlPreview.style.display = 'none';
+        editModeBtn.classList.add('active');
+        previewModeBtn.classList.remove('active');
+    } else {
+        markdownEditor.style.display = 'none';
+        htmlPreview.style.display = 'block';
+        editModeBtn.classList.remove('active');
+        previewModeBtn.classList.add('active');
+        updatePreview();
+    }
+}
+
+/**
+ * 更新预览
+ */
+async function updatePreview() {
+    const content = markdownEditor.value;
+    
+    try {
+        const html = await invoke('parse_markdown', { content });
+        htmlPreview.innerHTML = html;
+    } catch (error) {
+        console.error('❌ Markdown 解析失败:', error);
+        htmlPreview.innerHTML = '<p style="color: red;">预览生成失败</p>';
+    }
+}
+
+/**
+ * 保存文件
+ */
+async function handleSaveFile() {
+    if (!appState.activeFilePath) {
+        console.warn('没有活动文件');
+        return;
+    }
+    
+    const content = markdownEditor.value;
+    
+    try {
+        await invoke('save_file', {
+            path: appState.activeFilePath,
+            content
+        });
+        
+        appState.hasUnsavedChanges = false;
+        showSuccessMessage('文件已保存');
+        
+        // 重新索引文件（更新搜索索引）
+        if (appState.dbInitialized) {
+            await indexFiles(appState.rootPath);
+        }
+        
+    } catch (error) {
+        console.error('❌ 保存失败:', error);
+        showError('保存失败: ' + error);
+    }
 }
 
 /**
  * 显示右键菜单
  */
-function showContextMenu(x, y, target) {
-    contextMenu.style.left = `${x}px`;
-    contextMenu.style.top = `${y}px`;
+function showContextMenu(event, file) {
+    event.preventDefault();
+    
+    appState.contextTarget = {
+        path: file.path,
+        isDir: file.is_dir,
+        name: file.name
+    };
+    
+    contextMenu.style.left = event.pageX + 'px';
+    contextMenu.style.top = event.pageY + 'px';
     contextMenu.classList.add('visible');
     
-    if (target.isDir) {
+    // 根据目标类型显示/隐藏菜单项
+    if (file.is_dir) {
         newNoteBtn.style.display = 'block';
         newFolderBtn.style.display = 'block';
-        deleteFileBtn.style.display = 'block';
-        deleteFileBtn.textContent = '🗑️ 删除文件夹';
     } else {
         newNoteBtn.style.display = 'none';
         newFolderBtn.style.display = 'none';
-        deleteFileBtn.style.display = 'block';
-        deleteFileBtn.textContent = '🗑️ 删除文件';
     }
 }
 
@@ -232,319 +518,42 @@ function hideContextMenu() {
 }
 
 /**
- * 打开文件夹
+ * 显示自定义确认对话框
  */
-async function handleOpenFolder() {
-    try {
-        console.log('📂 打开文件夹对话框...');
+function showCustomConfirm(title, message, icon = '⚠️') {
+    return new Promise((resolve) => {
+        const dialog = customConfirmDialog;
+        const titleEl = document.getElementById('dialog-title');
+        const messageEl = document.getElementById('dialog-message');
+        const iconEl = document.getElementById('dialog-icon');
+        const confirmBtn = document.getElementById('dialog-confirm-btn');
+        const cancelBtn = document.getElementById('dialog-cancel-btn');
         
-        const selectedPath = await open({
-            directory: true,
-            multiple: false,
-            title: '选择笔记文件夹'
-        });
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        iconEl.textContent = icon;
         
-        if (!selectedPath) {
-            console.log('ℹ️ 用户取消了选择');
-            return;
-        }
+        dialog.style.display = 'flex';
         
-        console.log('✅ 选中的文件夹:', selectedPath);
+        const cleanup = () => {
+            dialog.style.display = 'none';
+            confirmBtn.removeEventListener('click', handleConfirm);
+            cancelBtn.removeEventListener('click', handleCancel);
+        };
         
-        appState.rootPath = selectedPath;
-        appState.currentPath = selectedPath;
-        appState.expandedFolders.clear(); // 清空展开状态
+        const handleConfirm = () => {
+            cleanup();
+            resolve(true);
+        };
         
-        await loadFolderTree(selectedPath);
+        const handleCancel = () => {
+            cleanup();
+            resolve(false);
+        };
         
-    } catch (error) {
-        console.error('❌ 打开文件夹失败:', error);
-        showError('打开文件夹失败: ' + error.message);
-    }
-}
-
-/**
- * 加载文件夹树
- */
-async function loadFolderTree(path) {
-    try {
-        console.log('📖 正在加载目录树:', path);
-        
-        fileListElement.innerHTML = '<li style="color: #0d6efd;">⏳ 正在加载...</li>';
-        
-        const files = await invoke('list_dir_tree', { path, maxDepth: 5 });
-        
-        console.log('✅ 目录树读取成功，总项目数:', files.length);
-        
-        appState.files = files;
-        renderFileTree(files);
-        
-    } catch (error) {
-        console.error('❌ 加载目录树失败:', error);
-        fileListElement.innerHTML = `<li style="color: #dc3545;">❌ 加载失败: ${error}</li>`;
-        showError('加载目录树失败: ' + error);
-    }
-}
-
-/**
- * 渲染文件树 - 支持展开/收起
- */
-function renderFileTree(files) {
-    if (!files || files.length === 0) {
-        fileListElement.innerHTML = '<li style="color: #6c757d;">📭 目录为空</li>';
-        return;
-    }
-    
-    fileListElement.innerHTML = '';
-    
-    files.forEach((file, index) => {
-        // 检查父文件夹是否折叠
-        const parentPath = file.path.substring(0, file.path.lastIndexOf('\\') || file.path.lastIndexOf('/'));
-        const isParentCollapsed = file.level > 0 && !appState.expandedFolders.has(parentPath);
-        
-        if (isParentCollapsed) {
-            return; // 父文件夹折叠，不显示此项
-        }
-        
-        const li = document.createElement('li');
-        li.className = 'file-item';
-        li.dataset.index = index;
-        li.dataset.path = file.path;
-        li.dataset.isDir = file.is_dir;
-        
-        const indent = file.level * 20;
-        li.style.paddingLeft = `${indent + 10}px`;
-        
-        // 文件夹展开/收起图标
-        let icon;
-        if (file.is_dir) {
-            const isExpanded = appState.expandedFolders.has(file.path);
-            icon = isExpanded ? '📂' : '📁';
-            li.classList.add('folder');
-            if (isExpanded) {
-                li.classList.add('expanded');
-            }
-        } else {
-            icon = '📄';
-        }
-        
-        li.textContent = `${icon} ${file.name}`;
-        
-        if (file.path === appState.activeFilePath) {
-            li.classList.add('active');
-        }
-        
-        // 绑定点击事件
-        li.addEventListener('click', (e) => {
-            if (file.is_dir) {
-                handleFolderClick(file, index);
-            } else {
-                handleFileClick(file, index);
-            }
-        });
-        
-        fileListElement.appendChild(li);
+        confirmBtn.addEventListener('click', handleConfirm);
+        cancelBtn.addEventListener('click', handleCancel);
     });
-}
-
-/**
- * 处理文件点击
- */
-async function handleFileClick(file, index) {
-    console.log('📄 点击文件:', file.name);
-    
-    if (appState.hasUnsavedChanges) {
-        const confirmed = await showCustomConfirm(
-            '未保存的更改',
-            '当前文件有未保存的更改，是否继续切换？',
-            '⚠️'
-        );
-        if (!confirmed) {
-            return;
-        }
-    }
-    
-    // 更新选中状态
-    const allItems = fileListElement.querySelectorAll('.file-item');
-    allItems.forEach(item => item.classList.remove('active'));
-    
-    const targetItem = fileListElement.querySelector(`[data-path="${file.path}"]`);
-    if (targetItem) {
-        targetItem.classList.add('active');
-    }
-    
-    await loadFileToEditor(file);
-}
-
-/**
- * 处理文件夹点击 - 展开/收起
- */
-function handleFolderClick(folder, index) {
-    console.log('📁 点击文件夹:', folder.name);
-    
-    const isExpanded = appState.expandedFolders.has(folder.path);
-    
-    if (isExpanded) {
-        // 收起文件夹
-        appState.expandedFolders.delete(folder.path);
-        console.log('📁 收起文件夹:', folder.name);
-    } else {
-        // 展开文件夹
-        appState.expandedFolders.add(folder.path);
-        console.log('📂 展开文件夹:', folder.name);
-    }
-    
-    // 重新渲染文件树
-    renderFileTree(appState.files);
-    
-    // 保持选中状态
-    const targetItem = fileListElement.querySelector(`[data-path="${folder.path}"]`);
-    if (targetItem) {
-        targetItem.classList.add('active');
-    }
-}
-
-/**
- * 清空编辑器
- */
-function clearEditor() {
-    editorWrapper.style.display = 'none';
-    welcomeScreen.style.display = 'block';
-    
-    appState.activeFilePath = null;
-    appState.activeFile = null;
-    appState.hasUnsavedChanges = false;
-    markdownEditor.value = '';
-    htmlPreview.innerHTML = '';
-    
-    console.log('✅ 编辑器已清空');
-}
-
-/**
- * 加载文件到编辑器 - 修复滚动位置
- */
-async function loadFileToEditor(file) {
-    try {
-        console.log('📖 正在读取文件:', file.path);
-        
-        const content = await invoke('read_file_content', { path: file.path });
-        
-        console.log('✅ 文件内容读取成功，长度:', content.length);
-        
-        markdownEditor.value = content;
-        appState.activeFilePath = file.path;
-        appState.activeFile = file;
-        appState.hasUnsavedChanges = false;
-        
-        welcomeScreen.style.display = 'none';
-        editorWrapper.style.display = 'flex';
-        
-        // 确保显示编辑模式
-        appState.currentViewMode = 'edit';
-        markdownEditor.style.display = 'block';
-        htmlPreview.style.display = 'none';
-        editModeBtn.classList.add('active');
-        previewModeBtn.classList.remove('active');
-        
-        // 🔧 修复：滚动到顶部
-        markdownEditor.scrollTop = 0;
-        
-        // 聚焦编辑器并将光标移到开头
-        markdownEditor.focus();
-        markdownEditor.setSelectionRange(0, 0);
-        
-        console.log('✅ 编辑器已滚动到顶部');
-        
-    } catch (error) {
-        console.error('❌ 读取文件失败:', error);
-        showError('读取文件失败: ' + error);
-    }
-}
-
-/**
- * 键盘快捷键处理
- */
-function handleKeyboardShortcuts(e) {
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault();
-        handleSaveFile();
-    }
-}
-
-/**
- * 切换视图模式
- */
-async function switchViewMode(mode) {
-    if (appState.currentViewMode === mode || !appState.activeFilePath) {
-        return;
-    }
-    
-    console.log(`🔄 切换到 ${mode} 模式`);
-    
-    appState.currentViewMode = mode;
-    
-    if (mode === 'edit') {
-        markdownEditor.style.display = 'block';
-        htmlPreview.style.display = 'none';
-        editModeBtn.classList.add('active');
-        previewModeBtn.classList.remove('active');
-        
-        // 编辑模式也滚动到顶部
-        markdownEditor.scrollTop = 0;
-        markdownEditor.focus();
-    } else {
-        markdownEditor.style.display = 'none';
-        htmlPreview.style.display = 'block';
-        editModeBtn.classList.remove('active');
-        previewModeBtn.classList.add('active');
-        
-        await updatePreview();
-        
-        // 预览模式滚动到顶部
-        htmlPreview.scrollTop = 0;
-    }
-}
-
-/**
- * 更新预览
- */
-async function updatePreview() {
-    try {
-        const markdown = markdownEditor.value;
-        const html = await invoke('parse_markdown', { markdown });
-        htmlPreview.innerHTML = html;
-    } catch (error) {
-        console.error('❌ 解析 Markdown 失败:', error);
-        htmlPreview.innerHTML = '<p style="color: red;">解析失败: ' + error + '</p>';
-    }
-}
-
-/**
- * 保存文件
- */
-async function handleSaveFile() {
-    if (!appState.activeFilePath) {
-        showError('没有打开的文件');
-        return;
-    }
-    
-    try {
-        console.log('💾 正在保存文件...');
-        
-        const content = markdownEditor.value;
-        await invoke('save_file', { 
-            path: appState.activeFilePath, 
-            content 
-        });
-        
-        appState.hasUnsavedChanges = false;
-        console.log('✅ 文件保存成功');
-        showSuccessMessage('文件已保存');
-        
-    } catch (error) {
-        console.error('❌ 保存文件失败:', error);
-        showError('保存文件失败: ' + error);
-    }
 }
 
 /**
@@ -553,7 +562,7 @@ async function handleSaveFile() {
 async function handleCreateNote() {
     hideContextMenu();
     
-    const fileName = prompt('请输入笔记名称（无需添加 .md 扩展名）:');
+    const fileName = prompt('请输入笔记名称 (无需添加.md后缀):');
     
     if (!fileName || fileName.trim() === '') {
         return;
@@ -578,6 +587,11 @@ async function handleCreateNote() {
         appState.expandedFolders.add(targetPath);
         
         await loadFolderTree(appState.rootPath);
+        
+        // 重新索引文件
+        if (appState.dbInitialized) {
+            await indexFiles(appState.rootPath);
+        }
         
     } catch (error) {
         console.error('❌ 创建笔记失败:', error);
@@ -688,6 +702,11 @@ async function performDelete(target, itemType, itemName) {
         
         await loadFolderTree(appState.rootPath);
         
+        // 重新索引文件
+        if (appState.dbInitialized) {
+            await indexFiles(appState.rootPath);
+        }
+        
     } catch (error) {
         console.error(`❌ 删除${itemType}失败:`, error);
         
@@ -717,20 +736,6 @@ function showSuccessMessage(message) {
     const toast = document.createElement('div');
     toast.className = 'success-toast';
     toast.textContent = '✅ ' + message;
-    toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #10b981;
-        color: white;
-        padding: 12px 20px;
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        z-index: 10000;
-        font-size: 14px;
-        font-weight: 500;
-        animation: slideIn 0.3s ease;
-    `;
     
     document.body.appendChild(toast);
     
@@ -743,17 +748,6 @@ function showSuccessMessage(message) {
         }, 300);
     }, 3000);
 }
-
-// 监听编辑器内容变化
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        if (markdownEditor) {
-            markdownEditor.addEventListener('input', () => {
-                appState.hasUnsavedChanges = true;
-            });
-        }
-    }, 200);
-});
 
 // 启动应用
 console.log('📌 注册初始化函数...');
@@ -777,7 +771,9 @@ window.CheetahNote = {
     handleCreateNote,
     handleCreateFolder,
     handleDeleteFile,
-    showCustomConfirm
+    showCustomConfirm,
+    handleSearch,
+    clearSearch
 };
 
 console.log('✅ main.js 加载完成');
