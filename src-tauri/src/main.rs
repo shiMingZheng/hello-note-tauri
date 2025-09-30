@@ -1,91 +1,266 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
 
-use pulldown_cmark::{html, Options, Parser};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
-use tauri::{Builder, Manager};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
-// 应用状态结构
+use pulldown_cmark::{html, Parser};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Builder, Manager};
+
+// ========================================
+// 简单的内存搜索索引
+// ========================================
+
 #[derive(Default)]
-pub struct AppState {
-    pub notes_cache: std::sync::Mutex<HashMap<String, String>>,
+struct SearchIndex {
+    documents: Vec<Document>,
 }
 
-// 响应结构体
-#[derive(Serialize, Deserialize)]
-pub struct ApiResponse<T> {
-    pub success: bool,
-    pub data: Option<T>,
-    pub message: String,
+#[derive(Clone, Debug)]
+struct Document {
+    path: String,
+    title: String,
+    content: String,
+}
+
+impl SearchIndex {
+    fn clear(&mut self) {
+        self.documents.clear();
+    }
+
+    fn add_document(&mut self, path: String, title: String, content: String) {
+        self.documents.push(Document { path, title, content });
+    }
+
+    fn search(&self, query: &str) -> Vec<SearchResult> {
+        let query_lower = query.to_lowercase();
+        let mut results = Vec::new();
+
+        for doc in &self.documents {
+            let content_lower = doc.content.to_lowercase();
+            let title_lower = doc.title.to_lowercase();
+
+            if title_lower.contains(&query_lower) || content_lower.contains(&query_lower) {
+                let snippet = self.generate_snippet(&doc.content, &query_lower);
+
+                results.push(SearchResult {
+                    path: doc.path.clone(),
+                    title: doc.title.clone(),
+                    snippet,
+                });
+            }
+        }
+        results
+    }
+
+    // ==================================================================
+    // 修正后的 generate_snippet 函数
+    // ==================================================================
+    fn generate_snippet(&self, content: &str, query: &str) -> String {
+        let content_lower = content.to_lowercase();
+        
+        // 查找匹配项的起始字节位置
+        if let Some(pos) = content_lower.find(query) {
+            // --- 关键修改：安全地查找字符边界 ---
+            let snippet_start_byte = pos.saturating_sub(50);
+            let snippet_end_byte = (pos + query.len() + 50).min(content.len());
+
+            // 找到`snippet_start_byte`之后最近的字符边界作为安全的起始点
+            let mut safe_start = snippet_start_byte;
+            while !content.is_char_boundary(safe_start) && safe_start < content.len() {
+                safe_start += 1;
+            }
+
+            // 找到`snippet_end_byte`之后最近的字符边界作为安全的结束点
+            let mut safe_end = snippet_end_byte;
+            while !content.is_char_boundary(safe_end) && safe_end < content.len() {
+                safe_end += 1;
+            }
+            // --- 修改结束 ---
+
+            let mut snippet = String::new();
+            if safe_start > 0 {
+                snippet.push_str("...");
+            }
+
+            // 现在可以安全地截取字符串了
+            let fragment = &content[safe_start..safe_end];
+            let fragment_lower = fragment.to_lowercase();
+            let query_len = query.len();
+
+            let mut last_end = 0;
+            for (match_start, _) in fragment_lower.match_indices(query) {
+                // 追加匹配项之前的部分
+                snippet.push_str(&fragment[last_end..match_start]);
+                // 追加高亮标签和匹配项
+                snippet.push_str("<b>");
+                snippet.push_str(&fragment[match_start..match_start + query_len]);
+                snippet.push_str("</b>");
+                last_end = match_start + query_len;
+            }
+            // 追加最后一个匹配项之后的部分
+            snippet.push_str(&fragment[last_end..]);
+
+            if safe_end < content.len() {
+                snippet.push_str("...");
+            }
+
+            snippet
+        } else {
+            // 如果没找到，安全地截取前100个字符作为摘要
+            let end_char_index = content.char_indices().nth(100).map_or(content.len(), |(i, _)| i);
+            format!("{}...", &content[..end_char_index])
+        }
+    }
+}
+
+// ========================================
+// 数据结构定义
+// ========================================
+
+#[derive(Default)]
+struct AppState {
+    current_path: Mutex<Option<String>>,
+    search_index: Mutex<SearchIndex>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ApiResponse<T> {
+    success: bool,
+    data: Option<T>,
+    error: Option<String>,
 }
 
 impl<T> ApiResponse<T> {
-    pub fn success(data: T) -> Self {
-        Self {
+    fn success(data: T) -> Self {
+        ApiResponse {
             success: true,
             data: Some(data),
-            message: "操作成功".to_string(),
+            error: None,
         }
     }
 
-    pub fn error(message: String) -> Self {
-        Self {
+    #[allow(dead_code)]
+    fn error(error: String) -> Self {
+        ApiResponse {
             success: false,
             data: None,
-            message,
+            error: Some(error),
         }
     }
 }
 
-// 文件信息结构
-#[derive(Serialize, Deserialize, Clone)]
-pub struct FileInfo {
-    pub name: String,
-    pub path: String,
-    pub is_dir: bool,
-    pub level: usize,
-    pub is_expanded: bool,
+#[derive(Serialize, Deserialize, Debug)]
+struct FileInfo {
+    name: String,
+    path: String,
+    is_dir: bool,
+    level: usize,
+    is_expanded: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SearchResult {
+    path: String,
+    title: String,
+    snippet: String,
 }
 
 // ========================================
-// 核心 Markdown 功能命令
+// 搜索相关命令
 // ========================================
 
-/// Markdown 转 HTML 命令 - 极速解析
 #[tauri::command]
-fn parse_markdown(markdown: String) -> Result<String, String> {
-    let mut options = Options::empty();
-    options.insert(Options::ENABLE_TABLES);
-    options.insert(Options::ENABLE_FOOTNOTES);
-    options.insert(Options::ENABLE_STRIKETHROUGH);
-    options.insert(Options::ENABLE_TASKLISTS);
-    options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
-    
-    let parser = Parser::new_ext(&markdown, options);
-    
+async fn init_or_load_db(_base_path: String, _state: tauri::State<'_, AppState>) -> Result<(), String> {
+    println!("✅ 搜索索引已准备就绪 (内存模式)");
+    Ok(())
+}
+
+#[tauri::command]
+async fn index_files(base_path: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let base = PathBuf::from(&base_path);
+    if !base.exists() || !base.is_dir() {
+        return Err(format!("路径不存在或不是目录: {}", base_path));
+    }
+
+    let mut index = state.search_index.lock().expect("无法锁定搜索索引");
+    index.clear();
+
+    index_directory(&mut *index, &base)?;
+    println!("✅ 文件索引完成，共索引 {} 个文件", index.documents.len());
+    Ok(())
+}
+
+fn index_directory(index: &mut SearchIndex, dir: &Path) -> Result<(), String> {
+    let entries = fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))?;
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.is_dir() {
+                    index_directory(index, &path)?;
+                } else if path.extension().and_then(|s| s.to_str()) == Some("md") {
+                    if let Ok(content) = fs::read_to_string(&path) {
+                        let title = extract_title_from_content(&content).unwrap_or_else(|| {
+                            path.file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("无标题")
+                                .to_string()
+                        });
+                        index.add_document(path.to_string_lossy().to_string(), title, content);
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn extract_title_from_content(content: &str) -> Option<String> {
+    content
+        .lines()
+        .next()
+        .filter(|line| line.starts_with("# "))
+        .map(|line| line[2..].trim().to_string())
+}
+
+#[tauri::command]
+async fn search_notes(
+    query: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<SearchResult>, String> {
+    if query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    let index = state.search_index.lock().expect("无法锁定搜索索引");
+    Ok(index.search(&query))
+}
+
+// ========================================
+// Markdown 处理命令
+// ========================================
+
+#[tauri::command]
+async fn parse_markdown(content: String) -> Result<String, String> {
+    let parser = Parser::new(&content);
     let mut html_output = String::new();
     html::push_html(&mut html_output, parser);
-    
     Ok(html_output)
 }
 
-/// 保存文件命令
 #[tauri::command]
-async fn save_file(path: String, content: String) -> Result<(), String> {
-    let file_path = PathBuf::from(&path);
-    
-    if let Some(parent) = file_path.parent() {
-        if !parent.exists() {
-            return Err(format!("父目录不存在: {:?}", parent));
-        }
+async fn save_file(path: String, content: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    fs::write(&path, content).map_err(|e| format!("保存文件失败: {}", e))?;
+    // 重新索引已保存的文件以更新搜索内容
+    let base_path = state.current_path.lock().unwrap().clone().unwrap_or_default();
+    if !base_path.is_empty() {
+        index_files(base_path, state).await?;
     }
-    
-    fs::write(&file_path, content)
-        .map_err(|e| format!("保存文件失败: {}. 错误: {}", path, e))?;
-    
     Ok(())
 }
 
@@ -94,273 +269,83 @@ async fn save_file(path: String, content: String) -> Result<(), String> {
 // ========================================
 
 #[tauri::command]
-async fn greet(name: String) -> Result<ApiResponse<String>, String> {
-    let response = if name.trim().is_empty() {
-        format!("🚀 欢迎使用 CheetahNote - 极速 Markdown 笔记软件!")
-    } else {
-        format!("👋 你好，{}! 欢迎使用 CheetahNote!", name.trim())
-    };
-    
-    Ok(ApiResponse::success(response))
-}
-
-#[tauri::command]
-async fn get_app_info() -> Result<ApiResponse<HashMap<String, String>>, String> {
-    let mut info = HashMap::new();
-    info.insert("name".to_string(), "CheetahNote".to_string());
-    info.insert("version".to_string(), "0.1.0".to_string());
-    info.insert("description".to_string(), "高性能 Markdown 笔记软件".to_string());
-    info.insert("memory_usage".to_string(), "< 50MB".to_string());
-    info.insert("startup_time".to_string(), "< 500ms".to_string());
-    
-    Ok(ApiResponse::success(info))
-}
-
-#[tauri::command]
-async fn check_performance() -> Result<ApiResponse<HashMap<String, String>>, String> {
-    let mut perf = HashMap::new();
-    
-    let process_id = std::process::id();
-    perf.insert("process_id".to_string(), process_id.to_string());
-    perf.insert("status".to_string(), "运行中".to_string());
-    perf.insert("target".to_string(), "内存 < 50MB, CPU < 1%".to_string());
-    
-    Ok(ApiResponse::success(perf))
-}
-
-#[tauri::command]
-async fn list_dir_contents(path: String) -> Result<Vec<FileInfo>, String> {
+async fn list_dir_tree(path: String, max_depth: usize) -> Result<Vec<FileInfo>, String> {
     let dir_path = PathBuf::from(&path);
-    
-    if !dir_path.exists() {
-        return Err(format!("路径不存在: {}", path));
-    }
-    
     if !dir_path.is_dir() {
-        return Err(format!("路径不是目录: {}", path));
+        return Err("路径不是一个有效的目录".to_string());
     }
-    
-    let entries = fs::read_dir(&dir_path)
-        .map_err(|e| format!("读取目录失败: {}", e))?;
-    
-    let mut files = Vec::new();
-    
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("读取条目失败: {}", e))?;
-        let metadata = entry.metadata()
-            .map_err(|e| format!("读取元数据失败: {}", e))?;
-        
-        let file_name = entry.file_name()
-            .to_string_lossy()
-            .to_string();
-        
-        let file_path = entry.path()
-            .to_string_lossy()
-            .to_string();
-        
-        files.push(FileInfo {
-            name: file_name,
-            path: file_path,
-            is_dir: metadata.is_dir(),
-            level: 0,
-            is_expanded: false,
-        });
-    }
-    
-    files.sort_by(|a, b| {
-        match (a.is_dir, b.is_dir) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-        }
-    });
-    
-    Ok(files)
-}
-
-#[tauri::command]
-async fn list_dir_tree(path: String, max_depth: Option<usize>) -> Result<Vec<FileInfo>, String> {
-    let dir_path = PathBuf::from(&path);
-    
-    if !dir_path.exists() {
-        return Err(format!("路径不存在: {}", path));
-    }
-    
-    if !dir_path.is_dir() {
-        return Err(format!("路径不是目录: {}", path));
-    }
-    
-    let max = max_depth.unwrap_or(10);
     let mut result = Vec::new();
-    
-    fn scan_directory(
-        dir_path: &PathBuf,
-        level: usize,
-        max_depth: usize,
-        result: &mut Vec<FileInfo>
-    ) -> Result<(), String> {
-        if level >= max_depth {
-            return Ok(());
-        }
-        
-        let entries = fs::read_dir(dir_path)
-            .map_err(|e| format!("读取目录失败: {}", e))?;
-        
-        let mut items = Vec::new();
-        
-        for entry in entries {
-            let entry = entry.map_err(|e| format!("读取条目失败: {}", e))?;
-            let metadata = entry.metadata()
-                .map_err(|e| format!("读取元数据失败: {}", e))?;
-            
-            let file_name = entry.file_name().to_string_lossy().to_string();
-            let file_path = entry.path().to_string_lossy().to_string();
-            let is_dir = metadata.is_dir();
-            
-            items.push((file_name, file_path, is_dir));
-        }
-        
-        items.sort_by(|a, b| {
-            match (a.2, b.2) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.0.to_lowercase().cmp(&b.0.to_lowercase()),
-            }
-        });
-        
-        for (name, path, is_dir) in items {
-            result.push(FileInfo {
-                name: name.clone(),
-                path: path.clone(),
-                is_dir,
-                level,
-                is_expanded: is_dir,
-            });
-            
-            if is_dir {
-                let sub_path = PathBuf::from(&path);
-                let _ = scan_directory(&sub_path, level + 1, max_depth, result);
-            }
-        }
-        
-        Ok(())
-    }
-    
-    scan_directory(&dir_path, 0, max, &mut result)?;
-    
+    scan_directory(&dir_path, 0, max_depth.max(10), &mut result)?;
     Ok(result)
+}
+
+fn scan_directory(
+    dir: &Path,
+    level: usize,
+    max_depth: usize,
+    result: &mut Vec<FileInfo>,
+) -> Result<(), String> {
+    if level >= max_depth {
+        return Ok(());
+    }
+    let mut items = Vec::new();
+    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            let metadata = entry.metadata().map_err(|e| e.to_string())?;
+            items.push((path, metadata.is_dir()));
+        }
+    }
+
+    items.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+
+    for (path, is_dir) in items {
+        result.push(FileInfo {
+            name: path.file_name().unwrap().to_string_lossy().to_string(),
+            path: path.to_string_lossy().to_string(),
+            is_dir,
+            level,
+            is_expanded: is_dir,
+        });
+        if is_dir {
+            scan_directory(&path, level + 1, max_depth, result)?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
 async fn read_file_content(path: String) -> Result<String, String> {
-    let file_path = PathBuf::from(&path);
-    
-    if !file_path.exists() {
-        return Err(format!("文件不存在: {}", path));
-    }
-    
-    if file_path.is_dir() {
-        return Err(format!("路径是目录，不是文件: {}", path));
-    }
-    
-    fs::read_to_string(&file_path)
-        .map_err(|e| format!("读取文件失败: {}. 错误: {}", path, e))
-}
-
-#[tauri::command]
-async fn get_parent_directory(path: String) -> Result<String, String> {
-    let current_path = PathBuf::from(&path);
-    
-    match current_path.parent() {
-        Some(parent) => {
-            let parent_str = parent.to_string_lossy().to_string();
-            if parent_str.is_empty() {
-                Ok(path)
-            } else {
-                Ok(parent_str)
-            }
-        },
-        None => Ok(path)
-    }
+    fs::read_to_string(path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn create_new_file(dir_path: String, file_name: String) -> Result<String, String> {
-    let dir = PathBuf::from(&dir_path);
-    
-    if !dir.exists() || !dir.is_dir() {
-        return Err(format!("目标目录不存在: {}", dir_path));
-    }
-    
-    let file_path = dir.join(&file_name);
-    
-    if file_path.exists() {
-        return Err(format!("文件已存在: {}", file_name));
-    }
-    
-    fs::File::create(&file_path)
-        .map_err(|e| format!("创建文件失败: {}", e))?;
-    
-    Ok(file_path.to_string_lossy().to_string())
+    let path = Path::new(&dir_path).join(file_name);
+    fs::File::create(&path).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 async fn create_new_folder(parent_path: String, folder_name: String) -> Result<String, String> {
-    let parent = PathBuf::from(&parent_path);
-    
-    if !parent.exists() || !parent.is_dir() {
-        return Err(format!("父目录不存在: {}", parent_path));
-    }
-    
-    let folder_path = parent.join(&folder_name);
-    
-    if folder_path.exists() {
-        return Err(format!("文件夹已存在: {}", folder_name));
-    }
-    
-    fs::create_dir(&folder_path)
-        .map_err(|e| format!("创建文件夹失败: {}", e))?;
-    
-    Ok(folder_path.to_string_lossy().to_string())
+    let path = Path::new(&parent_path).join(folder_name);
+    fs::create_dir(&path).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
 }
 
-/// 删除文件命令（仅文件，不含文件夹）
 #[tauri::command]
 async fn delete_item(path: String) -> Result<(), String> {
-    let item_path = PathBuf::from(&path);
-    
-    if !item_path.exists() {
-        return Err(format!("路径不存在: {}", path));
-    }
-    
-    if item_path.is_file() {
-        fs::remove_file(&item_path)
-            .map_err(|e| format!("删除文件失败: {}", e))?;
-        Ok(())
-    } else {
-        Err("此命令仅支持删除文件".to_string())
-    }
+    fs::remove_file(path).map_err(|e| e.to_string())
 }
 
-/// 递归删除文件夹命令（新增，带确认机制）
 #[tauri::command]
 async fn delete_folder(path: String) -> Result<(), String> {
-    let folder_path = PathBuf::from(&path);
-    
-    if !folder_path.exists() {
-        return Err(format!("路径不存在: {}", path));
-    }
-    
-    if !folder_path.is_dir() {
-        return Err(format!("路径不是文件夹: {}", path));
-    }
-    
-    // 递归删除文件夹及其所有内容
-    fs::remove_dir_all(&folder_path)
-        .map_err(|e| format!("删除文件夹失败: {}", e))?;
-    
-    Ok(())
+    fs::remove_dir_all(path).map_err(|e| e.to_string())
 }
+
+// ========================================
+// 主函数
+// ========================================
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -369,32 +354,27 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
-            greet,
-            get_app_info,
-            check_performance,
-            list_dir_contents,
             list_dir_tree,
             read_file_content,
-            get_parent_directory,
+            parse_markdown,
+            save_file,
             create_new_file,
             create_new_folder,
             delete_item,
-            delete_folder,  // 新增
-            parse_markdown,
-            save_file
+            delete_folder,
+            init_or_load_db,
+            index_files,
+            search_notes
         ])
         .setup(|app| {
             println!("🚀 CheetahNote 正在启动...");
-            println!("📝 Markdown 编辑器已就绪");
-            
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_title("CheetahNote - 极速 Markdown 笔记");
+                let _ = window.set_title("CheetahNote");
             }
-            
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("运行Tauri应用时出错");
 }
 
 fn main() {

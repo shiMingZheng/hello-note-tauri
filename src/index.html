@@ -21,9 +21,24 @@
                 </button>
             </div>
             
+            <!-- 搜索框 -->
+            <div class="search-box" id="search-box">
+                <div class="search-input-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-input" placeholder="搜索笔记..." />
+                    <button id="clear-search-btn" class="clear-search-btn" style="display: none;">✕</button>
+                </div>
+            </div>
+            
+            <!-- 文件列表容器 -->
             <div class="file-list-container">
                 <ul id="file-list" class="file-list">
                     <!-- 文件列表动态生成 -->
+                </ul>
+                
+                <!-- 搜索结果列表 -->
+                <ul id="search-results-list" class="file-list search-results" style="display: none;">
+                    <!-- 搜索结果动态生成 -->
                 </ul>
             </div>
         </aside>
@@ -54,8 +69,8 @@
                         <p>< 50MB 内存占用</p>
                     </div>
                     <div class="feature-item">
-                        <h3>📝 本地优先</h3>
-                        <p>所有数据本地存储</p>
+                        <h3>🔍 全文搜索</h3>
+                        <p>快速查找任意内容</p>
                     </div>
                 </div>
                 
@@ -64,82 +79,49 @@
                     <ol>
                         <li>点击左侧 "📂 打开文件夹" 按钮</li>
                         <li>选择你的笔记文件夹</li>
+                        <li>使用搜索框查找笔记</li>
                         <li>右键点击文件夹创建新笔记</li>
                         <li>开始编辑你的 Markdown 笔记</li>
-                        <li>使用 Ctrl/Cmd + S 保存文件</li>
                     </ol>
                 </div>
             </div>
             
             <!-- 编辑器区域 -->
-            <div id="editor-wrapper">
-                <div class="editor-toolbar">
-                    <button id="edit-mode-btn" class="toolbar-btn active">
-                        ✏️ 编辑
-                    </button>
-                    <button id="preview-mode-btn" class="toolbar-btn">
-                        👁️ 预览
-                    </button>
-                    <div style="flex: 1;"></div>
-                    <span style="color: #6c757d; font-size: 13px; line-height: 32px;">
-                        Ctrl/Cmd + S 保存
-                    </span>
+            <div id="editor-wrapper" style="display: none;">
+                <div class="editor-header">
+                    <h2 id="file-title">无标题</h2>
+                    <div class="editor-actions">
+                        <button id="edit-mode-btn" class="mode-btn active">📝 编辑</button>
+                        <button id="preview-mode-btn" class="mode-btn">👁️ 预览</button>
+                        <button id="save-btn" class="save-btn">💾 保存</button>
+                    </div>
                 </div>
                 
-                <div class="editor-content">
-                    <textarea 
-                        id="markdown-editor" 
-                        placeholder="在这里开始编写你的 Markdown 笔记...
-
-# 标题示例
-## 二级标题
-
-**粗体文本** 和 *斜体文本*
-
-- 列表项 1
-- 列表项 2
-- 列表项 3
-
-```javascript
-// 代码块示例
-console.log('Hello, CheetahNote!');
-```
-
-> 引用文本示例
-"
-                    ></textarea>
-                    <div id="html-preview"></div>
+                <div class="editor-container">
+                    <textarea id="markdown-editor" class="markdown-editor" placeholder="在这里编写 Markdown..."></textarea>
+                    <div id="html-preview" class="html-preview" style="display: none;"></div>
                 </div>
             </div>
         </main>
     </div>
-	
-	<!-- 自定义确认对话框 -->
-<div id="custom-confirm-dialog" class="custom-dialog-overlay">
-    <div class="custom-dialog">
-        <div class="dialog-header">
-            <span id="dialog-icon" class="dialog-icon">⚠️</span>
-            <h3 id="dialog-title">确认操作</h3>
-        </div>
-        <div class="dialog-body">
-            <p id="dialog-message">确定要执行此操作吗？</p>
-        </div>
-        <div class="dialog-footer">
-            <button id="dialog-cancel-btn" class="dialog-btn btn-cancel">取消</button>
-            <button id="dialog-confirm-btn" class="dialog-btn btn-confirm">确定</button>
+
+    <!-- 自定义确认对话框 -->
+    <div id="custom-confirm-dialog" class="custom-dialog-overlay" style="display: none;">
+        <div class="custom-dialog">
+            <div class="dialog-header">
+                <span id="dialog-icon" class="dialog-icon">⚠️</span>
+                <h3 id="dialog-title">确认</h3>
+            </div>
+            <div class="dialog-content">
+                <p id="dialog-message">确定要执行此操作吗？</p>
+            </div>
+            <div class="dialog-actions">
+                <button id="dialog-cancel-btn" class="btn-secondary">取消</button>
+                <button id="dialog-confirm-btn" class="btn-danger">确认</button>
+            </div>
         </div>
     </div>
-</div>
 
-    <!-- 延迟加载脚本 -->
-    <script>
-        window.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => {
-                const script = document.createElement('script');
-                script.src = 'main.js';
-                document.body.appendChild(script);
-            }, 100);
-        });
-    </script>
+    <script src="main.js"></script>
 </body>
 </html>
