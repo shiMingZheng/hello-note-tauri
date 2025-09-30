@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CheetahNote - 极速笔记</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>📁 文件浏览</h2>
+            </div>
+            
+            <div class="sidebar-actions">
+                <button id="open-folder-btn" class="btn-primary">
+                    📂 打开文件夹
+                </button>
+            </div>
+            
+            <div class="file-list-container">
+                <ul id="file-list" class="file-list">
+                    <!-- 文件列表将在这里动态生成 -->
+                </ul>
+            </div>
+        </aside>
+
+        <!-- 右键菜单 -->
+        <div id="context-menu" class="context-menu">
+            <ul>
+                <li id="new-note-btn" class="folder-action">📄 新建笔记</li>
+                <li id="new-folder-btn" class="folder-action">📁 新建文件夹</li>
+                <li id="delete-file-btn" class="file-action">🗑️ 删除文件</li>
+            </ul>
+        </div>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 欢迎屏幕 -->
+            <div id="welcome-screen" class="welcome-section">
+                <h1>🐆 欢迎使用 CheetahNote</h1>
+                <p>高性能 Markdown 笔记软件</p>
+                
+                <div class="features">
+                    <div class="feature-item">
+                        <h3>⚡ 极速启动</h3>
+                        <p>< 500ms 冷启动时间</p>
+                    </div>
+                    <div class="feature-item">
+                        <h3>🪶 轻量级</h3>
+                        <p>< 50MB 内存占用</p>
+                    </div>
+                    <div class="feature-item">
+                        <h3>📝 本地优先</h3>
+                        <p>所有数据本地存储</p>
+                    </div>
+                </div>
+                
+                <div class="quick-start">
+                    <h2>快速开始</h2>
+                    <ol>
+                        <li>点击左侧 "打开文件夹" 按钮</li>
+                        <li>选择你的笔记文件夹</li>
+                        <li>开始编辑你的 Markdown 笔记</li>
+                    </ol>
+                </div>
+            </div>
+            
+            <!-- 文件内容显示区 -->
+            <div id="content-display" style="display: none;"></div>
+        </main>
+    </div>
+
+    <!-- 延迟加载脚本，确保 Tauri API 已准备好 -->
+    <script>
+        // 等待 Tauri API 准备就绪
+        window.addEventListener('DOMContentLoaded', () => {
+            // 延迟执行以确保 Tauri 已完全初始化
+            setTimeout(() => {
+                const script = document.createElement('script');
+                script.src = 'main.js';
+                document.body.appendChild(script);
+            }, 100);
+        });
+    </script>
+</body>
+</html>
