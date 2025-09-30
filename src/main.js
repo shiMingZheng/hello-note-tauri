@@ -1,6 +1,6 @@
 /**
  * CheetahNote - 高性能 Markdown 笔记软件
- * 主前端脚本 - 自定义确认对话框版本
+ * 优化版：文件夹展开/收起 + 滚动位置修复
  */
 
 console.log('📜 main.js 开始加载...');
@@ -19,11 +19,12 @@ const appState = {
     activeFile: null,
     currentViewMode: 'edit',
     contextTarget: null,
-    hasUnsavedChanges: false
+    hasUnsavedChanges: false,
+    expandedFolders: new Set() // 记录展开的文件夹
 };
 
 /**
- * 自定义确认对话框 - 返回 Promise
+ * 自定义确认对话框
  */
 function showCustomConfirm(title, message, icon = '⚠️') {
     return new Promise((resolve) => {
@@ -33,7 +34,6 @@ function showCustomConfirm(title, message, icon = '⚠️') {
         
         customConfirmDialog.classList.add('show');
         
-        // 确定按钮
         const handleConfirm = () => {
             customConfirmDialog.classList.remove('show');
             dialogConfirmBtn.removeEventListener('click', handleConfirm);
@@ -41,7 +41,6 @@ function showCustomConfirm(title, message, icon = '⚠️') {
             resolve(true);
         };
         
-        // 取消按钮
         const handleCancel = () => {
             customConfirmDialog.classList.remove('show');
             dialogConfirmBtn.removeEventListener('click', handleConfirm);
@@ -52,7 +51,6 @@ function showCustomConfirm(title, message, icon = '⚠️') {
         dialogConfirmBtn.addEventListener('click', handleConfirm);
         dialogCancelBtn.addEventListener('click', handleCancel);
         
-        // ESC 键取消
         const handleEsc = (e) => {
             if (e.key === 'Escape') {
                 handleCancel();
@@ -108,7 +106,6 @@ async function initApp() {
         
         console.log('✅ Tauri API 已导入');
         
-        // 获取 DOM 元素
         openFolderBtn = document.getElementById('open-folder-btn');
         fileListElement = document.getElementById('file-list');
         welcomeScreen = document.getElementById('welcome-screen');
@@ -122,7 +119,6 @@ async function initApp() {
         newFolderBtn = document.getElementById('new-folder-btn');
         deleteFileBtn = document.getElementById('delete-file-btn');
         
-        // 自定义对话框元素
         customConfirmDialog = document.getElementById('custom-confirm-dialog');
         dialogTitle = document.getElementById('dialog-title');
         dialogMessage = document.getElementById('dialog-message');
@@ -136,7 +132,6 @@ async function initApp() {
         
         console.log('✅ DOM 元素已找到');
         
-        // 绑定事件
         openFolderBtn.addEventListener('click', handleOpenFolder);
         editModeBtn.addEventListener('click', () => switchViewMode('edit'));
         previewModeBtn.addEventListener('click', () => switchViewMode('preview'));
@@ -145,7 +140,6 @@ async function initApp() {
         
         initContextMenu();
         
-        // 点击对话框外部关闭
         customConfirmDialog.addEventListener('click', (e) => {
             if (e.target === customConfirmDialog) {
                 customConfirmDialog.classList.remove('show');
@@ -259,6 +253,7 @@ async function handleOpenFolder() {
         
         appState.rootPath = selectedPath;
         appState.currentPath = selectedPath;
+        appState.expandedFolders.clear(); // 清空展开状态
         
         await loadFolderTree(selectedPath);
         
@@ -292,7 +287,7 @@ async function loadFolderTree(path) {
 }
 
 /**
- * 渲染文件树
+ * 渲染文件树 - 支持展开/收起
  */
 function renderFileTree(files) {
     if (!files || files.length === 0) {
@@ -303,6 +298,14 @@ function renderFileTree(files) {
     fileListElement.innerHTML = '';
     
     files.forEach((file, index) => {
+        // 检查父文件夹是否折叠
+        const parentPath = file.path.substring(0, file.path.lastIndexOf('\\') || file.path.lastIndexOf('/'));
+        const isParentCollapsed = file.level > 0 && !appState.expandedFolders.has(parentPath);
+        
+        if (isParentCollapsed) {
+            return; // 父文件夹折叠，不显示此项
+        }
+        
         const li = document.createElement('li');
         li.className = 'file-item';
         li.dataset.index = index;
@@ -312,15 +315,27 @@ function renderFileTree(files) {
         const indent = file.level * 20;
         li.style.paddingLeft = `${indent + 10}px`;
         
-        const icon = file.is_dir ? '📁' : '📄';
+        // 文件夹展开/收起图标
+        let icon;
+        if (file.is_dir) {
+            const isExpanded = appState.expandedFolders.has(file.path);
+            icon = isExpanded ? '📂' : '📁';
+            li.classList.add('folder');
+            if (isExpanded) {
+                li.classList.add('expanded');
+            }
+        } else {
+            icon = '📄';
+        }
+        
         li.textContent = `${icon} ${file.name}`;
         
         if (file.path === appState.activeFilePath) {
             li.classList.add('active');
         }
         
-        // 文件和文件夹都可以点击
-        li.addEventListener('click', () => {
+        // 绑定点击事件
+        li.addEventListener('click', (e) => {
             if (file.is_dir) {
                 handleFolderClick(file, index);
             } else {
@@ -338,7 +353,6 @@ function renderFileTree(files) {
 async function handleFileClick(file, index) {
     console.log('📄 点击文件:', file.name);
     
-    // 检查未保存的更改
     if (appState.hasUnsavedChanges) {
         const confirmed = await showCustomConfirm(
             '未保存的更改',
@@ -354,7 +368,7 @@ async function handleFileClick(file, index) {
     const allItems = fileListElement.querySelectorAll('.file-item');
     allItems.forEach(item => item.classList.remove('active'));
     
-    const targetItem = fileListElement.children[index];
+    const targetItem = fileListElement.querySelector(`[data-path="${file.path}"]`);
     if (targetItem) {
         targetItem.classList.add('active');
     }
@@ -363,22 +377,31 @@ async function handleFileClick(file, index) {
 }
 
 /**
- * 处理文件夹点击
+ * 处理文件夹点击 - 展开/收起
  */
 function handleFolderClick(folder, index) {
     console.log('📁 点击文件夹:', folder.name);
     
-    // 更新选中状态
-    const allItems = fileListElement.querySelectorAll('.file-item');
-    allItems.forEach(item => item.classList.remove('active'));
+    const isExpanded = appState.expandedFolders.has(folder.path);
     
-    const targetItem = fileListElement.children[index];
+    if (isExpanded) {
+        // 收起文件夹
+        appState.expandedFolders.delete(folder.path);
+        console.log('📁 收起文件夹:', folder.name);
+    } else {
+        // 展开文件夹
+        appState.expandedFolders.add(folder.path);
+        console.log('📂 展开文件夹:', folder.name);
+    }
+    
+    // 重新渲染文件树
+    renderFileTree(appState.files);
+    
+    // 保持选中状态
+    const targetItem = fileListElement.querySelector(`[data-path="${folder.path}"]`);
     if (targetItem) {
         targetItem.classList.add('active');
     }
-    
-    // 关闭编辑器，显示欢迎屏幕
-    clearEditor();
 }
 
 /**
@@ -398,7 +421,7 @@ function clearEditor() {
 }
 
 /**
- * 加载文件到编辑器
+ * 加载文件到编辑器 - 修复滚动位置
  */
 async function loadFileToEditor(file) {
     try {
@@ -423,7 +446,14 @@ async function loadFileToEditor(file) {
         editModeBtn.classList.add('active');
         previewModeBtn.classList.remove('active');
         
+        // 🔧 修复：滚动到顶部
+        markdownEditor.scrollTop = 0;
+        
+        // 聚焦编辑器并将光标移到开头
         markdownEditor.focus();
+        markdownEditor.setSelectionRange(0, 0);
+        
+        console.log('✅ 编辑器已滚动到顶部');
         
     } catch (error) {
         console.error('❌ 读取文件失败:', error);
@@ -458,13 +488,20 @@ async function switchViewMode(mode) {
         htmlPreview.style.display = 'none';
         editModeBtn.classList.add('active');
         previewModeBtn.classList.remove('active');
+        
+        // 编辑模式也滚动到顶部
+        markdownEditor.scrollTop = 0;
         markdownEditor.focus();
     } else {
         markdownEditor.style.display = 'none';
         htmlPreview.style.display = 'block';
         editModeBtn.classList.remove('active');
         previewModeBtn.classList.add('active');
+        
         await updatePreview();
+        
+        // 预览模式滚动到顶部
+        htmlPreview.scrollTop = 0;
     }
 }
 
@@ -537,6 +574,9 @@ async function handleCreateNote() {
         console.log('✅ 笔记创建成功:', fullFileName);
         showSuccessMessage('笔记已创建: ' + fullFileName);
         
+        // 确保父文件夹展开
+        appState.expandedFolders.add(targetPath);
+        
         await loadFolderTree(appState.rootPath);
         
     } catch (error) {
@@ -568,6 +608,9 @@ async function handleCreateFolder() {
         console.log('✅ 文件夹创建成功:', folderName);
         showSuccessMessage('文件夹已创建: ' + folderName);
         
+        // 确保父文件夹展开
+        appState.expandedFolders.add(targetPath);
+        
         await loadFolderTree(appState.rootPath);
         
     } catch (error) {
@@ -577,7 +620,7 @@ async function handleCreateFolder() {
 }
 
 /**
- * 处理删除文件或文件夹 - 使用自定义确认对话框
+ * 处理删除文件或文件夹
  */
 async function handleDeleteFile() {
     hideContextMenu();
@@ -590,9 +633,8 @@ async function handleDeleteFile() {
     }
     
     const itemType = target.isDir ? '文件夹' : '文件';
-    const itemName = target.name.replace(/^[📁📄]\s*/, '');
+    const itemName = target.name.replace(/^[📁📂📄]\s*/, '');
     
-    // 构建确认消息
     let title, message, icon;
     
     if (target.isDir) {
@@ -607,7 +649,6 @@ async function handleDeleteFile() {
     
     console.log('🔔 显示自定义确认对话框');
     
-    // 使用自定义确认对话框
     const confirmed = await showCustomConfirm(title, message, icon);
     
     console.log('用户确认结果:', confirmed);
@@ -617,7 +658,6 @@ async function handleDeleteFile() {
         return;
     }
     
-    // 用户确认后执行删除
     await performDelete(target, itemType, itemName);
 }
 
@@ -639,7 +679,6 @@ async function performDelete(target, itemType, itemName) {
         console.log(`✅ ${itemType}删除成功:`, itemName);
         showSuccessMessage(`${itemType}已删除: ${itemName}`);
         
-        // 如果删除的是当前打开的文件或其父文件夹，清空编辑器
         if (!target.isDir && appState.activeFilePath === target.path) {
             clearEditor();
         } else if (target.isDir && appState.activeFilePath && 
@@ -647,7 +686,6 @@ async function performDelete(target, itemType, itemName) {
             clearEditor();
         }
         
-        // 刷新文件树
         await loadFolderTree(appState.rootPath);
         
     } catch (error) {
@@ -726,7 +764,7 @@ if (document.readyState === 'loading') {
     initApp();
 }
 
-// 导出到全局（用于调试）
+// 导出到全局
 window.CheetahNote = {
     appState,
     handleOpenFolder,
