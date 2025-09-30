@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use pulldown_cmark::{html, Options, Parser};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -45,11 +46,58 @@ pub struct FileInfo {
     pub name: String,
     pub path: String,
     pub is_dir: bool,
-    pub level: usize,  // 新增：目录层级
-    pub is_expanded: bool,  // 新增：是否展开
+    pub level: usize,
+    pub is_expanded: bool,
 }
 
-// 问候命令
+// ========================================
+// 核心 Markdown 功能命令
+// ========================================
+
+/// Markdown 转 HTML 命令 - 极速解析
+#[tauri::command]
+fn parse_markdown(markdown: String) -> Result<String, String> {
+    // 配置 pulldown-cmark 选项以支持更多 Markdown 特性
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_TABLES);
+    options.insert(Options::ENABLE_FOOTNOTES);
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    options.insert(Options::ENABLE_TASKLISTS);
+    options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
+    
+    // 创建解析器
+    let parser = Parser::new_ext(&markdown, options);
+    
+    // 转换为 HTML
+    let mut html_output = String::new();
+    html::push_html(&mut html_output, parser);
+    
+    Ok(html_output)
+}
+
+/// 保存文件命令
+#[tauri::command]
+async fn save_file(path: String, content: String) -> Result<(), String> {
+    let file_path = PathBuf::from(&path);
+    
+    // 验证路径
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            return Err(format!("父目录不存在: {:?}", parent));
+        }
+    }
+    
+    // 写入文件
+    fs::write(&file_path, content)
+        .map_err(|e| format!("保存文件失败: {}. 错误: {}", path, e))?;
+    
+    Ok(())
+}
+
+// ========================================
+// 现有的文件系统命令（保持不变）
+// ========================================
+
 #[tauri::command]
 async fn greet(name: String) -> Result<ApiResponse<String>, String> {
     let response = if name.trim().is_empty() {
@@ -61,7 +109,6 @@ async fn greet(name: String) -> Result<ApiResponse<String>, String> {
     Ok(ApiResponse::success(response))
 }
 
-// 获取应用信息命令
 #[tauri::command]
 async fn get_app_info() -> Result<ApiResponse<HashMap<String, String>>, String> {
     let mut info = HashMap::new();
@@ -74,7 +121,6 @@ async fn get_app_info() -> Result<ApiResponse<HashMap<String, String>>, String> 
     Ok(ApiResponse::success(info))
 }
 
-// 检查系统资源使用情况
 #[tauri::command]
 async fn check_performance() -> Result<ApiResponse<HashMap<String, String>>, String> {
     let mut perf = HashMap::new();
@@ -87,7 +133,6 @@ async fn check_performance() -> Result<ApiResponse<HashMap<String, String>>, Str
     Ok(ApiResponse::success(perf))
 }
 
-// 列出目录内容
 #[tauri::command]
 async fn list_dir_contents(path: String) -> Result<Vec<FileInfo>, String> {
     let dir_path = PathBuf::from(&path);
@@ -122,12 +167,11 @@ async fn list_dir_contents(path: String) -> Result<Vec<FileInfo>, String> {
             name: file_name,
             path: file_path,
             is_dir: metadata.is_dir(),
-            level: 0,  // 顶层目录
+            level: 0,
             is_expanded: false,
         });
     }
     
-    // 按文件夹优先、名称排序
     files.sort_by(|a, b| {
         match (a.is_dir, b.is_dir) {
             (true, false) => std::cmp::Ordering::Less,
@@ -139,7 +183,6 @@ async fn list_dir_contents(path: String) -> Result<Vec<FileInfo>, String> {
     Ok(files)
 }
 
-// 递归列出目录树（带层级信息）
 #[tauri::command]
 async fn list_dir_tree(path: String, max_depth: Option<usize>) -> Result<Vec<FileInfo>, String> {
     let dir_path = PathBuf::from(&path);
@@ -152,7 +195,7 @@ async fn list_dir_tree(path: String, max_depth: Option<usize>) -> Result<Vec<Fil
         return Err(format!("路径不是目录: {}", path));
     }
     
-    let max = max_depth.unwrap_or(10); // 默认最大深度10层
+    let max = max_depth.unwrap_or(10);
     let mut result = Vec::new();
     
     fn scan_directory(
@@ -182,7 +225,6 @@ async fn list_dir_tree(path: String, max_depth: Option<usize>) -> Result<Vec<Fil
             items.push((file_name, file_path, is_dir));
         }
         
-        // 排序：文件夹优先
         items.sort_by(|a, b| {
             match (a.2, b.2) {
                 (true, false) => std::cmp::Ordering::Less,
@@ -191,7 +233,6 @@ async fn list_dir_tree(path: String, max_depth: Option<usize>) -> Result<Vec<Fil
             }
         });
         
-        // 添加到结果并递归处理子目录
         for (name, path, is_dir) in items {
             result.push(FileInfo {
                 name: name.clone(),
@@ -215,107 +256,87 @@ async fn list_dir_tree(path: String, max_depth: Option<usize>) -> Result<Vec<Fil
     Ok(result)
 }
 
-// 读取文件内容 - 新增命令
 #[tauri::command]
 async fn read_file_content(path: String) -> Result<String, String> {
     let file_path = PathBuf::from(&path);
     
-    // 验证路径存在
     if !file_path.exists() {
         return Err(format!("文件不存在: {}", path));
     }
     
-    // 验证是文件而不是目录
     if file_path.is_dir() {
         return Err(format!("路径是目录，不是文件: {}", path));
     }
     
-    // 读取文件内容
     fs::read_to_string(&file_path)
         .map_err(|e| format!("读取文件失败: {}. 错误: {}", path, e))
 }
 
-// 获取父目录 - 新增命令
 #[tauri::command]
 async fn get_parent_directory(path: String) -> Result<String, String> {
     let current_path = PathBuf::from(&path);
     
-    // 尝试获取父目录
     match current_path.parent() {
         Some(parent) => {
             let parent_str = parent.to_string_lossy().to_string();
-            // 如果父路径为空（到达根目录），返回原路径
             if parent_str.is_empty() {
                 Ok(path)
             } else {
                 Ok(parent_str)
             }
         },
-        None => Ok(path) // 已经是根目录，返回原路径
+        None => Ok(path)
     }
 }
 
-// 创建新文件
 #[tauri::command]
 async fn create_new_file(dir_path: String, file_name: String) -> Result<String, String> {
     let dir = PathBuf::from(&dir_path);
     
-    // 确保目录存在
     if !dir.exists() || !dir.is_dir() {
         return Err(format!("目标目录不存在: {}", dir_path));
     }
     
-    // 构建完整文件路径
     let file_path = dir.join(&file_name);
     
-    // 检查文件是否已存在
     if file_path.exists() {
         return Err(format!("文件已存在: {}", file_name));
     }
     
-    // 创建文件
     fs::File::create(&file_path)
         .map_err(|e| format!("创建文件失败: {}", e))?;
     
     Ok(file_path.to_string_lossy().to_string())
 }
 
-// 创建新文件夹
 #[tauri::command]
 async fn create_new_folder(parent_path: String, folder_name: String) -> Result<String, String> {
     let parent = PathBuf::from(&parent_path);
     
-    // 确保父目录存在
     if !parent.exists() || !parent.is_dir() {
         return Err(format!("父目录不存在: {}", parent_path));
     }
     
-    // 构建完整文件夹路径
     let folder_path = parent.join(&folder_name);
     
-    // 检查文件夹是否已存在
     if folder_path.exists() {
         return Err(format!("文件夹已存在: {}", folder_name));
     }
     
-    // 创建文件夹
     fs::create_dir(&folder_path)
         .map_err(|e| format!("创建文件夹失败: {}", e))?;
     
     Ok(folder_path.to_string_lossy().to_string())
 }
 
-// 删除项目（文件）
 #[tauri::command]
 async fn delete_item(path: String) -> Result<(), String> {
     let item_path = PathBuf::from(&path);
     
-    // 验证路径存在
     if !item_path.exists() {
         return Err(format!("路径不存在: {}", path));
     }
     
-    // 只处理文件删除
     if item_path.is_file() {
         fs::remove_file(&item_path)
             .map_err(|e| format!("删除文件失败: {}", e))?;
@@ -329,7 +350,7 @@ async fn delete_item(path: String) -> Result<(), String> {
 pub fn run() {
     Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_dialog::init())  // 添加 dialog 插件
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -341,10 +362,14 @@ pub fn run() {
             get_parent_directory,
             create_new_file,
             create_new_folder,
-            delete_item
+            delete_item,
+            // 新增的核心编辑器命令
+            parse_markdown,
+            save_file
         ])
         .setup(|app| {
             println!("🚀 CheetahNote 正在启动...");
+            println!("📝 Markdown 编辑器已就绪");
             
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("CheetahNote - 极速 Markdown 笔记");
