@@ -57,7 +57,6 @@ pub struct FileInfo {
 /// Markdown 转 HTML 命令 - 极速解析
 #[tauri::command]
 fn parse_markdown(markdown: String) -> Result<String, String> {
-    // 配置 pulldown-cmark 选项以支持更多 Markdown 特性
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
     options.insert(Options::ENABLE_FOOTNOTES);
@@ -65,10 +64,8 @@ fn parse_markdown(markdown: String) -> Result<String, String> {
     options.insert(Options::ENABLE_TASKLISTS);
     options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
     
-    // 创建解析器
     let parser = Parser::new_ext(&markdown, options);
     
-    // 转换为 HTML
     let mut html_output = String::new();
     html::push_html(&mut html_output, parser);
     
@@ -80,14 +77,12 @@ fn parse_markdown(markdown: String) -> Result<String, String> {
 async fn save_file(path: String, content: String) -> Result<(), String> {
     let file_path = PathBuf::from(&path);
     
-    // 验证路径
     if let Some(parent) = file_path.parent() {
         if !parent.exists() {
             return Err(format!("父目录不存在: {:?}", parent));
         }
     }
     
-    // 写入文件
     fs::write(&file_path, content)
         .map_err(|e| format!("保存文件失败: {}. 错误: {}", path, e))?;
     
@@ -95,7 +90,7 @@ async fn save_file(path: String, content: String) -> Result<(), String> {
 }
 
 // ========================================
-// 现有的文件系统命令（保持不变）
+// 文件系统命令
 // ========================================
 
 #[tauri::command]
@@ -329,6 +324,7 @@ async fn create_new_folder(parent_path: String, folder_name: String) -> Result<S
     Ok(folder_path.to_string_lossy().to_string())
 }
 
+/// 删除文件命令（仅文件，不含文件夹）
 #[tauri::command]
 async fn delete_item(path: String) -> Result<(), String> {
     let item_path = PathBuf::from(&path);
@@ -342,8 +338,28 @@ async fn delete_item(path: String) -> Result<(), String> {
             .map_err(|e| format!("删除文件失败: {}", e))?;
         Ok(())
     } else {
-        Err("当前只支持删除文件，不支持删除文件夹".to_string())
+        Err("此命令仅支持删除文件".to_string())
     }
+}
+
+/// 递归删除文件夹命令（新增，带确认机制）
+#[tauri::command]
+async fn delete_folder(path: String) -> Result<(), String> {
+    let folder_path = PathBuf::from(&path);
+    
+    if !folder_path.exists() {
+        return Err(format!("路径不存在: {}", path));
+    }
+    
+    if !folder_path.is_dir() {
+        return Err(format!("路径不是文件夹: {}", path));
+    }
+    
+    // 递归删除文件夹及其所有内容
+    fs::remove_dir_all(&folder_path)
+        .map_err(|e| format!("删除文件夹失败: {}", e))?;
+    
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -363,7 +379,7 @@ pub fn run() {
             create_new_file,
             create_new_folder,
             delete_item,
-            // 新增的核心编辑器命令
+            delete_folder,  // 新增
             parse_markdown,
             save_file
         ])
