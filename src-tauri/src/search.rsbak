@@ -73,17 +73,15 @@ pub fn initialize_index(base_path: &Path) -> Result<Arc<Index>> {
     
     // 尝试打开或创建索引
     let index = if index_path.join("meta.json").exists() {
-        // 索引已存在，打开它
         let dir = MmapDirectory::open(&index_path)
             .with_context(|| format!("打开索引目录失败: {}", index_path.display()))?;
         Index::open(dir)
             .with_context(|| "打开现有索引失败")?
     } else {
-        // 创建新索引 - 修复: 使用正确的 API
         let dir = MmapDirectory::open(&index_path)
             .with_context(|| format!("创建索引目录失败: {}", index_path.display()))?;
-    
-			 Index::open_or_create(dir, schema.clone()).with_context(|| "创建索引失败")?
+        Index::create_in_dir(&index_path, schema.clone()).unwrap()
+           // .with_context(|| "创建新索引失败")?
     };
     
     // 注册 Jieba 分词器 - 使用 tantivy 0.24.1 的正确方式
@@ -226,12 +224,7 @@ pub fn delete_document(index: &Index, file_path: &str) -> Result<()> {
     Ok(())
 }
 
-/// 安全地截取字符串（按字符数而不是字节数）
-fn safe_truncate(s: &str, max_chars: usize) -> String {
-    s.chars().take(max_chars).collect()
-}
-
-/// 执行搜索 - 完全修复版
+/// 执行搜索
 pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
     if query.trim().is_empty() {
         return Ok(Vec::new());
@@ -248,7 +241,7 @@ pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
     
     let searcher = reader.searcher();
     
-    // 创建查询解析器
+    // 创建查询解析器（同时搜索标题和内容）
     let query_parser = QueryParser::for_index(
         index,
         vec![fields.title, fields.content],
@@ -259,55 +252,62 @@ pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
         .parse_query(query)
         .with_context(|| format!("解析查询失败: {}", query))?;
     
-    // 执行搜索
+    // 执行搜索（获取前 10 个结果）
     let top_docs = searcher
-        .search(&parsed_query, &TopDocs::with_limit(10))
-        .with_context(|| "执行搜索失败")?;
+        .search(&parsed_query, &TopDocs::with_limit(10)).unwrap();
+        //.with_context(|| "执行搜索失败")?;
     
     // 处理搜索结果
     let mut results = Vec::new();
-    
-    for (_score, doc_address) in top_docs {
-        // 安全获取文档
-        let retrieved_doc: TantivyDocument = match searcher.doc(doc_address) {
-            Ok(doc) => doc,
-            Err(e) => {
-                eprintln!("获取文档失败: {}", e);
-                continue;
-            }
-        };
+    for (_, doc_address) in top_docs {
+        // let doc: TantivyDocument = searcher
+        //     .doc(doc_address)
+        //     .with_context(|| "获取文档失败")?;
         
-        // 安全提取路径
-        let path = retrieved_doc
-            .get_first(fields.path)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        // 提取字段值
+        // let path = doc
+        //     .get_first(fields.path).unwrap()
+        //     .and_then(|v| v.as_str())
+        //     .unwrap_or("")
+        //     .to_string();
+        let doc: TantivyDocument = searcher.doc(doc_address).unwrap();
+       // let doc: TantivyDocument = searcher.doc(doc_address).
+         let val = doc.get_first(fields.path).unwrap();
+        let path = val.as_str().unwrap_or_default().to_string();
         
-        if path.is_empty() {
-            continue;
-        }
+        // let title = doc
+        //     .get_first(fields.title)
+        //     .and_then(|v| v.as_text())
+        //     .unwrap_or("无标题")
+        //     .to_string();
+
+        let title_val = doc.get_first(fields.title).unwrap();
+         let title = title_val.as_str().unwrap_or_default().to_string();
         
-        // 安全提取标题
-        let title = retrieved_doc
-            .get_first(fields.title)
-            .and_then(|v| v.as_str())
-            .unwrap_or("无标题")
-            .to_string();
-        
-        // 安全提取内容
-        let content = retrieved_doc
-            .get_first(fields.content)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        
-        // 生成摘要（安全截取前150个字符）
-        let snippet = if content.chars().count() > 150 {
-            format!("{}...", safe_truncate(&content, 150))
-        } else {
-            content.clone()
-        };
+        // 生成简单预览（前 150 个字符）
+
+        // let snippet = doc
+        //     .get_first(fields.content)
+        //     .and_then(|v| v.as_text())
+        //     .map(|s| {
+        //         let preview = if s.len() > 150 {
+        //             format!("{}...", &s[..150])
+        //         } else {
+        //             s.to_string()
+        //         };
+        //         highlight_keywords(&preview, query)
+        //     })
+        //     .unwrap_or_else(|| "无预览内容".to_string());
+        let snippet_val = doc.get_first(fields.title).unwrap().as_str();
+        let snippet = snippet_val .map(|s| {
+                    let preview = if s.len() > 150 {
+                        format!("{}...", &s[..150])
+                    } else {
+                        s.to_string()
+                    };
+                    highlight_keywords(&preview, query)
+                })
+                .unwrap_or_else(|| "无预览内容".to_string());
         
         results.push(SearchResult {
             path,
@@ -316,17 +316,32 @@ pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
         });
     }
     
-    println!("🔍 搜索完成，找到 {} 个结果", results.len());
     Ok(results)
 }
 
-/// 从 Markdown 内容中提取标题
+/// 从内容中提取标题
 fn extract_title_from_content(content: &str) -> Option<String> {
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("# ") {
-            return Some(trimmed[2..].trim().to_string());
+    content
+        .lines()
+        .find(|line| line.starts_with("# "))
+        .map(|line| line[2..].trim().to_string())
+}
+
+/// 高亮关键词
+fn highlight_keywords(text: &str, query: &str) -> String {
+    let mut result = text.to_string();
+    let query_lower = query.to_lowercase();
+    let text_lower = text.to_lowercase();
+    
+    if let Some(pos) = text_lower.find(&query_lower) {
+        let end = pos + query.len();
+        if end <= text.len() {
+            let before = &text[..pos];
+            let matched = &text[pos..end];
+            let after = &text[end..];
+            result = format!("{}<b>{}</b>{}", before, matched, after);
         }
     }
-    None
+    
+    result
 }
