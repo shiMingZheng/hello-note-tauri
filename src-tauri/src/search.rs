@@ -1,7 +1,8 @@
 // src-tauri/src/search.rs
-// Tantivy 全文搜索引擎模块
+// Tantivy 全文搜索引擎模块 - 修复版
 
 use anyhow::{Context, Result};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -9,10 +10,15 @@ use std::sync::Arc;
 use tantivy::collector::TopDocs;
 use tantivy::directory::MmapDirectory;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, STRING, STORED};
-use tantivy::{doc, Index, IndexWriter, ReloadPolicy, SnippetGenerator, TantivyDocument};
-use tantivy_jieba::JiebaTokenizer;
-use jieba_rs::Jieba;
+use tantivy::schema::{Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, STORED, STRING};
+use tantivy::tokenizer::{LowerCaser, RemoveLongFilter, TextAnalyzer};
+use tantivy::{doc, Index, IndexWriter, ReloadPolicy, TantivyDocument};
+use tantivy::schema::Value;
+
+// 使用全局静态 Jieba 分词器
+static JIEBA_TOKENIZER: Lazy<tantivy_jieba::JiebaTokenizer> = Lazy::new(|| {
+    tantivy_jieba::JiebaTokenizer {}
+});
 
 // 搜索结果结构体
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,16 +42,15 @@ pub fn build_schema() -> (Schema, SchemaFields) {
     // 路径字段：存储但不索引（用作唯一标识）
     let path = schema_builder.add_text_field("path", STRING | STORED);
     
-    // 标题字段：使用中文分词器
+    // 标题和内容字段：使用中文分词器
     let text_field_indexing = TextFieldIndexing::default()
         .set_tokenizer("jieba")
         .set_index_option(IndexRecordOption::WithFreqsAndPositions);
     let text_options = TextOptions::default()
         .set_indexing_options(text_field_indexing)
         .set_stored();
-    let title = schema_builder.add_text_field("title", text_options.clone());
     
-    // 内容字段：使用中文分词器
+    let title = schema_builder.add_text_field("title", text_options.clone());
     let content = schema_builder.add_text_field("content", text_options);
     
     let schema = schema_builder.build();
@@ -68,23 +73,24 @@ pub fn initialize_index(base_path: &Path) -> Result<Arc<Index>> {
     
     // 尝试打开或创建索引
     let index = if index_path.join("meta.json").exists() {
-        // 索引已存在，打开它
         let dir = MmapDirectory::open(&index_path)
             .with_context(|| format!("打开索引目录失败: {}", index_path.display()))?;
         Index::open(dir)
             .with_context(|| "打开现有索引失败")?
     } else {
-        // 创建新索引
         let dir = MmapDirectory::open(&index_path)
             .with_context(|| format!("创建索引目录失败: {}", index_path.display()))?;
-        Index::create(dir, schema.clone())
-            .with_context(|| "创建新索引失败")?
+        Index::create_in_dir("index_dir", schema.clone()).unwrap()
+           // .with_context(|| "创建新索引失败")?
     };
     
-    // 注册 Jieba 分词器
-    let jieba = Jieba::new();
-    let tokenizer = JiebaTokenizer::new(jieba);
-    index.tokenizers().register("jieba", tokenizer);
+    // 注册 Jieba 分词器 - 使用 tantivy 0.24.1 的正确方式
+    let analyzer = TextAnalyzer::builder(JIEBA_TOKENIZER.clone())
+        .filter(RemoveLongFilter::limit(40))
+        .filter(LowerCaser)
+        .build();
+    
+    index.tokenizers().register("jieba", analyzer);
     
     println!("✅ Tantivy 索引已初始化: {}", index_path.display());
     
@@ -106,7 +112,7 @@ pub fn index_documents(index: &Index, base_path: &Path) -> Result<()> {
     
     // 递归索引文件
     let mut count = 0;
-    index_directory_recursive(&mut index_writer, &fields, base_path, base_path, &mut count)?;
+    index_directory_recursive(&mut index_writer, &fields, base_path, &mut count)?;
     
     // 提交索引
     index_writer.commit()
@@ -121,7 +127,6 @@ fn index_directory_recursive(
     writer: &mut IndexWriter<TantivyDocument>,
     fields: &SchemaFields,
     dir: &Path,
-    _base_path: &Path,
     count: &mut usize,
 ) -> Result<()> {
     let entries = fs::read_dir(dir)
@@ -143,7 +148,7 @@ fn index_directory_recursive(
         
         if metadata.is_dir() {
             // 递归处理子目录
-            index_directory_recursive(writer, fields, &path, _base_path, count)?;
+            index_directory_recursive(writer, fields, &path, count)?;
         } else if path.extension().and_then(|s| s.to_str()) == Some("md") {
             // 索引 Markdown 文件
             index_single_document(writer, fields, &path)?;
@@ -176,7 +181,7 @@ pub fn index_single_document(
     
     // 先删除旧文档（如果存在）
     let path_term = tantivy::Term::from_field_text(fields.path, &path_str);
-    writer.delete_term(path_term.clone());
+    writer.delete_term(path_term);
     
     // 添加新文档
     let doc = doc!(
@@ -249,47 +254,52 @@ pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
     
     // 执行搜索（获取前 10 个结果）
     let top_docs = searcher
-        .search(&parsed_query, &TopDocs::with_limit(10))
-        .with_context(|| "执行搜索失败")?;
-    
-    // 创建片段生成器
-    let mut snippet_generator = SnippetGenerator::create(
-        &searcher,
-        &parsed_query,
-        fields.content,
-    )
-    .with_context(|| "创建片段生成器失败")?;
+        .search(&parsed_query, &TopDocs::with_limit(10)).unwrap();
+        //.with_context(|| "执行搜索失败")?;
     
     // 处理搜索结果
     let mut results = Vec::new();
-    for (_score, doc_address) in top_docs {
-        let doc: TantivyDocument = searcher
-            .doc(doc_address)
-            .with_context(|| "获取文档失败")?;
+    for (_, doc_address) in top_docs {
+        // let doc: TantivyDocument = searcher
+        //     .doc(doc_address)
+        //     .with_context(|| "获取文档失败")?;
         
         // 提取字段值
-        let path = doc
-            .get_first(fields.path)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        // let path = doc
+        //     .get_first(fields.path).unwrap()
+        //     .and_then(|v| v.as_str())
+        //     .unwrap_or("")
+        //     .to_string();
+        let doc: TantivyDocument = searcher.doc(doc_address).unwrap();
+       // let doc: TantivyDocument = searcher.doc(doc_address).
+         let val = doc.get_first(fields.path).unwrap();
+        let path = val.as_str().unwrap_or_default().to_string();
         
-        let title = doc
-            .get_first(fields.title)
-            .and_then(|v| v.as_str())
-            .unwrap_or("无标题")
-            .to_string();
+        // let title = doc
+        //     .get_first(fields.title)
+        //     .and_then(|v| v.as_text())
+        //     .unwrap_or("无标题")
+        //     .to_string();
+
+        let title_val = doc.get_first(fields.title).unwrap();
+         let title = title_val.as_str().unwrap_or_default().to_string();
         
-        // 生成高亮片段
-        snippet_generator.set_max_num_chars(150);
-        let snippet = snippet_generator.snippet_from_doc(&doc);
-        let snippet_html = snippet.to_html();
-        
-        // 如果没有生成片段，使用内容的前 150 个字符
-        let snippet_text = if snippet_html.is_empty() {
-            doc.get_first(fields.content)
-                .and_then(|v| v.as_str())
-                .map(|s| {
+        // 生成简单预览（前 150 个字符）
+
+        // let snippet = doc
+        //     .get_first(fields.content)
+        //     .and_then(|v| v.as_text())
+        //     .map(|s| {
+        //         let preview = if s.len() > 150 {
+        //             format!("{}...", &s[..150])
+        //         } else {
+        //             s.to_string()
+        //         };
+        //         highlight_keywords(&preview, query)
+        //     })
+        //     .unwrap_or_else(|| "无预览内容".to_string());
+        let snippet_val = doc.get_first(fields.title).unwrap().as_str();
+        let snippet = snippet_val .map(|s| {
                     let preview = if s.len() > 150 {
                         format!("{}...", &s[..150])
                     } else {
@@ -297,15 +307,12 @@ pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
                     };
                     highlight_keywords(&preview, query)
                 })
-                .unwrap_or_else(|| "无预览内容".to_string())
-        } else {
-            snippet_html
-        };
+                .unwrap_or_else(|| "无预览内容".to_string());
         
         results.push(SearchResult {
             path,
             title,
-            snippet: snippet_text,
+            snippet,
         });
     }
     
