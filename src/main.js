@@ -1,5 +1,5 @@
 // src/main.js
-// CheetahNote - 前端主逻辑（记忆功能 + 懒加载优化版）
+// CheetahNote - 前端主逻辑（虚拟滚动优化版）
 
 'use strict';
 
@@ -10,6 +10,15 @@ console.log('📜 main.js 开始加载...');
 // ========================================
 const { invoke } = window.__TAURI__.core;
 const { open } = window.__TAURI__.dialog;
+
+// ========================================
+// 虚拟滚动配置
+// ========================================
+const VIRTUAL_SCROLL_CONFIG = {
+    ITEM_HEIGHT: 28,           // 每个列表项的固定高度（像素）
+    BUFFER_SIZE: 5,            // 上下缓冲区的额外渲染项数
+    THROTTLE_DELAY: 16         // 滚动事件节流延迟（约60fps）
+};
 
 // ========================================
 // 本地存储键名
@@ -34,8 +43,15 @@ const appState = {
     contextTarget: null,
     expandedFolders: new Set(),
     indexInitialized: false,
-    fullFileTree: [],  // 完整文件树缓存
-    isLoading: false
+    fullFileTree: [],          // 完整文件树缓存
+    isLoading: false,
+    // 虚拟滚动状态
+    virtualScroll: {
+        visibleItems: [],      // 当前应该可见的所有项（扁平化）
+        renderedRange: { start: 0, end: 0 },  // 当前渲染的范围
+        scrollTop: 0,          // 当前滚动位置
+        containerHeight: 0     // 容器可视高度
+    }
 };
 
 // ========================================
@@ -45,7 +61,9 @@ let openFolderBtn;
 let searchBox;
 let searchInput;
 let clearSearchBtn;
-let fileListElement;
+let fileListContainer;         // 滚动容器
+let fileListElement;           // 实际的 ul 列表
+let fileListSpacer;            // 撑开滚动条的哨兵元素
 let searchResultsList;
 let welcomeScreen;
 let editorWrapper;
@@ -84,9 +102,9 @@ async function initializeApp() {
     console.log('⚙️ 开始初始化...');
     
     initDOMElements();
+    setupVirtualScroll();
     bindEvents();
     
-    // 恢复上次的状态
     await restoreLastSession();
     
     console.log('✅ CheetahNote 初始化完成');
@@ -102,6 +120,7 @@ function initDOMElements() {
     searchBox = document.getElementById('search-box');
     searchInput = document.getElementById('search-input');
     clearSearchBtn = document.getElementById('clear-search-btn');
+    fileListContainer = document.querySelector('.file-list-container');
     fileListElement = document.getElementById('file-list');
     searchResultsList = document.getElementById('search-results-list');
     welcomeScreen = document.getElementById('welcome-screen');
@@ -117,11 +136,61 @@ function initDOMElements() {
     deleteFileBtn = document.getElementById('delete-file-btn');
     customConfirmDialog = document.getElementById('custom-confirm-dialog');
     
-    if (!openFolderBtn || !fileListElement) {
+    if (!openFolderBtn || !fileListElement || !fileListContainer) {
         throw new Error('必要的 DOM 元素未找到');
     }
     
     console.log('✅ DOM 元素已初始化');
+}
+
+/**
+ * 设置虚拟滚动
+ */
+function setupVirtualScroll() {
+    console.log('🎯 设置虚拟滚动...');
+    
+    // 创建哨兵元素（撑开滚动条）
+    fileListSpacer = document.createElement('div');
+    fileListSpacer.id = 'file-list-spacer';
+    fileListSpacer.style.cssText = 'height: 0; width: 1px;';
+    fileListContainer.insertBefore(fileListSpacer, fileListElement);
+    
+    // 设置列表为绝对定位
+    fileListElement.style.position = 'absolute';
+    fileListElement.style.top = '0';
+    fileListElement.style.left = '0';
+    fileListElement.style.right = '0';
+    fileListElement.style.willChange = 'transform';
+    
+    // 监听滚动事件（节流处理）
+    let scrollTimeout = null;
+    fileListContainer.addEventListener('scroll', () => {
+        if (scrollTimeout) {
+            clearTimeout(scrollTimeout);
+        }
+        
+        scrollTimeout = setTimeout(() => {
+            handleVirtualScroll();
+        }, VIRTUAL_SCROLL_CONFIG.THROTTLE_DELAY);
+    }, { passive: true });
+    
+    // 监听窗口大小变化
+    let resizeTimeout = null;
+    window.addEventListener('resize', () => {
+        if (resizeTimeout) {
+            clearTimeout(resizeTimeout);
+        }
+        
+        resizeTimeout = setTimeout(() => {
+            appState.virtualScroll.containerHeight = fileListContainer.clientHeight;
+            handleVirtualScroll();
+        }, 100);
+    });
+    
+    // 初始化容器高度
+    appState.virtualScroll.containerHeight = fileListContainer.clientHeight;
+    
+    console.log('✅ 虚拟滚动已设置');
 }
 
 /**
@@ -152,6 +221,10 @@ function bindEvents() {
         }
     });
     
+    // 使用事件委托处理文件列表点击
+    fileListElement.addEventListener('click', handleFileListClick);
+    fileListElement.addEventListener('contextmenu', handleFileListContextMenu);
+    
     console.log('✅ 事件绑定完成');
 }
 
@@ -167,36 +240,108 @@ function debounce(func, wait) {
 }
 
 // ========================================
-// 本地存储管理
+// 虚拟滚动核心逻辑
 // ========================================
 
 /**
- * 保存上次打开的文件夹
+ * 处理虚拟滚动
+ * 这是虚拟滚动的核心函数，根据滚动位置计算并渲染可见项
  */
+function handleVirtualScroll() {
+    const { visibleItems } = appState.virtualScroll;
+    
+    if (!visibleItems || visibleItems.length === 0) {
+        return;
+    }
+    
+    const scrollTop = fileListContainer.scrollTop;
+    const containerHeight = appState.virtualScroll.containerHeight;
+    const itemHeight = VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT;
+    const bufferSize = VIRTUAL_SCROLL_CONFIG.BUFFER_SIZE;
+    
+    // 计算可视范围的起始和结束索引
+    const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - bufferSize);
+    const endIndex = Math.min(
+        visibleItems.length,
+        Math.ceil((scrollTop + containerHeight) / itemHeight) + bufferSize
+    );
+    
+    // 更新状态
+    appState.virtualScroll.scrollTop = scrollTop;
+    appState.virtualScroll.renderedRange = { start: startIndex, end: endIndex };
+    
+    // 渲染可见项
+    renderVisibleItems(startIndex, endIndex);
+    
+    // 调整列表位置
+    const offsetY = startIndex * itemHeight;
+    fileListElement.style.transform = `translateY(${offsetY}px)`;
+}
+
+/**
+ * 渲染可见项
+ * @param {number} startIndex - 起始索引
+ * @param {number} endIndex - 结束索引
+ */
+function renderVisibleItems(startIndex, endIndex) {
+    const { visibleItems } = appState.virtualScroll;
+    const fragment = document.createDocumentFragment();
+    
+    // 只渲染当前视口内的项
+    for (let i = startIndex; i < endIndex; i++) {
+        const item = visibleItems[i];
+        if (!item) continue;
+        
+        const li = createFileTreeItem(item);
+        fragment.appendChild(li);
+    }
+    
+    // 一次性更新 DOM（性能优化）
+    fileListElement.innerHTML = '';
+    fileListElement.appendChild(fragment);
+}
+
+/**
+ * 更新虚拟滚动数据源
+ * 当文件树数据变化时调用此函数
+ */
+function updateVirtualScrollData() {
+    const visibleItems = getVisibleItems(appState.fullFileTree, '', 0);
+    appState.virtualScroll.visibleItems = visibleItems;
+    
+    // 更新哨兵元素高度（撑开滚动条）
+    const totalHeight = visibleItems.length * VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT;
+    fileListSpacer.style.height = `${totalHeight}px`;
+    
+    // 重置滚动位置（可选）
+    // fileListContainer.scrollTop = 0;
+    
+    // 立即渲染
+    handleVirtualScroll();
+    
+    console.log(`📊 虚拟滚动数据已更新: ${visibleItems.length} 项`);
+}
+
+// ========================================
+// 本地存储管理
+// ========================================
+
 function saveLastFolder(folderPath) {
     try {
         localStorage.setItem(STORAGE_KEYS.LAST_FOLDER, folderPath);
-        console.log('💾 已保存文件夹路径:', folderPath);
     } catch (error) {
         console.warn('保存文件夹路径失败:', error);
     }
 }
 
-/**
- * 保存上次打开的文件
- */
 function saveLastFile(filePath) {
     try {
         localStorage.setItem(STORAGE_KEYS.LAST_FILE, filePath);
-        console.log('💾 已保存文件路径:', filePath);
     } catch (error) {
         console.warn('保存文件路径失败:', error);
     }
 }
 
-/**
- * 保存展开的文件夹状态
- */
 function saveExpandedFolders() {
     try {
         const expanded = Array.from(appState.expandedFolders);
@@ -206,32 +351,25 @@ function saveExpandedFolders() {
     }
 }
 
-/**
- * 恢复上次的会话
- */
 async function restoreLastSession() {
     try {
         const lastFolder = localStorage.getItem(STORAGE_KEYS.LAST_FOLDER);
         const lastFile = localStorage.getItem(STORAGE_KEYS.LAST_FILE);
         const expandedStr = localStorage.getItem(STORAGE_KEYS.EXPANDED_FOLDERS);
         
-        // 恢复展开状态
         if (expandedStr) {
             try {
                 const expanded = JSON.parse(expandedStr);
                 appState.expandedFolders = new Set(expanded);
-                console.log('✅ 已恢复展开状态');
             } catch (e) {
                 console.warn('恢复展开状态失败:', e);
             }
         }
         
-        // 如果有上次的文件夹，自动打开
         if (lastFolder) {
             console.log('📂 恢复上次的文件夹:', lastFolder);
             await openFolderByPath(lastFolder);
             
-            // 如果有上次的文件，自动打开
             if (lastFile) {
                 console.log('📄 恢复上次的文件:', lastFile);
                 setTimeout(() => {
@@ -250,9 +388,6 @@ async function restoreLastSession() {
 // 文件夹操作
 // ========================================
 
-/**
- * 处理打开文件夹（用户手动选择）
- */
 async function handleOpenFolder() {
     console.log('📂 打开文件夹对话框...');
     
@@ -272,9 +407,6 @@ async function handleOpenFolder() {
     }
 }
 
-/**
- * 通过路径打开文件夹
- */
 async function openFolderByPath(folderPath) {
     if (appState.isLoading) {
         console.warn('正在加载中，请稍候');
@@ -285,30 +417,18 @@ async function openFolderByPath(folderPath) {
     appState.isLoading = true;
     appState.rootPath = folderPath;
     
-    // 保存到本地存储
     saveLastFolder(folderPath);
     
     try {
-        // 🚀 步骤1: 立即加载文件树（只显示一级）
         await loadFolderTreeLazy(folderPath);
-        
-        // 显示搜索框
         searchBox.classList.add('active');
-        
-        // 显示索引提示
         showIndexingToast('正在后台建立索引，请稍候...');
-        
-        // 🔧 步骤2: 在后台异步初始化索引
         initializeIndexInBackground(folderPath);
-        
     } finally {
         appState.isLoading = false;
     }
 }
 
-/**
- * 在后台异步初始化索引
- */
 async function initializeIndexInBackground(basePath) {
     try {
         console.log('🔧 后台：开始初始化索引...');
@@ -316,12 +436,8 @@ async function initializeIndexInBackground(basePath) {
         await invoke('initialize_index_command', { basePath });
         appState.indexInitialized = true;
         appState.dbInitialized = true;
-        console.log('✅ 后台：索引初始化完成');
         
-        console.log('📝 后台：开始索引文件...');
         await invoke('index_files', { basePath });
-        console.log('✅ 后台：文件索引完成');
-        
         showSuccessMessage('索引建立完成，搜索功能已就绪');
         
     } catch (error) {
@@ -333,49 +449,23 @@ async function initializeIndexInBackground(basePath) {
 }
 
 // ========================================
-// 文件树操作 - 懒加载优化
+// 文件树操作
 // ========================================
 
-/**
- * 懒加载文件树（只加载一级目录）
- */
 async function loadFolderTreeLazy(path) {
-    console.log('🌲 懒加载文件树:', path);
+    console.log('🌲 加载文件树:', path);
     
     try {
-        // 加载完整树结构但缓存起来
         const filesNested = await invoke('list_dir_tree', { path });
         appState.fullFileTree = filesNested;
         
-        // 只渲染一级目录
-        renderLazyFileTree();
+        // 使用虚拟滚动渲染
+        updateVirtualScrollData();
         
     } catch (error) {
         console.error('❌ 加载文件夹失败:', error);
         showError('加载文件夹失败: ' + error);
     }
-}
-
-/**
- * 渲染懒加载的文件树
- */
-function renderLazyFileTree() {
-    fileListElement.innerHTML = '';
-    
-    if (!appState.fullFileTree || appState.fullFileTree.length === 0) {
-        fileListElement.innerHTML = '<li style="text-align: center; color: rgba(255,255,255,0.5);">文件夹为空</li>';
-        return;
-    }
-    
-    // 只渲染需要显示的项目
-    const itemsToRender = getVisibleItems(appState.fullFileTree, '', 0);
-    
-    console.log(`📊 渲染 ${itemsToRender.length} 个项目`);
-    
-    itemsToRender.forEach(item => {
-        const li = createFileTreeItem(item);
-        fileListElement.appendChild(li);
-    });
 }
 
 /**
@@ -395,7 +485,6 @@ function getVisibleItems(nodes, parentPath, level) {
         
         result.push(item);
         
-        // 如果是文件夹且已展开，递归添加子项
         if (node.is_dir && appState.expandedFolders.has(node.path) && node.children) {
             const childItems = getVisibleItems(node.children, node.path, level + 1);
             result.push(...childItems);
@@ -414,11 +503,7 @@ function createFileTreeItem(item) {
     
     let icon;
     if (item.is_dir) {
-        if (item.hasChildren) {
-            icon = appState.expandedFolders.has(item.path) ? '📂' : '📁';
-        } else {
-            icon = '📁';
-        }
+        icon = item.hasChildren && appState.expandedFolders.has(item.path) ? '📂' : '📁';
     } else {
         icon = '📄';
     }
@@ -427,63 +512,84 @@ function createFileTreeItem(item) {
     
     li.textContent = `${indent}${icon} ${name}`;
     li.className = item.is_dir ? 'folder' : 'file';
-    li.style.paddingLeft = `${12 + item.level * 20}px`;
+    li.style.cssText = `
+        height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px;
+        line-height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px;
+        padding-left: ${12 + item.level * 20}px;
+    `;
     
     li.dataset.path = item.path;
     li.dataset.isDir = item.is_dir;
     li.dataset.name = name;
     
-    // 添加点击事件
-    if (item.is_dir) {
-        li.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleFolderLazy(item.path);
-        });
-    } else {
-        li.addEventListener('click', (e) => {
-            e.stopPropagation();
-            loadFileToEditor(item.path);
-        });
+    // 高亮当前文件
+    if (!item.is_dir && item.path === appState.activeFilePath) {
+        li.classList.add('active');
     }
-    
-    // 右键菜单
-    li.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        showContextMenu(e, item);
-    });
     
     return li;
 }
 
 /**
- * 切换文件夹展开/收起（懒加载版本）
+ * 处理文件列表点击（事件委托）
+ */
+function handleFileListClick(e) {
+    const li = e.target.closest('li');
+    if (!li) return;
+    
+    e.stopPropagation();
+    
+    const path = li.dataset.path;
+    const isDir = li.dataset.isDir === 'true';
+    
+    if (isDir) {
+        toggleFolderLazy(path);
+    } else {
+        loadFileToEditor(path);
+    }
+}
+
+/**
+ * 处理文件列表右键菜单（事件委托）
+ */
+function handleFileListContextMenu(e) {
+    const li = e.target.closest('li');
+    if (!li) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const item = {
+        path: li.dataset.path,
+        is_dir: li.dataset.isDir === 'true',
+        name: li.dataset.name
+    };
+    
+    showContextMenu(e, item);
+}
+
+/**
+ * 切换文件夹展开/收起
  */
 function toggleFolderLazy(folderPath) {
     console.log('🔄 切换文件夹:', folderPath);
     
     if (appState.expandedFolders.has(folderPath)) {
         appState.expandedFolders.delete(folderPath);
-        console.log('📁 收起文件夹');
     } else {
         appState.expandedFolders.add(folderPath);
-        console.log('📂 展开文件夹');
     }
     
-    // 保存展开状态
     saveExpandedFolders();
     
-    // 重新渲染（只渲染可见项）
-    renderLazyFileTree();
+    // 更新虚拟滚动数据并重新渲染
+    updateVirtualScrollData();
 }
 
 // ========================================
 // 文件编辑操作
 // ========================================
 
-/**
- * 加载文件到编辑器
- */
 async function loadFileToEditor(path) {
     console.log('📄 加载文件:', path);
     
@@ -494,7 +600,6 @@ async function loadFileToEditor(path) {
         appState.activeFilePath = path;
         appState.hasUnsavedChanges = false;
         
-        // 保存到本地存储
         saveLastFile(path);
         
         const fileName = path.split(/[/\\]/).pop();
@@ -507,13 +612,8 @@ async function loadFileToEditor(path) {
             updatePreview();
         }
         
-        // 高亮当前文件
-        document.querySelectorAll('.file-list li').forEach(li => {
-            li.classList.remove('active');
-            if (li.dataset.path === path) {
-                li.classList.add('active');
-            }
-        });
+        // 更新高亮（重新渲染当前视口）
+        handleVirtualScroll();
         
         console.log('✅ 文件加载成功');
         
@@ -523,9 +623,6 @@ async function loadFileToEditor(path) {
     }
 }
 
-/**
- * 切换视图模式
- */
 function switchViewMode(mode) {
     appState.currentViewMode = mode;
     
@@ -543,9 +640,6 @@ function switchViewMode(mode) {
     }
 }
 
-/**
- * 更新预览
- */
 async function updatePreview() {
     const content = markdownEditor.value;
     
@@ -558,9 +652,6 @@ async function updatePreview() {
     }
 }
 
-/**
- * 处理保存文件
- */
 async function handleSaveFile() {
     if (!appState.activeFilePath) {
         showError('没有打开的文件');
@@ -577,17 +668,14 @@ async function handleSaveFile() {
         appState.hasUnsavedChanges = false;
         showSuccessMessage('保存成功');
         
-        // 保存到本地存储
         saveLastFile(appState.activeFilePath);
         
-        // 后台重新索引
         if (appState.indexInitialized) {
             invoke('index_files', { basePath: appState.rootPath }).catch(err => {
                 console.warn('后台索引失败:', err);
             });
         }
         
-        console.log('✅ 文件保存成功');
     } catch (error) {
         console.error('❌ 保存文件失败:', error);
         showError('保存文件失败: ' + error);
@@ -598,9 +686,6 @@ async function handleSaveFile() {
 // 搜索功能
 // ========================================
 
-/**
- * 处理搜索
- */
 async function handleSearch() {
     const query = searchInput.value.trim();
     
@@ -610,7 +695,6 @@ async function handleSearch() {
     }
     
     if (!appState.indexInitialized) {
-        console.warn('索引未就绪');
         showError('索引尚未建立完成，请稍候再试');
         return;
     }
@@ -619,7 +703,6 @@ async function handleSearch() {
     clearSearchBtn.style.display = 'block';
     
     try {
-        console.log('🔍 搜索:', query);
         appState.isSearching = true;
         
         const results = await invoke('search_notes', { query });
@@ -633,11 +716,8 @@ async function handleSearch() {
     }
 }
 
-/**
- * 显示搜索结果
- */
 function displaySearchResults(results) {
-    fileListElement.style.display = 'none';
+    fileListContainer.style.display = 'none';
     searchResultsList.style.display = 'block';
     searchResultsList.innerHTML = '';
     
@@ -660,26 +740,20 @@ function displaySearchResults(results) {
     });
 }
 
-/**
- * 清除搜索
- */
 function clearSearch() {
     searchInput.value = '';
     appState.searchQuery = '';
     clearSearchBtn.style.display = 'none';
     
-    fileListElement.style.display = 'block';
+    fileListContainer.style.display = 'block';
     searchResultsList.style.display = 'none';
     searchResultsList.innerHTML = '';
 }
 
 // ========================================
-// 右键菜单
+// 右键菜单和文件操作
 // ========================================
 
-/**
- * 显示右键菜单
- */
 function showContextMenu(event, file) {
     event.stopPropagation();
     
@@ -702,16 +776,10 @@ function showContextMenu(event, file) {
     }
 }
 
-/**
- * 隐藏右键菜单
- */
 function hideContextMenu() {
     contextMenu.classList.remove('visible');
 }
 
-/**
- * 显示自定义确认对话框
- */
 function showCustomConfirm(title, message, icon = '⚠️') {
     return new Promise((resolve) => {
         const dialog = customConfirmDialog;
@@ -748,9 +816,6 @@ function showCustomConfirm(title, message, icon = '⚠️') {
     });
 }
 
-/**
- * 处理创建笔记
- */
 async function handleCreateNote() {
     hideContextMenu();
     
@@ -772,16 +837,13 @@ async function handleCreateNote() {
             fileName: fullFileName 
         });
         
-        console.log('✅ 笔记创建成功:', fullFileName);
         showSuccessMessage('笔记已创建: ' + fullFileName);
         
         appState.expandedFolders.add(targetPath);
         saveExpandedFolders();
         
-        // 重新加载文件树
         await loadFolderTreeLazy(appState.rootPath);
         
-        // 后台重新索引
         if (appState.indexInitialized) {
             invoke('index_files', { basePath: appState.rootPath }).catch(err => {
                 console.warn('后台索引失败:', err);
@@ -794,9 +856,6 @@ async function handleCreateNote() {
     }
 }
 
-/**
- * 处理创建文件夹
- */
 async function handleCreateFolder() {
     hideContextMenu();
     
@@ -814,13 +873,11 @@ async function handleCreateFolder() {
             folderName: folderName.trim() 
         });
         
-        console.log('✅ 文件夹创建成功:', folderName);
         showSuccessMessage('文件夹已创建: ' + folderName);
         
         appState.expandedFolders.add(targetPath);
         saveExpandedFolders();
         
-        // 重新加载文件树
         await loadFolderTreeLazy(appState.rootPath);
         
     } catch (error) {
@@ -829,9 +886,6 @@ async function handleCreateFolder() {
     }
 }
 
-/**
- * 处理删除文件或文件夹
- */
 async function handleDeleteFile() {
     hideContextMenu();
     
@@ -860,19 +914,13 @@ async function handleDeleteFile() {
     const confirmed = await showCustomConfirm(title, message, icon);
     
     if (!confirmed) {
-        console.log('ℹ️ 用户取消了删除操作');
         return;
     }
     
     await performDelete(target, itemType, itemName);
 }
 
-/**
- * 执行删除操作
- */
 async function performDelete(target, itemType, itemName) {
-    console.log(`✅ 用户已确认，开始删除${itemType}: ${target.path}`);
-    
     try {
         if (target.isDir) {
             await invoke('delete_folder', { path: target.path });
@@ -880,10 +928,8 @@ async function performDelete(target, itemType, itemName) {
             await invoke('delete_item', { path: target.path });
         }
         
-        console.log(`✅ ${itemType}删除成功:`, itemName);
         showSuccessMessage(`${itemType}已删除: ${itemName}`);
         
-        // 如果删除的是当前打开的文件
         if (appState.activeFilePath === target.path) {
             markdownEditor.value = '';
             appState.activeFilePath = null;
@@ -892,10 +938,8 @@ async function performDelete(target, itemType, itemName) {
             localStorage.removeItem(STORAGE_KEYS.LAST_FILE);
         }
         
-        // 重新加载文件树
         await loadFolderTreeLazy(appState.rootPath);
         
-        // 后台重新索引
         if (appState.indexInitialized) {
             invoke('index_files', { basePath: appState.rootPath }).catch(err => {
                 console.warn('后台索引失败:', err);
@@ -912,13 +956,7 @@ async function performDelete(target, itemType, itemName) {
 // UI 提示函数
 // ========================================
 
-/**
- * 显示索引中提示（不自动消失）
- */
 function showIndexingToast(message) {
-    console.log('ℹ️ ' + message);
-    
-    // 移除之前的索引提示
     const existingToast = document.getElementById('indexing-toast');
     if (existingToast) {
         existingToast.remove();
@@ -949,20 +987,15 @@ function showIndexingToast(message) {
     document.body.appendChild(toast);
 }
 
-/**
- * 显示成功消息
- */
 function showSuccessMessage(message) {
     console.log('✅ ' + message);
     
-    // 移除索引提示
     const indexingToast = document.getElementById('indexing-toast');
     if (indexingToast) {
         indexingToast.style.animation = 'slideOut 0.3s ease-out';
         setTimeout(() => indexingToast.remove(), 300);
     }
     
-    // 显示成功提示
     const toast = document.createElement('div');
     toast.textContent = '✅ ' + message;
     toast.style.cssText = `
@@ -986,9 +1019,6 @@ function showSuccessMessage(message) {
     }, 3000);
 }
 
-/**
- * 显示错误消息
- */
 function showError(message) {
     alert('❌ ' + message);
 }
@@ -997,7 +1027,6 @@ function showError(message) {
 // 样式和动画
 // ========================================
 
-// 添加动画样式
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideIn {
@@ -1036,24 +1065,39 @@ style.textContent = `
         animation: spin 1s linear infinite;
     }
     
-    /* 文件树项目样式优化 */
-    .file-list li {
-        cursor: pointer;
-        transition: background-color 0.15s ease;
+    /* 虚拟滚动优化样式 */
+    .file-list-container {
+        position: relative;
+        overflow-y: auto;
+        overflow-x: hidden;
     }
     
-    .file-list li:hover {
+    #file-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    
+    #file-list li {
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    #file-list li:hover {
         background-color: rgba(255, 255, 255, 0.1);
     }
     
-    .file-list li.active {
+    #file-list li.active {
         background-color: rgba(74, 144, 226, 0.3);
     }
     
-    .file-list li.folder {
+    #file-list li.folder {
         font-weight: 500;
     }
 `;
 document.head.appendChild(style);
 
-console.log('✅ main.js 加载完成');
+console.log('✅ main.js 加载完成（虚拟滚动版）');

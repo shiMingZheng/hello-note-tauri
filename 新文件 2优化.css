@@ -1,0 +1,211 @@
+# 虚拟滚动 CSS 修改说明
+
+## 需要在 styles.css 中添加或修改的样式
+
+### 1. 文件列表容器样式（必需）
+
+在 `.file-list-container` 中添加：
+
+```css
+.file-list-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;  /* 重要：为绝对定位的子元素提供定位上下文 */
+    height: 100%;
+}
+```
+
+### 2. 文件列表样式（必需）
+
+修改 `#file-list` 的样式：
+
+```css
+#file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    /* 以下样式由 JavaScript 动态设置，这里保留作为备注 */
+    /* position: absolute; */
+    /* top: 0; */
+    /* left: 0; */
+    /* right: 0; */
+    /* will-change: transform; */
+}
+```
+
+### 3. 文件列表项样式（必需）
+
+确保每个 li 有固定高度：
+
+```css
+.file-list li {
+    /* 高度由 JavaScript 动态设置（28px） */
+    cursor: pointer;
+    padding: 0 15px;
+    transition: background-color 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+}
+
+.file-list li:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.file-list li.active {
+    background-color: rgba(74, 144, 226, 0.3);
+    font-weight: 500;
+}
+
+.file-list li.folder {
+    font-weight: 500;
+}
+
+.file-list li.file {
+    font-weight: 400;
+}
+```
+
+### 4. 滚动条美化（可选但推荐）
+
+```css
+.file-list-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.file-list-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.file-list-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.file-list-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+```
+
+## 完整的样式文件示例
+
+如果你的 `styles.css` 中还没有这些样式，可以直接添加以下完整代码块：
+
+```css
+/* ========================================
+   文件列表 - 虚拟滚动支持
+   ======================================== */
+
+.file-list-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    height: 100%;
+    background: var(--bg-sidebar);
+}
+
+#file-list-spacer {
+    /* 哨兵元素，由 JavaScript 动态设置高度 */
+    width: 1px;
+}
+
+#file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.file-list li {
+    cursor: pointer;
+    padding: 0 15px;
+    transition: background-color 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+    color: var(--text-light);
+}
+
+.file-list li:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.file-list li.active {
+    background-color: rgba(74, 144, 226, 0.3);
+    font-weight: 500;
+}
+
+.file-list li.folder {
+    font-weight: 500;
+}
+
+.file-list li.file {
+    font-weight: 400;
+}
+
+/* 滚动条美化 */
+.file-list-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.file-list-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.file-list-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.file-list-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* 搜索结果列表 */
+.search-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.search-results li {
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.search-results li:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.search-result-title {
+    color: var(--text-light);
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.search-result-snippet {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+```
+
+## 注意事项
+
+1. **固定高度**: 每个 `<li>` 必须有固定高度（28px），这是虚拟滚动的基础
+2. **相对定位**: `.file-list-container` 必须是 `position: relative`
+3. **绝对定位**: `#file-list` 会被 JavaScript 设置为 `position: absolute`
+4. **不要使用 padding-top/bottom**: 在 li 上使用 `line-height` 而不是 `padding-top/bottom`，以保证精确的高度计算
+
+## 性能优化建议
+
+- 使用 `will-change: transform` 提示浏览器优化动画性能
+- 使用 `user-select: none` 防止文本选择时的性能问题
+- 简化 hover 效果，避免复杂的 CSS 动画
