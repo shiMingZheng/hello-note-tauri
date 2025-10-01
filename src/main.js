@@ -181,7 +181,7 @@ async function handleOpenFolder() {
             appState.rootPath = selected;
             
             // 初始化数据库
-            await initDatabase(selected);
+           // await initDatabase(selected);
             
             // 索引文件
             await indexFiles(selected);
@@ -201,17 +201,17 @@ async function handleOpenFolder() {
 /**
  * 初始化数据库
  */
-async function initDatabase(basePath) {
-    try {
-        console.log('🔧 初始化数据库...');
-        await invoke('init_or_load_db', { basePath });
-        appState.dbInitialized = true;
-        console.log('✅ 数据库初始化成功');
-    } catch (error) {
-        console.error('❌ 数据库初始化失败:', error);
-        showError('数据库初始化失败: ' + error);
-    }
-}
+// async function initDatabase(basePath) {
+//     try {
+//         console.log('🔧 初始化数据库...');
+//         await invoke('init_or_load_db', { basePath });
+//         appState.dbInitialized = true;
+//         console.log('✅ 数据库初始化成功');
+//     } catch (error) {
+//         console.error('❌ 数据库初始化失败:', error);
+//         showError('数据库初始化失败: ' + error);
+//     }
+// }
 
 /**
  * 索引文件
