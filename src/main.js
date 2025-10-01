@@ -1,5 +1,5 @@
 // src/main.js
-// CheetahNote - 前端主逻辑（异步索引优化版）
+// CheetahNote - 前端主逻辑（记忆功能 + 懒加载优化版）
 
 'use strict';
 
@@ -10,6 +10,15 @@ console.log('📜 main.js 开始加载...');
 // ========================================
 const { invoke } = window.__TAURI__.core;
 const { open } = window.__TAURI__.dialog;
+
+// ========================================
+// 本地存储键名
+// ========================================
+const STORAGE_KEYS = {
+    LAST_FOLDER: 'cheetah_last_folder',
+    LAST_FILE: 'cheetah_last_file',
+    EXPANDED_FOLDERS: 'cheetah_expanded_folders'
+};
 
 // ========================================
 // 全局状态管理
@@ -24,7 +33,9 @@ const appState = {
     isSearching: false,
     contextTarget: null,
     expandedFolders: new Set(),
-    indexInitialized: false
+    indexInitialized: false,
+    fullFileTree: [],  // 完整文件树缓存
+    isLoading: false
 };
 
 // ========================================
@@ -74,6 +85,9 @@ async function initializeApp() {
     
     initDOMElements();
     bindEvents();
+    
+    // 恢复上次的状态
+    await restoreLastSession();
     
     console.log('✅ CheetahNote 初始化完成');
 }
@@ -153,11 +167,91 @@ function debounce(func, wait) {
 }
 
 // ========================================
-// 文件夹操作 - 异步索引优化
+// 本地存储管理
 // ========================================
 
 /**
- * 处理打开文件夹 - 优化版（先渲染再索引）
+ * 保存上次打开的文件夹
+ */
+function saveLastFolder(folderPath) {
+    try {
+        localStorage.setItem(STORAGE_KEYS.LAST_FOLDER, folderPath);
+        console.log('💾 已保存文件夹路径:', folderPath);
+    } catch (error) {
+        console.warn('保存文件夹路径失败:', error);
+    }
+}
+
+/**
+ * 保存上次打开的文件
+ */
+function saveLastFile(filePath) {
+    try {
+        localStorage.setItem(STORAGE_KEYS.LAST_FILE, filePath);
+        console.log('💾 已保存文件路径:', filePath);
+    } catch (error) {
+        console.warn('保存文件路径失败:', error);
+    }
+}
+
+/**
+ * 保存展开的文件夹状态
+ */
+function saveExpandedFolders() {
+    try {
+        const expanded = Array.from(appState.expandedFolders);
+        localStorage.setItem(STORAGE_KEYS.EXPANDED_FOLDERS, JSON.stringify(expanded));
+    } catch (error) {
+        console.warn('保存展开状态失败:', error);
+    }
+}
+
+/**
+ * 恢复上次的会话
+ */
+async function restoreLastSession() {
+    try {
+        const lastFolder = localStorage.getItem(STORAGE_KEYS.LAST_FOLDER);
+        const lastFile = localStorage.getItem(STORAGE_KEYS.LAST_FILE);
+        const expandedStr = localStorage.getItem(STORAGE_KEYS.EXPANDED_FOLDERS);
+        
+        // 恢复展开状态
+        if (expandedStr) {
+            try {
+                const expanded = JSON.parse(expandedStr);
+                appState.expandedFolders = new Set(expanded);
+                console.log('✅ 已恢复展开状态');
+            } catch (e) {
+                console.warn('恢复展开状态失败:', e);
+            }
+        }
+        
+        // 如果有上次的文件夹，自动打开
+        if (lastFolder) {
+            console.log('📂 恢复上次的文件夹:', lastFolder);
+            await openFolderByPath(lastFolder);
+            
+            // 如果有上次的文件，自动打开
+            if (lastFile) {
+                console.log('📄 恢复上次的文件:', lastFile);
+                setTimeout(() => {
+                    loadFileToEditor(lastFile).catch(err => {
+                        console.warn('恢复文件失败:', err);
+                    });
+                }, 500);
+            }
+        }
+    } catch (error) {
+        console.warn('恢复会话失败:', error);
+    }
+}
+
+// ========================================
+// 文件夹操作
+// ========================================
+
+/**
+ * 处理打开文件夹（用户手动选择）
  */
 async function handleOpenFolder() {
     console.log('📂 打开文件夹对话框...');
@@ -170,24 +264,45 @@ async function handleOpenFolder() {
         });
         
         if (selected && typeof selected === 'string') {
-            console.log('✅ 已选择文件夹:', selected);
-            appState.rootPath = selected;
-            
-            // 🚀 步骤1: 立即加载并渲染文件树（用户可以马上看到文件）
-            await loadFolderTree(selected);
-            
-            // 显示搜索框
-            searchBox.classList.add('active');
-            
-            // 显示索引提示
-            showIndexingToast('正在后台建立索引，请稍候...');
-            
-            // 🔧 步骤2: 在后台异步初始化索引（不阻塞UI）
-            initializeIndexInBackground(selected);
+            await openFolderByPath(selected);
         }
     } catch (error) {
         console.error('❌ 打开文件夹失败:', error);
         showError('打开文件夹失败: ' + error);
+    }
+}
+
+/**
+ * 通过路径打开文件夹
+ */
+async function openFolderByPath(folderPath) {
+    if (appState.isLoading) {
+        console.warn('正在加载中，请稍候');
+        return;
+    }
+    
+    console.log('✅ 打开文件夹:', folderPath);
+    appState.isLoading = true;
+    appState.rootPath = folderPath;
+    
+    // 保存到本地存储
+    saveLastFolder(folderPath);
+    
+    try {
+        // 🚀 步骤1: 立即加载文件树（只显示一级）
+        await loadFolderTreeLazy(folderPath);
+        
+        // 显示搜索框
+        searchBox.classList.add('active');
+        
+        // 显示索引提示
+        showIndexingToast('正在后台建立索引，请稍候...');
+        
+        // 🔧 步骤2: 在后台异步初始化索引
+        initializeIndexInBackground(folderPath);
+        
+    } finally {
+        appState.isLoading = false;
     }
 }
 
@@ -198,18 +313,15 @@ async function initializeIndexInBackground(basePath) {
     try {
         console.log('🔧 后台：开始初始化索引...');
         
-        // 初始化索引
         await invoke('initialize_index_command', { basePath });
         appState.indexInitialized = true;
         appState.dbInitialized = true;
         console.log('✅ 后台：索引初始化完成');
         
-        // 开始索引文件
         console.log('📝 后台：开始索引文件...');
         await invoke('index_files', { basePath });
         console.log('✅ 后台：文件索引完成');
         
-        // 索引完成，显示成功提示
         showSuccessMessage('索引建立完成，搜索功能已就绪');
         
     } catch (error) {
@@ -221,44 +333,22 @@ async function initializeIndexInBackground(basePath) {
 }
 
 // ========================================
-// 文件树操作
+// 文件树操作 - 懒加载优化
 // ========================================
 
 /**
- * 将嵌套的树形结构扁平化为带 level 的数组
+ * 懒加载文件树（只加载一级目录）
  */
-function flattenFileTree(nodes, level = 0) {
-    const result = [];
-    
-    for (const node of nodes) {
-        result.push({
-            name: node.name,
-            path: node.path,
-            is_dir: node.is_dir,
-            level: level
-        });
-        
-        if (node.children && node.children.length > 0) {
-            const childrenFlattened = flattenFileTree(node.children, level + 1);
-            result.push(...childrenFlattened);
-        }
-    }
-    
-    return result;
-}
-
-/**
- * 加载文件夹树
- */
-async function loadFolderTree(path) {
-    console.log('🌲 加载文件夹树:', path);
+async function loadFolderTreeLazy(path) {
+    console.log('🌲 懒加载文件树:', path);
     
     try {
+        // 加载完整树结构但缓存起来
         const filesNested = await invoke('list_dir_tree', { path });
-        const files = flattenFileTree(filesNested);
+        appState.fullFileTree = filesNested;
         
-        console.log(`✅ 加载了 ${files.length} 个项目`);
-        renderFileTree(files);
+        // 只渲染一级目录
+        renderLazyFileTree();
         
     } catch (error) {
         console.error('❌ 加载文件夹失败:', error);
@@ -267,66 +357,110 @@ async function loadFolderTree(path) {
 }
 
 /**
- * 渲染文件树
+ * 渲染懒加载的文件树
  */
-function renderFileTree(files) {
+function renderLazyFileTree() {
     fileListElement.innerHTML = '';
     
-    if (!files || files.length === 0) {
+    if (!appState.fullFileTree || appState.fullFileTree.length === 0) {
         fileListElement.innerHTML = '<li style="text-align: center; color: rgba(255,255,255,0.5);">文件夹为空</li>';
         return;
     }
     
-    files.forEach(file => {
-        const li = document.createElement('li');
-        const indent = '  '.repeat(file.level);
-        
-        let icon;
-        if (file.is_dir) {
-            icon = appState.expandedFolders.has(file.path) ? '📂' : '📁';
-        } else {
-            icon = '📄';
-        }
-        
-        const name = file.name.replace(/\\/g, '/').split('/').pop();
-        
-        li.textContent = `${indent}${icon} ${name}`;
-        li.className = file.is_dir ? 'folder' : 'file';
-        li.style.paddingLeft = `${12 + file.level * 20}px`;
-        
-        li.dataset.path = file.path;
-        li.dataset.isDir = file.is_dir;
-        li.dataset.name = name;
-        
-        if (file.is_dir) {
-            li.addEventListener('click', (e) => {
-                e.stopPropagation();
-                console.log('🖱️ 点击文件夹:', file.path);
-                toggleFolder(file.path);
-            });
-        } else {
-            li.addEventListener('click', (e) => {
-                e.stopPropagation();
-                console.log('🖱️ 点击文件:', file.path);
-                loadFileToEditor(file.path);
-            });
-        }
-        
-        li.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            showContextMenu(e, file);
-        });
-        
+    // 只渲染需要显示的项目
+    const itemsToRender = getVisibleItems(appState.fullFileTree, '', 0);
+    
+    console.log(`📊 渲染 ${itemsToRender.length} 个项目`);
+    
+    itemsToRender.forEach(item => {
+        const li = createFileTreeItem(item);
         fileListElement.appendChild(li);
     });
 }
 
 /**
- * 切换文件夹展开/收起状态
+ * 获取应该显示的文件项（根据展开状态）
  */
-function toggleFolder(folderPath) {
-    console.log('🔄 切换文件夹状态:', folderPath);
+function getVisibleItems(nodes, parentPath, level) {
+    const result = [];
+    
+    for (const node of nodes) {
+        const item = {
+            name: node.name,
+            path: node.path,
+            is_dir: node.is_dir,
+            level: level,
+            hasChildren: node.children && node.children.length > 0
+        };
+        
+        result.push(item);
+        
+        // 如果是文件夹且已展开，递归添加子项
+        if (node.is_dir && appState.expandedFolders.has(node.path) && node.children) {
+            const childItems = getVisibleItems(node.children, node.path, level + 1);
+            result.push(...childItems);
+        }
+    }
+    
+    return result;
+}
+
+/**
+ * 创建文件树列表项
+ */
+function createFileTreeItem(item) {
+    const li = document.createElement('li');
+    const indent = '  '.repeat(item.level);
+    
+    let icon;
+    if (item.is_dir) {
+        if (item.hasChildren) {
+            icon = appState.expandedFolders.has(item.path) ? '📂' : '📁';
+        } else {
+            icon = '📁';
+        }
+    } else {
+        icon = '📄';
+    }
+    
+    const name = item.name.replace(/\\/g, '/').split('/').pop();
+    
+    li.textContent = `${indent}${icon} ${name}`;
+    li.className = item.is_dir ? 'folder' : 'file';
+    li.style.paddingLeft = `${12 + item.level * 20}px`;
+    
+    li.dataset.path = item.path;
+    li.dataset.isDir = item.is_dir;
+    li.dataset.name = name;
+    
+    // 添加点击事件
+    if (item.is_dir) {
+        li.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFolderLazy(item.path);
+        });
+    } else {
+        li.addEventListener('click', (e) => {
+            e.stopPropagation();
+            loadFileToEditor(item.path);
+        });
+    }
+    
+    // 右键菜单
+    li.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showContextMenu(e, item);
+    });
+    
+    return li;
+}
+
+/**
+ * 切换文件夹展开/收起（懒加载版本）
+ */
+function toggleFolderLazy(folderPath) {
+    console.log('🔄 切换文件夹:', folderPath);
     
     if (appState.expandedFolders.has(folderPath)) {
         appState.expandedFolders.delete(folderPath);
@@ -336,7 +470,11 @@ function toggleFolder(folderPath) {
         console.log('📂 展开文件夹');
     }
     
-    loadFolderTree(appState.rootPath);
+    // 保存展开状态
+    saveExpandedFolders();
+    
+    // 重新渲染（只渲染可见项）
+    renderLazyFileTree();
 }
 
 // ========================================
@@ -356,6 +494,9 @@ async function loadFileToEditor(path) {
         appState.activeFilePath = path;
         appState.hasUnsavedChanges = false;
         
+        // 保存到本地存储
+        saveLastFile(path);
+        
         const fileName = path.split(/[/\\]/).pop();
         document.getElementById('file-title').textContent = fileName;
         
@@ -366,6 +507,7 @@ async function loadFileToEditor(path) {
             updatePreview();
         }
         
+        // 高亮当前文件
         document.querySelectorAll('.file-list li').forEach(li => {
             li.classList.remove('active');
             if (li.dataset.path === path) {
@@ -435,9 +577,11 @@ async function handleSaveFile() {
         appState.hasUnsavedChanges = false;
         showSuccessMessage('保存成功');
         
-        // 后台重新索引（如果索引已初始化）
+        // 保存到本地存储
+        saveLastFile(appState.activeFilePath);
+        
+        // 后台重新索引
         if (appState.indexInitialized) {
-            console.log('🔄 后台：重新索引文件...');
             invoke('index_files', { basePath: appState.rootPath }).catch(err => {
                 console.warn('后台索引失败:', err);
             });
@@ -632,8 +776,10 @@ async function handleCreateNote() {
         showSuccessMessage('笔记已创建: ' + fullFileName);
         
         appState.expandedFolders.add(targetPath);
+        saveExpandedFolders();
         
-        await loadFolderTree(appState.rootPath);
+        // 重新加载文件树
+        await loadFolderTreeLazy(appState.rootPath);
         
         // 后台重新索引
         if (appState.indexInitialized) {
@@ -672,8 +818,10 @@ async function handleCreateFolder() {
         showSuccessMessage('文件夹已创建: ' + folderName);
         
         appState.expandedFolders.add(targetPath);
+        saveExpandedFolders();
         
-        await loadFolderTree(appState.rootPath);
+        // 重新加载文件树
+        await loadFolderTreeLazy(appState.rootPath);
         
     } catch (error) {
         console.error('❌ 创建文件夹失败:', error);
@@ -735,14 +883,17 @@ async function performDelete(target, itemType, itemName) {
         console.log(`✅ ${itemType}删除成功:`, itemName);
         showSuccessMessage(`${itemType}已删除: ${itemName}`);
         
+        // 如果删除的是当前打开的文件
         if (appState.activeFilePath === target.path) {
             markdownEditor.value = '';
             appState.activeFilePath = null;
             welcomeScreen.style.display = 'flex';
             editorWrapper.style.display = 'none';
+            localStorage.removeItem(STORAGE_KEYS.LAST_FILE);
         }
         
-        await loadFolderTree(appState.rootPath);
+        // 重新加载文件树
+        await loadFolderTreeLazy(appState.rootPath);
         
         // 后台重新索引
         if (appState.indexInitialized) {
@@ -883,6 +1034,24 @@ style.textContent = `
     #indexing-toast .spinner {
         display: inline-block;
         animation: spin 1s linear infinite;
+    }
+    
+    /* 文件树项目样式优化 */
+    .file-list li {
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+    
+    .file-list li:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .file-list li.active {
+        background-color: rgba(74, 144, 226, 0.3);
+    }
+    
+    .file-list li.folder {
+        font-weight: 500;
     }
 `;
 document.head.appendChild(style);
