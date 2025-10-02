@@ -10,7 +10,7 @@
     --success-color: #27ae60;
     --bg-primary: #ffffff;
     --bg-secondary: #f8f9fa;
-    --bg-sidebar: #2c3e50;
+    --bg-sidebar: #F5F5F5;
     --text-primary: #2c3e50;
     --text-secondary: #7f8c8d;
     --text-light: #ecf0f1;
@@ -52,6 +52,7 @@ body {
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--border-color);
+	position: relative; 
 }
 
 .sidebar-header {
@@ -60,7 +61,8 @@ body {
 }
 
 .sidebar-header h2 {
-    color: var(--text-light);
+	    /* 推荐使用已定义的深色变量，保持风格统一 */
+    color: var(--text-primary); 
     font-size: 20px;
     font-weight: 600;
 }
@@ -90,11 +92,16 @@ body {
     border-radius: 6px;
     padding: 0 10px;
     transition: all var(--transition-speed);
+	  /* 设置用户输入的文字为纯黑色 */
+	color: #000000;
+
+  /* 设置输入光标 (caret) 为纯黑色 */
+	caret-color: #000000;
 }
 
 .search-input-wrapper:hover,
 .search-input-wrapper:focus-within {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 5.15);
     border-color: var(--primary-color);
 }
 
@@ -108,14 +115,18 @@ body {
     flex: 1;
     background: transparent;
     border: none;
-    color: var(--text-light);
+	color: #000000; /* 已修改：这里直接设置为纯黑色，确保输入文字是黑色 */
     padding: 8px 0;
     font-size: 14px;
     outline: none;
 }
 
 #search-input::placeholder {
-    color: rgba(255, 255, 255, 0.5);
+ /* 已修改：设置为一个比纯黑稍淡的灰色，比如 #999 */
+    color: #999999; 
+
+  /* 某些浏览器默认会给 placeholder 加透明度，设为1确保颜色是纯黑不透明 */
+  opacity: 1;
 }
 
 .clear-search-btn {
@@ -137,8 +148,9 @@ body {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    position: relative;  /* 重要：为绝对定位的子元素提供定位上下文 */
+    position: relative;
     height: 100%;
+    background: var(--bg-sidebar);
 }
 
 /* 文件列表样式 */
@@ -149,12 +161,6 @@ body {
     list-style: none;
     margin: 0;
     padding: 0;
-    /* 以下样式由 JavaScript 动态设置，这里保留作为备注 */
-    /* position: absolute; */
-    /* top: 0; */
-    /* left: 0; */
-    /* right: 0; */
-    /* will-change: transform; */
 }
 
 .file-list li {
@@ -186,9 +192,24 @@ body {
 }
 
 /* 搜索结果列表样式 */
+/* 搜索结果列表样式 */
+.search-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
 .search-results li {
-    padding: 10px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    /* 注意：这里的边框颜色是白色透明的，如果你的背景是浅色，可能需要一并修改 */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1); 
+}
+
+.search-results li:hover {
+    /* 注意：这里的悬停背景色也是白色透明的，可能也需要修改 */
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .search-results li:last-child {
@@ -196,20 +217,22 @@ body {
 }
 
 .search-result-title {
-    color: var(--text-light);
+    color: #000000; /* 已修改 */
     font-weight: 500;
     margin-bottom: 4px;
 }
 
 .search-result-snippet {
-    color: rgba(255, 255, 255, 0.6);
+    color: #000000; /* 已修改 */
     font-size: 12px;
-    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .search-result-snippet b {
-    color: var(--secondary-color);
-    font-weight: 600;
+    color: #000000; /* 已修改 */
+    font-weight: 600; /* 保持加粗以示高亮 */
 }
 
 /* 按钮样式 */
@@ -676,4 +699,9 @@ body {
 
 .file-list-container::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
+}
+
+#file-list-spacer {
+    /* 哨兵元素，由 JavaScript 动态设置高度 */
+    width: 1px;
 }
