@@ -10,6 +10,8 @@ console.log('📜 app.js 开始加载...');
 // ========================================
 const { invoke } = window.__TAURI__.core;
 const { open } = window.__TAURI__.dialog;
+// ... (在 const { invoke } ... 下方)
+const SEARCH_INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5分钟
 
 // ========================================
 // 虚拟滚动配置
@@ -47,6 +49,8 @@ const appState = {
 	 // 新增: 用于懒加载的数据结构
     fileTreeRoot: [],          // 只存储顶层文件/目录
     fileTreeMap: new Map(),    // 存储已加载的目录内容 { 'path': [children] }
+	// 新增: 用于索引释放的计时器
+    searchInactivityTimer: null,
     isLoading: false,
     // 虚拟滚动状态
     virtualScroll: {

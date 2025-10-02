@@ -1,17 +1,39 @@
 // src/js/editor.js
-// CheetahNote - 编辑器与搜索逻辑 (内存优化版)
+// CheetahNote - 编辑器与搜索逻辑 (索引生命周期优化版)
 
 'use strict';
 console.log('📜 editor.js 开始加载...');
 
 // ========================================
-// 文件编辑操作
+// 索引生命周期管理 (新增)
+// ========================================
+
+/**
+ * 重置索引释放的计时器。每次用户进行搜索操作时调用。
+ */
+function resetSearchInactivityTimer() {
+    // 清除上一个计时器
+    if (appState.searchInactivityTimer) {
+        clearTimeout(appState.searchInactivityTimer);
+    }
+
+    // 设置新的计时器
+    appState.searchInactivityTimer = setTimeout(() => {
+        console.log(`搜索功能闲置已达 ${SEARCH_INACTIVITY_TIMEOUT / 1000 / 60} 分钟，准备释放索引内存。`);
+        invoke('release_index').catch(err => {
+            console.error('释放索引失败:', err);
+        });
+    }, SEARCH_INACTIVITY_TIMEOUT);
+}
+
+
+// ========================================
+// 文件编辑操作 (保持上次的优化)
 // ========================================
 
 async function loadFileToEditor(path) {
     console.log('📄 加载文件:', path);
     
-    // [内存优化] 在加载新文件前，先清空上一个文件的预览内容
     if (htmlPreview) {
         htmlPreview.innerHTML = '';
     }
@@ -31,12 +53,10 @@ async function loadFileToEditor(path) {
         welcomeScreen.style.display = 'none';
         editorWrapper.style.display = 'flex';
         
-        // 如果上次就是预览模式，则直接更新预览
         if (appState.currentViewMode === 'preview') {
             updatePreview();
         }
         
-        // 更新文件列表的高亮状态
         handleVirtualScroll();
         
         console.log('✅ 文件加载成功');
@@ -56,11 +76,10 @@ function switchViewMode(mode) {
         editModeBtn.classList.add('active');
         previewModeBtn.classList.remove('active');
 
-        // [内存优化] 从预览模式切回编辑模式时，立即清空DOM，释放内存
         if (htmlPreview) {
             htmlPreview.innerHTML = '';
         }
-    } else { // mode === 'preview'
+    } else { 
         markdownEditor.style.display = 'none';
         htmlPreview.style.display = 'block';
         editModeBtn.classList.remove('active');
@@ -100,8 +119,10 @@ async function handleSaveFile() {
         saveLastFile(appState.activeFilePath);
         
         if (appState.indexInitialized) {
+            // 注意：这里 index_files 会在后台重建索引，如果索引未加载，它会报错，
+            // 但这是一个后台操作，我们可以接受。更优化的方案是让 index_files 也先确保索引加载。
             invoke('index_files', { basePath: appState.rootPath }).catch(err => {
-                console.warn('后台索引失败:', err);
+                console.warn('后台索引失败 (可能因为索引已释放):', err);
             });
         }
         
@@ -112,10 +133,13 @@ async function handleSaveFile() {
 }
 
 // ========================================
-// 搜索功能 (保持不变)
+// 搜索功能 (核心修改)
 // ========================================
 
 async function handleSearch() {
+    // [修改] 每次搜索都重置计时器
+    resetSearchInactivityTimer();
+
     const query = searchInput.value.trim();
     
     if (!query) {
@@ -123,6 +147,7 @@ async function handleSearch() {
         return;
     }
     
+    // indexInitialized 只表示首次索引是否完成，不代表当前是否在内存中
     if (!appState.indexInitialized) {
         showError('索引尚未建立完成，请稍候再试');
         return;
@@ -133,6 +158,9 @@ async function handleSearch() {
     
     try {
         appState.isSearching = true;
+
+        // [修改] 在搜索前，确保索引已加载到内存
+        await invoke('ensure_index_is_loaded');
         
         const results = await invoke('search_notes', { query });
         displaySearchResults(results);
@@ -176,6 +204,9 @@ function displaySearchResults(results) {
 }
 
 function clearSearch() {
+    // [修改] 清空搜索也算一次“操作”，重置计时器
+    resetSearchInactivityTimer();
+
     searchInput.value = '';
     appState.searchQuery = '';
     clearSearchBtn.style.display = 'none';

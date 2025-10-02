@@ -45,6 +45,9 @@ pub fn run() {
             commands::search::initialize_index_command,
             commands::search::index_files,
             commands::search::search_notes,
+			  // [新增] 索引生命周期管理命令
+			commands::search::ensure_index_is_loaded,
+			commands::search::release_index,
             // 工具命令
             commands::utils::parse_markdown
         ])
