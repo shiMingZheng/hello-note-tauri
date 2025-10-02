@@ -4,12 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CheetahNote - 极速笔记</title>
-    <link rel="stylesheet" href="styles.css">
+    
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/utils.css">
 </head>
-
 <body>
     <div class="container">
-        <!-- 侧边栏 -->
         <aside class="sidebar">
             <div class="sidebar-header">
                 <h2>🐆 CheetahNote</h2>
@@ -21,7 +22,6 @@
                 </button>
             </div>
             
-            <!-- 搜索框 -->
             <div class="search-box" id="search-box">
                 <div class="search-input-wrapper">
                     <span class="search-icon">🔍</span>
@@ -30,20 +30,15 @@
                 </div>
             </div>
             
-            <!-- 文件列表容器 -->
             <div class="file-list-container">
                 <ul id="file-list" class="file-list">
-                    <!-- 文件列表动态生成 -->
-                </ul>
+                    </ul>
                 
-                <!-- 搜索结果列表 -->
                 <ul id="search-results-list" class="file-list search-results" style="display: none;">
-                    <!-- 搜索结果动态生成 -->
-                </ul>
+                    </ul>
             </div>
         </aside>
 
-        <!-- 右键菜单 -->
         <div id="context-menu" class="context-menu">
             <ul>
                 <li id="new-note-btn">📄 新建笔记</li>
@@ -52,9 +47,7 @@
             </ul>
         </div>
 
-        <!-- 主内容区 -->
         <main class="main-content">
-            <!-- 欢迎屏幕 -->
             <div id="welcome-screen" class="welcome-section">
                 <h1>🐆 CheetahNote</h1>
                 <p>高性能 Markdown 笔记软件</p>
@@ -86,7 +79,6 @@
                 </div>
             </div>
             
-            <!-- 编辑器区域 -->
             <div id="editor-wrapper" style="display: none;">
                 <div class="editor-header">
                     <h2 id="file-title">无标题</h2>
@@ -105,7 +97,6 @@
         </main>
     </div>
 
-    <!-- 自定义确认对话框 -->
     <div id="custom-confirm-dialog" class="custom-dialog-overlay" style="display: none;">
         <div class="custom-dialog">
             <div class="dialog-header">
@@ -122,6 +113,10 @@
         </div>
     </div>
 
-    <script src="main.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/ui-utils.js"></script>
+    <script src="js/virtual-scroll.js"></script>
+    <script src="js/file-manager.js"></script>
+    <script src="js/editor.js"></script>
 </body>
 </html>

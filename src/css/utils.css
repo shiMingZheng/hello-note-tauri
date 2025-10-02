@@ -1,0 +1,77 @@
+/* src/css/utils.css */
+
+/* ========================================
+   动画
+   ======================================== */
+.welcome-section {
+    animation: fadeIn 0.5s ease;
+}
+
+.custom-dialog-overlay {
+    animation: fadeIn 0.2s ease;
+}
+
+.custom-dialog {
+    animation: slideUp 0.3s ease;
+}
+
+.success-toast {
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(100%);
+    }
+}
+
+
+/* ========================================
+   响应式设计
+   ======================================== */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 220px;
+    }
+    
+    .features {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .welcome-section h1 {
+        font-size: 36px;
+    }
+}

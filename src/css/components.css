@@ -1,51 +1,8 @@
+/* src/css/components.css */
+
 /* ========================================
-   CheetahNote - 极速笔记软件样式表
+   侧边栏组件
    ======================================== */
-
-/* CSS 变量定义 */
-:root {
-    --primary-color: #4a90e2;
-    --secondary-color: #f39c12;
-    --danger-color: #e74c3c;
-    --success-color: #27ae60;
-    --bg-primary: #ffffff;
-    --bg-secondary: #f8f9fa;
-    --bg-sidebar: #F5F5F5;
-    --text-primary: #2c3e50;
-    --text-secondary: #7f8c8d;
-    --text-light: #ecf0f1;
-    --border-color: #dee2e6;
-    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
-    --transition-speed: 0.3s;
-}
-
-/* 基础样式重置 */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 
-                 'Microsoft YaHei', sans-serif;
-    font-size: 14px;
-    line-height: 1.6;
-    color: var(--text-primary);
-    background: var(--bg-primary);
-    overflow: hidden;
-}
-
-/* 容器布局 */
-.container {
-    display: flex;
-    height: 100vh;
-    width: 100vw;
-}
-
-/* 侧边栏样式 */
 .sidebar {
     width: 260px;
     background: var(--bg-sidebar);
@@ -61,7 +18,6 @@ body {
 }
 
 .sidebar-header h2 {
-	    /* 推荐使用已定义的深色变量，保持风格统一 */
     color: var(--text-primary); 
     font-size: 20px;
     font-weight: 600;
@@ -72,7 +28,9 @@ body {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* 搜索框样式 */
+/* ========================================
+   搜索框组件
+   ======================================== */
 .search-box {
     padding: 15px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -92,10 +50,7 @@ body {
     border-radius: 6px;
     padding: 0 10px;
     transition: all var(--transition-speed);
-	  /* 设置用户输入的文字为纯黑色 */
 	color: #000000;
-
-  /* 设置输入光标 (caret) 为纯黑色 */
 	caret-color: #000000;
 }
 
@@ -115,18 +70,15 @@ body {
     flex: 1;
     background: transparent;
     border: none;
-	color: #000000; /* 已修改：这里直接设置为纯黑色，确保输入文字是黑色 */
+	color: #000000;
     padding: 8px 0;
     font-size: 14px;
     outline: none;
 }
 
 #search-input::placeholder {
- /* 已修改：设置为一个比纯黑稍淡的灰色，比如 #999 */
     color: #999999; 
-
-  /* 某些浏览器默认会给 placeholder 加透明度，设为1确保颜色是纯黑不透明 */
-  opacity: 1;
+    opacity: 1;
 }
 
 .clear-search-btn {
@@ -143,7 +95,10 @@ body {
     color: var(--text-light);
 }
 
-/* 文件列表容器 */
+
+/* ========================================
+   文件列表组件
+   ======================================== */
 .file-list-container {
     flex: 1;
     overflow-y: auto;
@@ -153,18 +108,13 @@ body {
     background: var(--bg-sidebar);
 }
 
-/* 文件列表样式 */
 .file-list {
-    list-style: none;
-}
-#file-list {
     list-style: none;
     margin: 0;
     padding: 0;
 }
 
 .file-list li {
-     /* 高度由 JavaScript 动态设置（28px） */
     cursor: pointer;
     padding: 0 15px;
     transition: background-color 0.15s ease;
@@ -191,8 +141,7 @@ body {
      font-weight: 400;
 }
 
-/* 搜索结果列表样式 */
-/* 搜索结果列表样式 */
+/* 搜索结果列表 */
 .search-results {
     list-style: none;
     margin: 0;
@@ -203,12 +152,10 @@ body {
     padding: 12px 15px;
     cursor: pointer;
     transition: background-color 0.15s ease;
-    /* 注意：这里的边框颜色是白色透明的，如果你的背景是浅色，可能需要一并修改 */
     border-bottom: 1px solid rgba(255, 255, 255, 0.1); 
 }
 
 .search-results li:hover {
-    /* 注意：这里的悬停背景色也是白色透明的，可能也需要修改 */
     background-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -217,13 +164,13 @@ body {
 }
 
 .search-result-title {
-    color: #000000; /* 已修改 */
+    color: #000000;
     font-weight: 500;
     margin-bottom: 4px;
 }
 
 .search-result-snippet {
-    color: #000000; /* 已修改 */
+    color: #000000;
     font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -231,11 +178,34 @@ body {
 }
 
 .search-result-snippet b {
-    color: #000000; /* 已修改 */
-    font-weight: 600; /* 保持加粗以示高亮 */
+    color: #000000;
+    font-weight: 600;
 }
 
-/* 按钮样式 */
+.file-list-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.file-list-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.file-list-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.file-list-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+#file-list-spacer {
+    width: 1px;
+}
+
+/* ========================================
+   按钮组件
+   ======================================== */
 .btn-primary,
 .btn-secondary,
 .btn-danger {
@@ -278,20 +248,12 @@ body {
     background: #c0392b;
 }
 
-/* 主内容区 */
-.main-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-primary);
-    overflow: hidden;
-}
-
-/* 欢迎屏幕 */
+/* ========================================
+   欢迎屏幕组件
+   ======================================== */
 .welcome-section {
     padding: 60px 40px;
     text-align: center;
-    animation: fadeIn 0.5s ease;
 }
 
 .welcome-section h1 {
@@ -358,7 +320,10 @@ body {
     margin-bottom: 10px;
 }
 
-/* 编辑器区域 */
+
+/* ========================================
+   编辑器组件
+   ======================================== */
 #editor-wrapper {
     flex: 1;
     display: flex;
@@ -494,7 +459,10 @@ body {
     margin-bottom: 8px;
 }
 
-/* 右键菜单 */
+
+/* ========================================
+   右键菜单组件
+   ======================================== */
 .context-menu {
     position: fixed;
     background: white;
@@ -535,7 +503,10 @@ body {
     background-color: #ffeef0;
 }
 
-/* 自定义对话框 */
+
+/* ========================================
+   自定义对话框组件
+   ======================================== */
 .custom-dialog-overlay {
     position: fixed;
     top: 0;
@@ -547,7 +518,6 @@ body {
     justify-content: center;
     align-items: center;
     z-index: 2000;
-    animation: fadeIn 0.2s ease;
 }
 
 .custom-dialog {
@@ -556,7 +526,6 @@ body {
     box-shadow: var(--shadow-lg);
     max-width: 400px;
     width: 90%;
-    animation: slideUp 0.3s ease;
 }
 
 .dialog-header {
@@ -594,7 +563,9 @@ body {
     gap: 10px;
 }
 
-/* Toast 提示 */
+/* ========================================
+   Toast 提示组件
+   ======================================== */
 .success-toast {
     position: fixed;
     top: 20px;
@@ -607,101 +578,4 @@ body {
     z-index: 10000;
     font-size: 14px;
     font-weight: 500;
-    animation: slideIn 0.3s ease;
-}
-
-/* 动画 */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes slideUp {
-    from {
-        transform: translateY(20px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-    }
-    to {
-        transform: translateX(0);
-    }
-}
-
-@keyframes slideOut {
-    from {
-        transform: translateX(0);
-    }
-    to {
-        transform: translateX(100%);
-    }
-}
-
-/* 滚动条样式 */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #cbd5e0;
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #a0aec0;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-    .sidebar {
-        width: 220px;
-    }
-    
-    .features {
-        flex-direction: column;
-        align-items: center;
-    }
-    
-    .welcome-section h1 {
-        font-size: 36px;
-    }
-}
-
-.file-list-container::-webkit-scrollbar {
-    width: 8px;
-}
-
-.file-list-container::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.file-list-container::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-}
-
-.file-list-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-}
-
-#file-list-spacer {
-    /* 哨兵元素，由 JavaScript 动态设置高度 */
-    width: 1px;
 }
