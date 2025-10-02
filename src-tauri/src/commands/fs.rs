@@ -1,4 +1,4 @@
-//文件交互 src/commands/fs.rs
+// src/commands/fs.rs
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,7 +8,7 @@ use crate::search::{delete_document, update_document_index};
 use crate::AppState;
 
 // ========================================
-// 数据结构定义
+// 数据结构定义 (已修改)
 // ========================================
 
 #[derive(Debug, Serialize)]
@@ -16,65 +16,78 @@ pub struct FileNode {
     name: String,
     path: String,
     is_dir: bool,
-    children: Option<Vec<FileNode>>,
+    // 新增: 用于告知前端此目录是否包含任何有效子项（.md文件或子目录）
+    has_children: bool, 
 }
 
 // ========================================
-// 文件系统命令
+// 文件系统命令 (已修改)
 // ========================================
 
+/// 检查目录是否包含任何有效内容（非隐藏的 .md 文件或子目录）
+fn directory_has_children(dir: &Path) -> bool {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                if name.starts_with('.') {
+                    continue; // 跳过隐藏文件/目录
+                }
+            }
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.is_dir() {
+                    return true;
+                }
+                if metadata.is_file() && entry.path().extension().and_then(|s| s.to_str()) == Some("md") {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// [新命令] 懒加载方式读取单层目录
 #[tauri::command]
-pub async fn list_dir_tree(path: String) -> Result<Vec<FileNode>, String> {
+pub async fn list_dir_lazy(path: String) -> Result<Vec<FileNode>, String> {
     let base_path = PathBuf::from(&path);
-    if !base_path.exists() {
-        return Err(format!("路径不存在: {}", path));
-    }
     if !base_path.is_dir() {
-        return Err(format!("路径不是目录: {}", path));
+        return Ok(vec![]); // 如果不是目录，返回空数组
     }
-    
-    read_dir_recursive(&base_path)
-        .map_err(|e| format!("读取目录失败: {}", e))
-}
 
-fn read_dir_recursive(dir: &Path) -> Result<Vec<FileNode>, std::io::Error> {
     let mut nodes = Vec::new();
-    let entries = fs::read_dir(dir)?;
-    
-    for entry in entries {
-        let entry = entry?;
+    let entries = fs::read_dir(&base_path)
+        .map_err(|e| format!("读取目录失败: {}", e))?;
+
+    for entry in entries.flatten() {
         let path = entry.path();
-        let metadata = entry.metadata()?;
-        
         if let Some(name) = entry.file_name().to_str() {
             if name.starts_with('.') {
                 continue;
             }
         }
         
-        let node = if metadata.is_dir() {
-            FileNode {
-                name: entry.file_name().to_string_lossy().to_string(),
-                path: path.to_string_lossy().to_string(),
-                is_dir: true,
-                children: Some(read_dir_recursive(&path)?),
-            }
-        } else {
-            if path.extension().and_then(|s| s.to_str()) == Some("md") {
+        if let Ok(metadata) = entry.metadata() {
+            let node = if metadata.is_dir() {
+                FileNode {
+                    name: entry.file_name().to_string_lossy().to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    is_dir: true,
+                    has_children: directory_has_children(&path),
+                }
+            } else if path.extension().and_then(|s| s.to_str()) == Some("md") {
                 FileNode {
                     name: entry.file_name().to_string_lossy().to_string(),
                     path: path.to_string_lossy().to_string(),
                     is_dir: false,
-                    children: None,
+                    has_children: false,
                 }
             } else {
                 continue;
-            }
-        };
-        
-        nodes.push(node);
+            };
+            nodes.push(node);
+        }
     }
-    
+
     nodes.sort_by(|a, b| {
         if a.is_dir == b.is_dir {
             a.name.cmp(&b.name)
@@ -84,9 +97,10 @@ fn read_dir_recursive(dir: &Path) -> Result<Vec<FileNode>, std::io::Error> {
             std::cmp::Ordering::Greater
         }
     });
-    
+
     Ok(nodes)
 }
+
 
 #[tauri::command]
 pub async fn read_file_content(path: String) -> Result<String, String> {
@@ -95,7 +109,7 @@ pub async fn read_file_content(path: String) -> Result<String, String> {
 }
 
 // ========================================
-// 文件操作命令
+// 文件操作命令 (保持不变)
 // ========================================
 
 #[tauri::command]

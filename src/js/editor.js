@@ -1,5 +1,5 @@
 // src/js/editor.js
-// CheetahNote - 编辑器与搜索逻辑
+// CheetahNote - 编辑器与搜索逻辑 (内存优化版)
 
 'use strict';
 console.log('📜 editor.js 开始加载...');
@@ -11,6 +11,11 @@ console.log('📜 editor.js 开始加载...');
 async function loadFileToEditor(path) {
     console.log('📄 加载文件:', path);
     
+    // [内存优化] 在加载新文件前，先清空上一个文件的预览内容
+    if (htmlPreview) {
+        htmlPreview.innerHTML = '';
+    }
+
     try {
         const content = await invoke('read_file_content', { path });
         
@@ -26,11 +31,12 @@ async function loadFileToEditor(path) {
         welcomeScreen.style.display = 'none';
         editorWrapper.style.display = 'flex';
         
+        // 如果上次就是预览模式，则直接更新预览
         if (appState.currentViewMode === 'preview') {
             updatePreview();
         }
         
-        // 更新高亮（重新渲染当前视口）
+        // 更新文件列表的高亮状态
         handleVirtualScroll();
         
         console.log('✅ 文件加载成功');
@@ -49,7 +55,12 @@ function switchViewMode(mode) {
         htmlPreview.style.display = 'none';
         editModeBtn.classList.add('active');
         previewModeBtn.classList.remove('active');
-    } else {
+
+        // [内存优化] 从预览模式切回编辑模式时，立即清空DOM，释放内存
+        if (htmlPreview) {
+            htmlPreview.innerHTML = '';
+        }
+    } else { // mode === 'preview'
         markdownEditor.style.display = 'none';
         htmlPreview.style.display = 'block';
         editModeBtn.classList.remove('active');
@@ -101,7 +112,7 @@ async function handleSaveFile() {
 }
 
 // ========================================
-// 搜索功能
+// 搜索功能 (保持不变)
 // ========================================
 
 async function handleSearch() {
@@ -135,12 +146,18 @@ async function handleSearch() {
 }
 
 function displaySearchResults(results) {
-    fileListContainer.style.display = 'none';
+    fileListElement.style.display = 'none';
+    if (fileListSpacer) fileListSpacer.style.display = 'none'; 
+
     searchResultsList.style.display = 'block';
     searchResultsList.innerHTML = '';
     
     if (results.length === 0) {
-        searchResultsList.innerHTML = '<li style="text-align: center; color: rgba(255,255,255,0.5);">没有找到相关笔记</li>';
+        const li = document.createElement('li');
+        li.textContent = '没有找到相关笔记';
+        li.style.textAlign = 'center';
+        li.style.color = 'var(--text-secondary)';
+        searchResultsList.appendChild(li);
         return;
     }
     
@@ -163,9 +180,10 @@ function clearSearch() {
     appState.searchQuery = '';
     clearSearchBtn.style.display = 'none';
     
-    fileListContainer.style.display = 'block';
+    fileListElement.style.display = 'block';
+    if (fileListSpacer) fileListSpacer.style.display = 'block'; 
+
     searchResultsList.style.display = 'none';
     searchResultsList.innerHTML = '';
 }
-
 console.log('✅ editor.js 加载完成');

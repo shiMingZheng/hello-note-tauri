@@ -113,19 +113,36 @@ function renderVisibleItems(startIndex, endIndex) {
 }
 
 /**
- * 更新虚拟滚动数据源
+ * [新函数] 递归地从 Map 构建扁平化的可见列表
+ */
+function buildVisibleList(nodes, level, result) {
+    if (!nodes) return;
+    
+    for (const node of nodes) {
+        const item = { ...node, level };
+        result.push(item);
+
+        // 如果目录是展开的，并且我们已经加载了它的子节点，则递归添加
+        if (node.is_dir && appState.expandedFolders.has(node.path)) {
+            const children = appState.fileTreeMap.get(node.path);
+            buildVisibleList(children, level + 1, result);
+        }
+    }
+}
+/**
+ * 更新虚拟滚动数据源 (已修改)
  * 当文件树数据变化时调用此函数
  */
 function updateVirtualScrollData() {
-    const visibleItems = getVisibleItems(appState.fullFileTree, '', 0);
+    // [核心修改] 调用新的列表构建函数
+    const visibleItems = [];
+    buildVisibleList(appState.fileTreeRoot, 0, visibleItems);
+    
     appState.virtualScroll.visibleItems = visibleItems;
     
     // 更新哨兵元素高度（撑开滚动条）
     const totalHeight = visibleItems.length * VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT;
     fileListSpacer.style.height = `${totalHeight}px`;
-    
-    // 重置滚动位置（可选）
-    // fileListContainer.scrollTop = 0;
     
     // 立即渲染
     handleVirtualScroll();

@@ -45,25 +45,55 @@
     position: relative;
     display: flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    /* 修正：使用更适合浅色背景的边框和背景 */
+    background: #ffffff;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 0 10px;
     transition: all var(--transition-speed);
-	color: #000000;
-	caret-color: #000000;
+	color: var(--text-primary); /* 使用变量 */
+	caret-color: var(--text-primary); /* 使用变量 */
 }
 
 .search-input-wrapper:hover,
 .search-input-wrapper:focus-within {
-    background: rgba(255, 255, 255, 5.15);
+    /* 修正：移除透明背景，直接使用边框颜色高亮 */
+    background: #ffffff;
     border-color: var(--primary-color);
 }
 
 .search-icon {
-    color: rgba(255, 255, 255, 0.6);
+    /* 修正：使用次要文字颜色 */
+    color: var(--text-secondary);
     margin-right: 8px;
     font-size: 14px;
+}
+
+#search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    /* 修正：使用主要文字颜色 */
+	color: var(--text-primary);
+    padding: 8px 0;
+    font-size: 14px;
+    outline: none;
+}
+
+.clear-search-btn {
+    background: transparent;
+    border: none;
+    /* 修正：使用次要文字颜色 */
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 14px;
+    transition: color var(--transition-speed);
+}
+
+.clear-search-btn:hover {
+    /* 修正：悬停时使用主要文字颜色 */
+    color: var(--text-primary);
 }
 
 #search-input {
@@ -142,6 +172,7 @@
 }
 
 /* 搜索结果列表 */
+/* 搜索结果列表 */
 .search-results {
     list-style: none;
     margin: 0;
@@ -152,11 +183,15 @@
     padding: 12px 15px;
     cursor: pointer;
     transition: background-color 0.15s ease;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1); 
+    /* 修正：使用标准边框色，而不是透明白色 */
+    border-bottom: 1px solid var(--border-color); 
+    /* 修正：为列表项设置一个基础的深色字体 */
+    color: var(--text-primary);
 }
 
 .search-results li:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    /* 修正：使用一个清晰可见的浅灰色作为悬停背景 */
+    background-color: #e9ecef;
 }
 
 .search-results li:last-child {
@@ -164,13 +199,15 @@
 }
 
 .search-result-title {
-    color: #000000;
+    /* 修正：使用主要文字颜色 */
+    color: var(--text-primary); 
     font-weight: 500;
     margin-bottom: 4px;
 }
 
 .search-result-snippet {
-    color: #000000;
+    /* 修正：使用次要文字颜色，形成视觉层次 */
+    color: var(--text-secondary); 
     font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -178,7 +215,8 @@
 }
 
 .search-result-snippet b {
-    color: #000000;
+    /* 修正：高亮部分使用更醒目的主要文字颜色 */
+    color: var(--text-primary); 
     font-weight: 600;
 }
 

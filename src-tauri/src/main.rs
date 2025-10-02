@@ -32,8 +32,9 @@ pub fn run() {
             current_path: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
-            // 文件系统命令
-            commands::fs::list_dir_tree,
+			            // 文件系统命令 (更新此列表)
+            commands::fs::list_dir_lazy, // <-- 新增
+            // commands::fs::list_dir_tree, // <-- 删除此行
             commands::fs::read_file_content,
             commands::fs::save_file,
             commands::fs::create_new_file,

@@ -1,5 +1,5 @@
 // src-tauri/src/search.rs
-// Tantivy 全文搜索引擎模块 - 修复版
+// Tantivy 全文搜索引擎模块 - 内存优化版
 
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
@@ -10,17 +10,19 @@ use std::sync::Arc;
 use tantivy::collector::TopDocs;
 use tantivy::directory::MmapDirectory;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, STORED, STRING};
+// [修改] 移除了 `STORED` 和 `STRING` 的直接导入，因为我们会更精确地使用它们
+use tantivy::schema::{Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions};
 use tantivy::tokenizer::{LowerCaser, RemoveLongFilter, TextAnalyzer};
 use tantivy::{doc, Index, IndexWriter, ReloadPolicy, TantivyDocument};
+//解决这个问题v.as_str())^^^^^^ method not found in `CompactDocValue<'_>`
 use tantivy::schema::Value;
 
-// 使用全局静态 Jieba 分词器
+// (全局静态 Jieba 分词器保持不变)
 static JIEBA_TOKENIZER: Lazy<tantivy_jieba::JiebaTokenizer> = Lazy::new(|| {
     tantivy_jieba::JiebaTokenizer {}
 });
 
-// 搜索结果结构体
+// (搜索结果结构体保持不变)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
     pub path: String,
@@ -28,7 +30,7 @@ pub struct SearchResult {
     pub snippet: String,
 }
 
-// Schema 字段定义
+// (Schema 字段定义保持不变)
 pub struct SchemaFields {
     pub path: Field,
     pub title: Field,
@@ -39,19 +41,25 @@ pub struct SchemaFields {
 pub fn build_schema() -> (Schema, SchemaFields) {
     let mut schema_builder = Schema::builder();
     
-    // 路径字段：存储但不索引（用作唯一标识）
-    let path = schema_builder.add_text_field("path", STRING | STORED);
+    // 路径字段：必须被存储，它是文档的唯一ID
+    let path = schema_builder.add_text_field("path", tantivy::schema::STRING | tantivy::schema::STORED);
     
-    // 标题和内容字段：使用中文分词器
+    // 创建一个通用的中文分词索引选项
     let text_field_indexing = TextFieldIndexing::default()
         .set_tokenizer("jieba")
         .set_index_option(IndexRecordOption::WithFreqsAndPositions);
-    let text_options = TextOptions::default()
-        .set_indexing_options(text_field_indexing)
-        .set_stored();
     
-    let title = schema_builder.add_text_field("title", text_options.clone());
-    let content = schema_builder.add_text_field("content", text_options);
+    // 标题字段：需要被索引和存储（用于在结果列表中直接显示）
+    let title_options = TextOptions::default()
+        .set_indexing_options(text_field_indexing.clone())
+        .set_stored();
+    let title = schema_builder.add_text_field("title", title_options);
+    
+    // [核心优化] 内容字段：只索引，不存储！
+    // 这将极大地减小索引文件的大小和内存占用
+    let content_options = TextOptions::default()
+        .set_indexing_options(text_field_indexing);
+    let content = schema_builder.add_text_field("content", content_options);
     
     let schema = schema_builder.build();
     let fields = SchemaFields { path, title, content };
@@ -59,11 +67,10 @@ pub fn build_schema() -> (Schema, SchemaFields) {
     (schema, fields)
 }
 
-/// 初始化或打开 Tantivy 索引
+/// (初始化或打开 Tantivy 索引函数保持不变)
 pub fn initialize_index(base_path: &Path) -> Result<Arc<Index>> {
     let index_path = base_path.join(".cheetah_index");
     
-    // 确保索引目录存在
     if !index_path.exists() {
         fs::create_dir_all(&index_path)
             .with_context(|| format!("创建索引目录失败: {}", index_path.display()))?;
@@ -71,22 +78,18 @@ pub fn initialize_index(base_path: &Path) -> Result<Arc<Index>> {
     
     let (schema, _) = build_schema();
     
-    // 尝试打开或创建索引
     let index = if index_path.join("meta.json").exists() {
-        // 索引已存在，打开它
         let dir = MmapDirectory::open(&index_path)
             .with_context(|| format!("打开索引目录失败: {}", index_path.display()))?;
         Index::open(dir)
             .with_context(|| "打开现有索引失败")?
     } else {
-        // 创建新索引 - 修复: 使用正确的 API
         let dir = MmapDirectory::open(&index_path)
             .with_context(|| format!("创建索引目录失败: {}", index_path.display()))?;
     
-			 Index::open_or_create(dir, schema.clone()).with_context(|| "创建索引失败")?
+		Index::open_or_create(dir, schema.clone()).with_context(|| "创建索引失败")?
     };
     
-    // 注册 Jieba 分词器 - 使用 tantivy 0.24.1 的正确方式
     let analyzer = TextAnalyzer::builder(JIEBA_TOKENIZER.clone())
         .filter(RemoveLongFilter::limit(40))
         .filter(LowerCaser)
@@ -99,24 +102,21 @@ pub fn initialize_index(base_path: &Path) -> Result<Arc<Index>> {
     Ok(Arc::new(index))
 }
 
-/// 递归索引所有 Markdown 文件
+
+/// (递归索引所有 Markdown 文件函数保持不变)
 pub fn index_documents(index: &Index, base_path: &Path) -> Result<()> {
     let (_, fields) = build_schema();
     
-    // 创建索引写入器（使用 50MB 的缓冲区）
-    let mut index_writer: IndexWriter<TantivyDocument> = index
+    let mut index_writer: IndexWriter = index
         .writer(50_000_000)
         .with_context(|| "创建索引写入器失败")?;
     
-    // 清空现有索引
     index_writer.delete_all_documents()
         .with_context(|| "清空索引失败")?;
     
-    // 递归索引文件
     let mut count = 0;
     index_directory_recursive(&mut index_writer, &fields, base_path, &mut count)?;
     
-    // 提交索引
     index_writer.commit()
         .with_context(|| "提交索引失败")?;
     
@@ -124,9 +124,9 @@ pub fn index_documents(index: &Index, base_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 递归遍历目录并索引文件
+/// (递归遍历目录并索引文件函数保持不变)
 fn index_directory_recursive(
-    writer: &mut IndexWriter<TantivyDocument>,
+    writer: &mut IndexWriter,
     fields: &SchemaFields,
     dir: &Path,
     count: &mut usize,
@@ -138,7 +138,6 @@ fn index_directory_recursive(
         let entry = entry?;
         let path = entry.path();
         
-        // 跳过隐藏文件和索引目录
         if let Some(name) = path.file_name() {
             let name_str = name.to_string_lossy();
             if name_str.starts_with('.') {
@@ -149,10 +148,8 @@ fn index_directory_recursive(
         let metadata = entry.metadata()?;
         
         if metadata.is_dir() {
-            // 递归处理子目录
             index_directory_recursive(writer, fields, &path, count)?;
         } else if path.extension().and_then(|s| s.to_str()) == Some("md") {
-            // 索引 Markdown 文件
             index_single_document(writer, fields, &path)?;
             *count += 1;
         }
@@ -161,9 +158,9 @@ fn index_directory_recursive(
     Ok(())
 }
 
-/// 索引单个文档
+/// (索引单个文档函数保持不变)
 pub fn index_single_document(
-    writer: &mut IndexWriter<TantivyDocument>,
+    writer: &mut IndexWriter,
     fields: &SchemaFields,
     file_path: &Path,
 ) -> Result<()> {
@@ -181,11 +178,9 @@ pub fn index_single_document(
     
     let path_str = file_path.to_string_lossy().to_string();
     
-    // 先删除旧文档（如果存在）
     let path_term = tantivy::Term::from_field_text(fields.path, &path_str);
     writer.delete_term(path_term);
     
-    // 添加新文档
     let doc = doc!(
         fields.path => path_str,
         fields.title => title,
@@ -198,22 +193,22 @@ pub fn index_single_document(
     Ok(())
 }
 
-/// 更新单个文件的索引
+/// (更新单个文件的索引函数保持不变)
 pub fn update_document_index(index: &Index, file_path: &Path) -> Result<()> {
     let (_, fields) = build_schema();
     
-    let mut writer: IndexWriter<TantivyDocument> = index.writer(5_000_000)?;
+    let mut writer: IndexWriter = index.writer(5_000_000)?;
     index_single_document(&mut writer, &fields, file_path)?;
     writer.commit()?;
     
     Ok(())
 }
 
-/// 从索引中删除文档
+/// (从索引中删除文档函数保持不变)
 pub fn delete_document(index: &Index, file_path: &str) -> Result<()> {
     let (_, fields) = build_schema();
     
-    let mut writer: IndexWriter<TantivyDocument> = index.writer(5_000_000)
+    let mut writer: IndexWriter = index.writer(5_000_000)
         .with_context(|| "创建索引写入器失败")?;
     
     let path_term = tantivy::Term::from_field_text(fields.path, file_path);
@@ -226,12 +221,13 @@ pub fn delete_document(index: &Index, file_path: &str) -> Result<()> {
     Ok(())
 }
 
-/// 安全地截取字符串（按字符数而不是字节数）
+/// (安全地截取字符串函数保持不变)
 fn safe_truncate(s: &str, max_chars: usize) -> String {
     s.chars().take(max_chars).collect()
 }
 
-/// 执行搜索 - 完全修复版
+
+/// 执行搜索 - [核心优化]
 pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
     if query.trim().is_empty() {
         return Ok(Vec::new());
@@ -239,7 +235,6 @@ pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
     
     let (_, fields) = build_schema();
     
-    // 创建索引读取器
     let reader = index
         .reader_builder()
         .reload_policy(ReloadPolicy::OnCommitWithDelay)
@@ -248,27 +243,23 @@ pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
     
     let searcher = reader.searcher();
     
-    // 创建查询解析器
     let query_parser = QueryParser::for_index(
         index,
         vec![fields.title, fields.content],
     );
     
-    // 解析查询
     let parsed_query = query_parser
         .parse_query(query)
         .with_context(|| format!("解析查询失败: {}", query))?;
     
-    // 执行搜索
     let top_docs = searcher
         .search(&parsed_query, &TopDocs::with_limit(10))
         .with_context(|| "执行搜索失败")?;
     
-    // 处理搜索结果
     let mut results = Vec::new();
     
     for (_score, doc_address) in top_docs {
-        // 安全获取文档
+         // 安全获取文档
         let retrieved_doc: TantivyDocument = match searcher.doc(doc_address) {
             Ok(doc) => doc,
             Err(e) => {
@@ -283,30 +274,22 @@ pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
+		
+        let title = retrieved_doc.get_first(fields.title).and_then(|v| v.as_str()).unwrap_or("无标题").to_string();
         
         if path.is_empty() {
             continue;
         }
         
-        // 安全提取标题
-        let title = retrieved_doc
-            .get_first(fields.title)
-            .and_then(|v| v.as_str())
-            .unwrap_or("无标题")
-            .to_string();
+        // [核心优化] 按需从磁盘读取文件内容来生成摘要
+        // 我们不再从索引中读取内容，因为我们已经不再存储它了
+        let content = fs::read_to_string(&path).unwrap_or_else(|_| "".to_string());
         
-        // 安全提取内容
-        let content = retrieved_doc
-            .get_first(fields.content)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        
-        // 生成摘要（安全截取前150个字符）
+        // 生成摘要
         let snippet = if content.chars().count() > 150 {
             format!("{}...", safe_truncate(&content, 150))
         } else {
-            content.clone()
+            content
         };
         
         results.push(SearchResult {
@@ -320,7 +303,7 @@ pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
     Ok(results)
 }
 
-/// 从 Markdown 内容中提取标题
+/// (从 Markdown 内容中提取标题函数保持不变)
 fn extract_title_from_content(content: &str) -> Option<String> {
     for line in content.lines() {
         let trimmed = line.trim();

@@ -43,7 +43,10 @@ const appState = {
     contextTarget: null,
     expandedFolders: new Set(),
     indexInitialized: false,
-    fullFileTree: [],          // 完整文件树缓存
+    //fullFileTree: [],          // 完整文件树缓存
+	 // 新增: 用于懒加载的数据结构
+    fileTreeRoot: [],          // 只存储顶层文件/目录
+    fileTreeMap: new Map(),    // 存储已加载的目录内容 { 'path': [children] }
     isLoading: false,
     // 虚拟滚动状态
     virtualScroll: {
