@@ -61,7 +61,9 @@ pub fn run() {
 			commands::tags::get_all_tags,
 			commands::tags::get_files_by_tag,
             // 工具命令
-            commands::utils::parse_markdown
+            commands::utils::parse_markdown,
+			commands::history::record_file_event, 
+			commands::history::get_history
         ])
         .setup(|app| {
             println!("🚀 CheetahNote 正在启动...");

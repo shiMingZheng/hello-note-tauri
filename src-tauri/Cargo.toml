@@ -27,6 +27,8 @@ rusqlite = { version = "0.37.0", features = ["bundled"] }
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 
+chrono = "0.4"
+
 [profile.dev]
 # 开发模式：快速编译
 opt-level = 0

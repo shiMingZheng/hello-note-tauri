@@ -88,28 +88,28 @@ async function handleRemoveTag(tagName) {
 // 文件编辑操作 (已修改)
 // ========================================
 
+// src/js/editor.js
+
 async function loadFileToEditor(path) {
     console.log('📄 加载文件:', path);
     
     if (htmlPreview) htmlPreview.innerHTML = '';
 
     try {
-        // 先加载文件内容
         const content = await invoke('read_file_content', { path });
         markdownEditor.value = content;
         
-        // 更新应用状态
         appState.activeFilePath = path;
         appState.hasUnsavedChanges = false;
         saveLastFile(path);
         
-        // 更新UI
         const fileName = path.split(/[/\\]/).pop();
         document.getElementById('file-title').textContent = fileName;
-        welcomeScreen.style.display = 'none';
-        editorWrapper.style.display = 'flex';
         
-        // [新增] 加载并渲染文件的标签
+        // [核心修复] 调用页签切换函数，而不是直接操作样式
+        switchToTab('editor');
+        
+        // 加载并渲染文件的标签
         appState.currentFileTags = await invoke('get_tags_for_file', { path });
         renderCurrentFileTags();
         tagInputElement.value = '';

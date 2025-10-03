@@ -361,10 +361,7 @@
    编辑器组件
    ======================================== */
 #editor-wrapper {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    /* 这个元素现在由 .tab-content 控制显示 */
 }
 
 .editor-header {
@@ -703,3 +700,123 @@
     padding: 6px 12px; /* 调整内边距 */
 }
 
+/* src/css/components.css - 在文件末尾添加 */
+
+/* ========================================
+   主内容区页签样式
+   ======================================== */
+.main-tabs {
+    display: flex;
+    padding: 10px 20px 0;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    flex-shrink: 0; /* 防止页签栏在 flex 布局中被压缩 */
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 600;
+}
+
+.tab-content {
+    display: none; /* 默认隐藏所有页签内容 */
+    flex-grow: 1;
+    overflow: hidden; /* 防止内容溢出 */
+}
+
+.tab-content.active {
+    display: flex; /* [核心修复] 当有 .active 类时，显示为 flex 布局 */
+    flex-direction: column; /* 让内部元素垂直排列 */
+}
+/* [核心修复] 确保 #editor-wrapper 本身没有 display: none 规则 */
+#editor-wrapper {
+    /* 此处为空，因为其显示状态完全由 .tab-content 和 .active 类控制 */
+}
+
+
+/* ========================================
+   新首页样式
+   ======================================== */
+#homepage {
+    overflow-y: auto;
+    padding: 20px 40px;
+}
+
+.homepage-header {
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.history-list {
+    margin-top: 20px;
+}
+
+.history-group {
+    margin-bottom: 25px;
+}
+
+.history-group h3 {
+    font-size: 16px;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.history-item {
+    background-color: var(--bg-secondary);
+    border-radius: 6px;
+    padding: 12px 15px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+}
+
+.history-item:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.history-item-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.history-item-header .event-icon {
+    margin-right: 8px;
+    font-size: 16px;
+}
+
+.history-item-header .path {
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.history-item .snippet {
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding-left: 24px;
+}
+
+.history-item-header .path {
+    flex-grow: 1; /* 让文件名占据多余空间 */
+    /* ... 其他样式不变 ... */
+}
+
+.history-item-header .time {
+    margin-left: 16px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}

@@ -1,5 +1,5 @@
 // src/commands/fs.rs
-
+use crate::commands::history::record_file_event;
 use std::fs;
 use std::path::{Path, PathBuf};
 use serde::Serialize;
@@ -121,6 +121,9 @@ pub async fn save_file(
 ) -> Result<(), String> {
     fs::write(&path, &content)
         .map_err(|e| format!("保存文件失败: {}", e))?;
+	// ... 在 fs::write 之后 ...
+    // [修复] 使用 .clone() 来传递 path 和 state 的副本，保留原始值的所有权
+	let _ = record_file_event(path.clone(), "edited".to_string(), state.clone()).await;
     
     // [修复] 同时获取 index 和 db_pool
     let search_index_lock = state.search_index.lock().unwrap();
@@ -161,7 +164,9 @@ pub async fn create_new_file(
     let initial_content = format!("# {}\n\n", file_name_str.trim_end_matches(".md"));
     fs::write(&file_path, &initial_content)
         .map_err(|e| format!("创建文件失败: {}", e))?;
-    
+	// ... 在 fs::write 之后 ...
+	// [修复] 只需 clone state 即可，因为 file_path 在后面没有再使用
+	let _ = record_file_event(file_path.to_string_lossy().to_string(), "created".to_string(), state.clone()).await; 
     // 同时获取 index 和 db_pool
     let search_index_lock = state.search_index.lock().unwrap();
     let db_pool_lock = state.db_pool.lock().unwrap();

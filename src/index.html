@@ -12,40 +12,37 @@
 <body>
     <div class="container">
         <aside class="sidebar">
-			<div class="sidebar-header">
-				<button id="open-folder-btn" class="btn-primary small-btn">
-					📂 打开
-				</button>
-				<div class="sidebar-header-actions">
-					<button id="search-toggle-btn" class="icon-btn">🔍</button>
-					<button id="outline-btn" class="icon-btn">☰</button>
-				</div>
-			</div>
-			
-			<div class="search-box" id="search-box" style="display: none;">
-				<div class="search-input-wrapper">
-					<span class="search-icon">🔍</span>
-					<input type="text" id="search-input" placeholder="搜索笔记..." />
-					<button id="clear-search-btn" class="clear-search-btn" style="display: none;">✕</button>
-				</div>
-			</div>
-			
-			<div id="file-view-container" class="file-list-container">
-				<ul id="file-list" class="file-list">
-					</ul>
-				<ul id="search-results-list" class="file-list search-results" style="display: none;">
-					</ul>
-			</div>
-			
-			<div class="sidebar-section">
-				<div class="sidebar-section-header">
-					<h3>🏷️ 标签</h3>
-					<button id="clear-filter-btn" class="clear-filter-btn" style="display: none;">显示全部</button>
-				</div>
-				<ul id="tag-sidebar-list" class="tag-sidebar-list">
-					</ul>
-			</div>
-		</aside>
+            <div class="sidebar-header">
+                <button id="open-folder-btn" class="btn-primary small-btn">
+                    📂 打开
+                </button>
+                <div class="sidebar-header-actions">
+                    <button id="search-toggle-btn" class="icon-btn">🔍</button>
+                    <button id="outline-btn" class="icon-btn">☰</button>
+                </div>
+            </div>
+            
+            <div class="search-box" id="search-box" style="display: none;">
+                <div class="search-input-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-input" placeholder="搜索笔记..." />
+                    <button id="clear-search-btn" class="clear-search-btn" style="display: none;">✕</button>
+                </div>
+            </div>
+            
+            <div id="file-view-container" class="file-list-container">
+                <ul id="file-list" class="file-list"></ul>
+                <ul id="search-results-list" class="file-list search-results" style="display: none;"></ul>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="sidebar-section-header">
+                    <h3>🏷️ 标签</h3>
+                    <button id="clear-filter-btn" class="clear-filter-btn" style="display: none;">显示全部</button>
+                </div>
+                <ul id="tag-sidebar-list" class="tag-sidebar-list"></ul>
+            </div>
+        </aside>
 
         <div id="context-menu" class="context-menu">
             <ul>
@@ -56,38 +53,20 @@
         </div>
 
         <main class="main-content">
-            <div id="welcome-screen" class="welcome-section">
-                <h1>🐆 CheetahNote</h1>
-                <p>高性能 Markdown 笔记软件</p>
-                
-                <div class="features">
-                    <div class="feature-item">
-                        <h3>⚡ 极速启动</h3>
-                        <p>< 500ms 冷启动时间</p>
-                    </div>
-                    <div class="feature-item">
-                        <h3>🪶 轻量级</h3>
-                        <p>< 50MB 内存占用</p>
-                    </div>
-                    <div class="feature-item">
-                        <h3>🔍 全文搜索</h3>
-                        <p>快速查找任意内容</p>
-                    </div>
+            <div class="main-tabs">
+                <button id="tab-home" class="tab-btn active">首页</button>
+                <button id="tab-editor" class="tab-btn">编辑器</button>
+            </div>
+        
+            <div id="homepage" class="tab-content active">
+                <div class="homepage-header">
+                    <h1>🐆 CheetahNote 活动中心</h1>
+                    <p>在这里查看您最近的笔记活动</p>
                 </div>
-                
-                <div class="quick-start">
-                    <h2>📋 快速开始</h2>
-                    <ol>
-                        <li>点击左侧 "📂 打开文件夹" 按钮</li>
-                        <li>选择你的笔记文件夹</li>
-                        <li>使用搜索框查找笔记</li>
-                        <li>右键点击文件夹创建新笔记</li>
-                        <li>开始编辑你的 Markdown 笔记</li>
-                    </ol>
-                </div>
+                <div id="history-list" class="history-list"></div>
             </div>
             
-            <div id="editor-wrapper" style="display: none;">
+            <div id="editor-wrapper" class="tab-content">
                 <div class="editor-header">
                     <h2 id="file-title">无标题</h2>
                     <div class="editor-actions">
@@ -97,15 +76,12 @@
                     </div>
                 </div>
 				<div class="tag-bar">
-					<div id="tag-list" class="tag-list">
-						</div>
+					<div id="tag-list" class="tag-list"></div>
 					<input type="text" id="tag-input" class="tag-input" placeholder="添加标签...">
 				</div>
-    
-                
                 <div class="editor-container">
                     <textarea id="markdown-editor" class="markdown-editor" placeholder="在这里编写 Markdown..."></textarea>
-                    <div id="html-preview" class="html-preview" style="display: none;"></div>
+                    <div id="html-preview" class="html-preview"></div>
                 </div>
             </div>
         </main>
@@ -127,13 +103,13 @@
         </div>
     </div>
 	
-	<script src="js/app.js"></script>
-    
-	<script src="js/ui_actions.js"></script>
-	<script src="js/ui-utils.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/ui-utils.js"></script>
+    <script src="js/ui_actions.js"></script>
     <script src="js/virtual-scroll.js"></script>
     <script src="js/file-manager.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/editor.js"></script>
-
+    <script src="js/homepage.js"></script>
 </body>
+</html>

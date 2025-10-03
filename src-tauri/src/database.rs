@@ -64,6 +64,21 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
         );
         "
     ).with_context(|| "创建 'file_tags' 表失败")?;
+	
+	// [新增] 创建 history 表，用于记录文件编辑历史
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS history (
+    id              INTEGER PRIMARY KEY,
+    file_path       TEXT NOT NULL,
+    event_type      TEXT NOT NULL, -- 'created' 或 'edited'
+    snippet         TEXT,          -- 概要 (非空第一行)
+    event_date      TEXT NOT NULL, -- 事件发生的日期 'YYYY-MM-DD'
+    event_datetime  TEXT NOT NULL  -- [新增] 精确的日期时间
+);
+CREATE INDEX IF NOT EXISTS idx_history_datetime ON history (event_datetime); -- [修改] 索引新的时间戳字段
+        "
+    ).with_context(|| "创建 'history' 表失败")?;
 
     println!("✅ 数据库表结构初始化/验证完成");
     
