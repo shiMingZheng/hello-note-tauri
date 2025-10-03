@@ -122,10 +122,14 @@ pub async fn save_file(
     fs::write(&path, &content)
         .map_err(|e| format!("保存文件失败: {}", e))?;
     
-    if let Some(index) = state.search_index.lock().unwrap().as_ref() {
+    // [修复] 同时获取 index 和 db_pool
+    let search_index_lock = state.search_index.lock().unwrap();
+    let db_pool_lock = state.db_pool.lock().unwrap();
+    if let (Some(index), Some(db_pool)) = (search_index_lock.as_ref(), db_pool_lock.as_ref()) {
         let file_path = PathBuf::from(&path);
-        if let Err(e) = update_document_index(index, &file_path) {
-            eprintln!("更新索引失败: {}", e);
+        // [修复] 将 db_pool 作为参数传递
+        if let Err(e) = crate::search::update_document_index(index, db_pool, &file_path) {
+            eprintln!("更新索引和数据库失败: {}", e);
         }
     }
     
@@ -143,35 +147,29 @@ pub async fn create_new_file(
         return Err(format!("目录不存在: {}", dir_path));
     }
     
-    let mut file_name = file_name;
-    if !file_name.ends_with(".md") {
-        file_name.push_str(".md");
+    let mut file_name_str = file_name;
+    if !file_name_str.ends_with(".md") {
+        file_name_str.push_str(".md");
     }
     
-    let file_path = dir.join(&file_name);
+    let file_path = dir.join(&file_name_str);
     
     if file_path.exists() {
         return Err(format!("文件已存在: {}", file_path.display()));
     }
     
-    let initial_content = format!("# {}\n\n", file_name.trim_end_matches(".md"));
+    let initial_content = format!("# {}\n\n", file_name_str.trim_end_matches(".md"));
     fs::write(&file_path, &initial_content)
         .map_err(|e| format!("创建文件失败: {}", e))?;
-	// [新增] 文件创建成功后，写入数据库
-    if let Some(pool) = state.db_pool.lock().unwrap().as_ref() {
-        let conn = pool.get().map_err(|e| e.to_string())?;
-        let path_str = file_path.to_string_lossy().to_string();
-        let title = file_name.trim_end_matches(".md").to_string();
-        
-        conn.execute(
-		"INSERT INTO files (path, title) VALUES (?1, ?2)",
-		params![path_str, title],
-		).map_err(|e| e.to_string())?;
-    }
     
-    if let Some(index) = state.search_index.lock().unwrap().as_ref() {
-        if let Err(e) = update_document_index(index, &file_path) {
-            eprintln!("更新索引失败: {}", e);
+    // 同时获取 index 和 db_pool
+    let search_index_lock = state.search_index.lock().unwrap();
+    let db_pool_lock = state.db_pool.lock().unwrap();
+    if let (Some(index), Some(db_pool)) = (search_index_lock.as_ref(), db_pool_lock.as_ref()) {
+        // [修复] 在这里，我们既要更新全文索引，也要写入数据库
+        // 我们调用 update_document_index，它现在会处理这两件事
+        if let Err(e) = crate::search::update_document_index(index, db_pool, &file_path) {
+            eprintln!("为新文件更新索引和数据库失败: {}", e);
         }
     }
     
