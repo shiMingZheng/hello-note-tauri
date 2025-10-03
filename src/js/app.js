@@ -1,5 +1,5 @@
 // src/js/app.js
-// CheetahNote - 应用入口、状态管理与初始化 (onload 修复版)
+// CheetahNote - 应用入口、状态管理与初始化 (最终修复版 v2)
 
 'use strict';
 console.log('📜 app.js 开始加载...');
@@ -47,6 +47,7 @@ const appState = {
     }
 };
 
+// [最终修复] 将所有 DOM 元素变量声明移至顶层全局作用域
 let openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fileListElement,
     fileListSpacer, searchResultsList, welcomeScreen, editorWrapper, markdownEditor,
     htmlPreview, editModeBtn, previewModeBtn, saveBtn, contextMenu, newNoteBtn,
@@ -57,42 +58,29 @@ let openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fi
 // 初始化应用
 // ========================================
 
-/**
- * [修改] 只执行不依赖其他脚本的初始化任务
- */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 app.js DOMContentLoaded');
     const startTime = performance.now();
     
     try {
         initDOMElements();
         setupVirtualScroll();
-
-        // 注意：bindEvents() 和 restoreLastSession() 已被移出
+        bindEvents(); 
         
         const loadTime = performance.now() - startTime;
-        console.log(`✅ DOM 初始化完成，耗时: ${loadTime.toFixed(2)}ms`);
-    } catch (error) {
-        console.error('❌ DOM 初始化失败:', error);
-        alert('应用 DOM 初始化失败: ' + error.message);
-    }
-});
+        console.log(`✅ DOM 和事件初始化完成，耗时: ${loadTime.toFixed(2)}ms`);
 
-/**
- * [新增] 等待所有资源（包括所有JS文件）加载完毕后，再执行依赖性强的初始化任务
- */
-window.onload = async () => {
-    console.log('🏁 window.onload: 所有资源已加载完毕，开始绑定事件和恢复会话...');
-    try {
-        bindEvents(); // 此刻，所有其他JS文件中的函数（如 handleOpenFolder）都已定义
-        await restoreLastSession();
-        console.log('✅ 应用完全初始化成功');
+        // 使用 setTimeout 确保UI渲染稳定后再恢复会话
+        setTimeout(async () => {
+            await restoreLastSession();
+            console.log('✅ 应用会话恢复完成');
+        }, 100);
+
     } catch (error) {
-        console.error('❌ 应用最终初始化失败:', error);
+        console.error('❌ 应用初始化失败:', error);
         alert('应用初始化失败: ' + error.message);
     }
-};
-
+});
 
 function initDOMElements() {
     console.log('🔍 初始化 DOM 元素...');
@@ -119,7 +107,7 @@ function initDOMElements() {
     tagListElement = document.getElementById('tag-list');
     tagInputElement = document.getElementById('tag-input');
     
-    if (!openFolderBtn || !fileListElement || !fileListContainer) {
+    if (!openFolderBtn || !fileListElement || !fileListContainer || !tagInputElement || !clearSearchBtn) {
         throw new Error('必要的 DOM 元素未找到');
     }
     
