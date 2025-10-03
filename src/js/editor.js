@@ -238,3 +238,11 @@ function clearSearch() {
     searchResultsList.innerHTML = '';
 }
 console.log('✅ editor.js 加载完成');
+
+
+// [最终修复] 将核心函数显式挂载到全局 window 对象上
+window.handleSearch = handleSearch;
+window.clearSearch = clearSearch;
+window.switchViewMode = switchViewMode;
+window.handleSaveFile = handleSaveFile;
+window.handleAddTag = handleAddTag;

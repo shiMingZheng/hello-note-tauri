@@ -37,6 +37,15 @@
                 <ul id="search-results-list" class="file-list search-results" style="display: none;">
                     </ul>
             </div>
+			<div class="sidebar-section">
+			<div class="sidebar-section-header">
+				<h3>🏷️ 标签</h3>
+				<button id="clear-filter-btn" class="clear-filter-btn" style="display: none;">显示全部</button>
+			</div>
+			<ul id="tag-sidebar-list" class="tag-sidebar-list">
+				</ul>
+		</div>
+
         </aside>
 
         <div id="context-menu" class="context-menu">
@@ -118,11 +127,13 @@
             </div>
         </div>
     </div>
+	
+	<script src="js/app.js"></script>
 
-    <script src="js/app.js"></script>
-    <script src="js/ui-utils.js"></script>
+	<script src="js/ui-utils.js"></script>
     <script src="js/virtual-scroll.js"></script>
     <script src="js/file-manager.js"></script>
+    <script src="js/sidebar.js"></script>
     <script src="js/editor.js"></script>
+
 </body>
-</html>

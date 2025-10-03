@@ -132,19 +132,46 @@ function buildVisibleList(nodes, level, result) {
 /**
  * 更新虚拟滚动数据源 (已修改)
  * 当文件树数据变化时调用此函数
+ * [修改] `updateVirtualScrollData` 现在可以接收一个可选的文件路径数组
+ * @param {string[]} [filteredPaths=null] - 如果提供，则只显示这些路径的文件
  */
-function updateVirtualScrollData() {
-    // [核心修改] 调用新的列表构建函数
-    const visibleItems = [];
-    buildVisibleList(appState.fileTreeRoot, 0, visibleItems);
+function updateVirtualScrollData(filteredPaths = null) {
+    let visibleItems = [];
+
+    if (filteredPaths) {
+        // 如果有筛选路径，我们只从 fileTreeMap 中构建这些文件的视图
+        const filteredNodes = [];
+        const pathSet = new Set(filteredPaths);
+
+        function findNodesByPaths(nodes) {
+            if (!nodes) return;
+            for (const node of nodes) {
+                if (pathSet.has(node.path)) {
+                    filteredNodes.push(node);
+                }
+                // 即便父目录不在Set中，也要继续查找其子目录
+                if (node.is_dir) {
+                    const children = appState.fileTreeMap.get(node.path);
+                    findNodesByPaths(children);
+                }
+            }
+        }
+        findNodesByPaths(appState.fileTreeRoot);
+        // 注意：这里的实现很简单，只会显示一个扁平的筛选后列表。
+        // 一个更复杂的实现会保留原始的目录结构。
+        // 为了简单起见，我们暂时将筛选结果扁平化显示。
+        buildVisibleList(filteredNodes, 0, visibleItems);
+
+    } else {
+        // 无筛选，构建完整的文件树视图
+        buildVisibleList(appState.fileTreeRoot, 0, visibleItems);
+    }
     
     appState.virtualScroll.visibleItems = visibleItems;
     
-    // 更新哨兵元素高度（撑开滚动条）
     const totalHeight = visibleItems.length * VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT;
     fileListSpacer.style.height = `${totalHeight}px`;
     
-    // 立即渲染
     handleVirtualScroll();
     
     console.log(`📊 虚拟滚动数据已更新: ${visibleItems.length} 项`);

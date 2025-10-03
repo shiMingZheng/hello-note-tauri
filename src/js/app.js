@@ -1,39 +1,26 @@
 // src/js/app.js
-// CheetahNote - 应用入口、状态管理与初始化
+// CheetahNote - 应用入口、状态管理与初始化 (onload 修复版)
 
 'use strict';
-
 console.log('📜 app.js 开始加载...');
 
-// ========================================
-// 导入 Tauri API
-// ========================================
 const { invoke } = window.__TAURI__.core;
 const { open } = window.__TAURI__.dialog;
-// ... (在 const { invoke } ... 下方)
+
 const SEARCH_INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5分钟
 
-// ========================================
-// 虚拟滚动配置
-// ========================================
 const VIRTUAL_SCROLL_CONFIG = {
-    ITEM_HEIGHT: 28,           // 每个列表项的固定高度（像素）
-    BUFFER_SIZE: 5,            // 上下缓冲区的额外渲染项数
-    THROTTLE_DELAY: 16         // 滚动事件节流延迟（约60fps）
+    ITEM_HEIGHT: 28,
+    BUFFER_SIZE: 3,
+    THROTTLE_DELAY: 16
 };
 
-// ========================================
-// 本地存储键名
-// ========================================
 const STORAGE_KEYS = {
     LAST_FOLDER: 'cheetah_last_folder',
     LAST_FILE: 'cheetah_last_file',
     EXPANDED_FOLDERS: 'cheetah_expanded_folders'
 };
 
-// ========================================
-// 全局状态管理
-// ========================================
 const appState = {
     rootPath: null,
     activeFilePath: null,
@@ -45,86 +32,68 @@ const appState = {
     contextTarget: null,
     expandedFolders: new Set(),
     indexInitialized: false,
-    //fullFileTree: [],          // 完整文件树缓存
-	 // 新增: 用于懒加载的数据结构
-    fileTreeRoot: [],          // 只存储顶层文件/目录
-    fileTreeMap: new Map(),    // 存储已加载的目录内容 { 'path': [children] }
-	// 新增: 用于索引释放的计时器
+    fileTreeRoot: [],
+    fileTreeMap: new Map(),
+    currentFileTags: [],
+    allTags: [],
+    activeTagFilter: null,
     searchInactivityTimer: null,
-	    // 新增: 标签相关状态
-    currentFileTags: [], // 当前打开文件的标签列表
-    allTags: [], // 侧边栏所有标签的列表
     isLoading: false,
-    // 虚拟滚动状态
     virtualScroll: {
-        visibleItems: [],      // 当前应该可见的所有项（扁平化）
-        renderedRange: { start: 0, end: 0 },  // 当前渲染的范围
-        scrollTop: 0,          // 当前滚动位置
-        containerHeight: 0     // 容器可视高度
+        visibleItems: [],
+        renderedRange: { start: 0, end: 0 },
+        scrollTop: 0,
+        containerHeight: 0
     }
 };
 
-// ========================================
-// DOM 元素引用
-// ========================================
-let openFolderBtn;
-let searchBox;
-let searchInput;
-let clearSearchBtn;
-let fileListContainer;         // 滚动容器
-let fileListElement;           // 实际的 ul 列表
-let fileListSpacer;            // 撑开滚动条的哨兵元素
-let searchResultsList;
-let welcomeScreen;
-let editorWrapper;
-let markdownEditor;
-let htmlPreview;
-let editModeBtn;
-let previewModeBtn;
-let saveBtn;
-let contextMenu;
-let newNoteBtn;
-let newFolderBtn;
-let deleteFileBtn;
-let customConfirmDialog;
-let tagListElement;
-let tagInputElement;
+let openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fileListElement,
+    fileListSpacer, searchResultsList, welcomeScreen, editorWrapper, markdownEditor,
+    htmlPreview, editModeBtn, previewModeBtn, saveBtn, contextMenu, newNoteBtn,
+    newFolderBtn, deleteFileBtn, customConfirmDialog, tagListElement, tagInputElement;
+
 
 // ========================================
 // 初始化应用
 // ========================================
-document.addEventListener('DOMContentLoaded', async () => {
+
+/**
+ * [修改] 只执行不依赖其他脚本的初始化任务
+ */
+document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 app.js DOMContentLoaded');
     const startTime = performance.now();
     
     try {
-        await initializeApp();
+        initDOMElements();
+        setupVirtualScroll();
+
+        // 注意：bindEvents() 和 restoreLastSession() 已被移出
+        
         const loadTime = performance.now() - startTime;
-        console.log(`✅ 前端加载完成，耗时: ${loadTime.toFixed(2)}ms`);
+        console.log(`✅ DOM 初始化完成，耗时: ${loadTime.toFixed(2)}ms`);
     } catch (error) {
-        console.error('❌ 初始化失败:', error);
-        alert('应用初始化失败: ' + error.message);
+        console.error('❌ DOM 初始化失败:', error);
+        alert('应用 DOM 初始化失败: ' + error.message);
     }
 });
 
 /**
- * 初始化应用
+ * [新增] 等待所有资源（包括所有JS文件）加载完毕后，再执行依赖性强的初始化任务
  */
-async function initializeApp() {
-    console.log('⚙️ 开始初始化...');
-    
-    initDOMElements();
-    setupVirtualScroll();
-    bindEvents();
-    
-    await restoreLastSession();
-    
-    console.log('✅ CheetahNote 初始化完成');
-}
+window.onload = async () => {
+    console.log('🏁 window.onload: 所有资源已加载完毕，开始绑定事件和恢复会话...');
+    try {
+        bindEvents(); // 此刻，所有其他JS文件中的函数（如 handleOpenFolder）都已定义
+        await restoreLastSession();
+        console.log('✅ 应用完全初始化成功');
+    } catch (error) {
+        console.error('❌ 应用最终初始化失败:', error);
+        alert('应用初始化失败: ' + error.message);
+    }
+};
 
-/**
- * 初始化 DOM 元素引用
- */
+
 function initDOMElements() {
     console.log('🔍 初始化 DOM 元素...');
     
@@ -147,7 +116,7 @@ function initDOMElements() {
     newFolderBtn = document.getElementById('new-folder-btn');
     deleteFileBtn = document.getElementById('delete-file-btn');
     customConfirmDialog = document.getElementById('custom-confirm-dialog');
-	tagListElement = document.getElementById('tag-list');
+    tagListElement = document.getElementById('tag-list');
     tagInputElement = document.getElementById('tag-input');
     
     if (!openFolderBtn || !fileListElement || !fileListContainer) {
@@ -157,9 +126,6 @@ function initDOMElements() {
     console.log('✅ DOM 元素已初始化');
 }
 
-/**
- * 绑定事件处理器
- */
 function bindEvents() {
     console.log('🔗 开始绑定事件...');
     
@@ -172,9 +138,8 @@ function bindEvents() {
     newNoteBtn.addEventListener('click', handleCreateNote);
     newFolderBtn.addEventListener('click', handleCreateFolder);
     deleteFileBtn.addEventListener('click', handleDeleteFile);
-	tagInputElement.addEventListener('keyup', handleAddTag);
     document.addEventListener('click', () => hideContextMenu());
-
+    tagInputElement.addEventListener('keyup', handleAddTag);
     
     markdownEditor.addEventListener('input', () => {
         appState.hasUnsavedChanges = true;
@@ -187,11 +152,8 @@ function bindEvents() {
         }
     });
     
-    // 使用事件委托处理文件列表点击
     fileListElement.addEventListener('click', handleFileListClick);
     fileListElement.addEventListener('contextmenu', handleFileListContextMenu);
     
     console.log('✅ 事件绑定完成');
 }
-
-console.log('✅ app.js 加载完成');

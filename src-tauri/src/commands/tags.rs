@@ -119,3 +119,27 @@ pub async fn get_all_tags(state: State<'_, AppState>) -> Result<Vec<TagInfo>, St
     
     Ok(tags)
 }
+
+/// [新增] 根据标签名获取所有文件路径
+#[command]
+pub async fn get_files_by_tag(tag_name: String, state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let db_pool = state.db_pool.lock().unwrap();
+    let conn = db_pool.as_ref().ok_or("数据库未初始化")?.get().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn.prepare(
+        "SELECT f.path FROM files f
+         INNER JOIN file_tags ft ON f.id = ft.file_id
+         INNER JOIN tags t ON t.id = ft.tag_id
+         WHERE t.name = ?1
+         ORDER BY f.path"
+    ).map_err(|e| e.to_string())?;
+
+    let paths_iter = stmt.query_map(params![tag_name], |row| row.get(0)).map_err(|e| e.to_string())?;
+
+    let mut paths = Vec::new();
+    for path in paths_iter {
+        paths.push(path.map_err(|e| e.to_string())?);
+    }
+
+    Ok(paths)
+}

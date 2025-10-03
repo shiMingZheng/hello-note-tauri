@@ -59,6 +59,7 @@ pub fn run() {
 			commands::tags::remove_tag_from_file,
 			commands::tags::get_tags_for_file,
 			commands::tags::get_all_tags,
+			commands::tags::get_files_by_tag,
             // 工具命令
             commands::utils::parse_markdown
         ])
