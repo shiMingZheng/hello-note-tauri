@@ -51,6 +51,9 @@ const appState = {
     fileTreeMap: new Map(),    // 存储已加载的目录内容 { 'path': [children] }
 	// 新增: 用于索引释放的计时器
     searchInactivityTimer: null,
+	    // 新增: 标签相关状态
+    currentFileTags: [], // 当前打开文件的标签列表
+    allTags: [], // 侧边栏所有标签的列表
     isLoading: false,
     // 虚拟滚动状态
     virtualScroll: {
@@ -84,6 +87,8 @@ let newNoteBtn;
 let newFolderBtn;
 let deleteFileBtn;
 let customConfirmDialog;
+let tagListElement;
+let tagInputElement;
 
 // ========================================
 // 初始化应用
@@ -142,6 +147,8 @@ function initDOMElements() {
     newFolderBtn = document.getElementById('new-folder-btn');
     deleteFileBtn = document.getElementById('delete-file-btn');
     customConfirmDialog = document.getElementById('custom-confirm-dialog');
+	tagListElement = document.getElementById('tag-list');
+    tagInputElement = document.getElementById('tag-input');
     
     if (!openFolderBtn || !fileListElement || !fileListContainer) {
         throw new Error('必要的 DOM 元素未找到');
@@ -165,7 +172,9 @@ function bindEvents() {
     newNoteBtn.addEventListener('click', handleCreateNote);
     newFolderBtn.addEventListener('click', handleCreateFolder);
     deleteFileBtn.addEventListener('click', handleDeleteFile);
+	tagInputElement.addEventListener('keyup', handleAddTag);
     document.addEventListener('click', () => hideContextMenu());
+
     
     markdownEditor.addEventListener('input', () => {
         appState.hasUnsavedChanges = true;

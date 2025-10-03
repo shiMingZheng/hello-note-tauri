@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use serde::Serialize;
 use tauri::State;
-use crate::search::{delete_document, update_document_index};
+use crate::search::delete_document; 
 use crate::AppState;
 use rusqlite::params;
 

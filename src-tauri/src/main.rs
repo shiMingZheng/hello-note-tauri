@@ -54,6 +54,11 @@ pub fn run() {
 			  // [新增] 索引生命周期管理命令
 			commands::search::ensure_index_is_loaded,
 			commands::search::release_index,
+			    // [新增] 标签管理命令
+			commands::tags::add_tag_to_file,
+			commands::tags::remove_tag_from_file,
+			commands::tags::get_tags_for_file,
+			commands::tags::get_all_tags,
             // 工具命令
             commands::utils::parse_markdown
         ])
