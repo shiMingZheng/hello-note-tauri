@@ -6,6 +6,7 @@ use serde::Serialize;
 use tauri::State;
 use crate::search::{delete_document, update_document_index};
 use crate::AppState;
+use rusqlite::params;
 
 // ========================================
 // 数据结构定义 (已修改)
@@ -156,6 +157,17 @@ pub async fn create_new_file(
     let initial_content = format!("# {}\n\n", file_name.trim_end_matches(".md"));
     fs::write(&file_path, &initial_content)
         .map_err(|e| format!("创建文件失败: {}", e))?;
+	// [新增] 文件创建成功后，写入数据库
+    if let Some(pool) = state.db_pool.lock().unwrap().as_ref() {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        let path_str = file_path.to_string_lossy().to_string();
+        let title = file_name.trim_end_matches(".md").to_string();
+        
+        conn.execute(
+		"INSERT INTO files (path, title) VALUES (?1, ?2)",
+		params![path_str, title],
+		).map_err(|e| e.to_string())?;
+    }
     
     if let Some(index) = state.search_index.lock().unwrap().as_ref() {
         if let Err(e) = update_document_index(index, &file_path) {
@@ -200,6 +212,22 @@ pub async fn delete_item(path: String, state: State<'_, AppState>) -> Result<(),
             }
         }
         
+		 // [新增] 在删除文件/目录前，先从数据库删除记录
+    if let Some(pool) = state.db_pool.lock().unwrap().as_ref() {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        // 使用 LIKE 'path%' 来删除目录下的所有文件记录
+        let path_for_db = if item_path.is_dir() {
+            format!("{}%", item_path.to_string_lossy())
+        } else {
+            path.clone()
+        };
+
+        // src-tauri/src/commands/fs.rs
+		conn.execute(
+			"DELETE FROM files WHERE path LIKE ?1",
+			params![path_for_db],
+		).map_err(|e| e.to_string())?;
+    }
         fs::remove_file(&item_path)
             .map_err(|e| format!("删除文件失败: {}", e))?;
     } else {

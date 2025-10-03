@@ -4,12 +4,14 @@
 )]
 
 use std::sync::{Arc, Mutex};
-use tauri::{Builder, Manager};
-
+// [修复] 添加 State 导入
+use tauri::{Builder, Manager, State};
 // 引入模块
 mod search;
 mod commands;
+mod database;
 
+use crate::database::DbPool; // 引入 DbPool 类型
 // ========================================
 // 应用状态管理
 // ========================================
@@ -17,6 +19,8 @@ mod commands;
 pub struct AppState {
     search_index: Mutex<Option<Arc<tantivy::Index>>>,
     current_path: Mutex<Option<String>>,
+	// 新增: 数据库连接池
+    db_pool: Mutex<Option<DbPool>>,
 }
 
 // ========================================
@@ -30,6 +34,8 @@ pub fn run() {
         .manage(AppState {
             search_index: Mutex::new(None),
             current_path: Mutex::new(None),
+			// 新增: 初始化 db_pool
+            db_pool: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
 			            // 文件系统命令 (更新此列表)
@@ -53,9 +59,20 @@ pub fn run() {
         ])
         .setup(|app| {
             println!("🚀 CheetahNote 正在启动...");
+						// [核心修改] 初始化数据库
+            let handle = app.handle();
+            let app_state: State<AppState> = handle.state();
+            let app_data_dir = handle.path().app_data_dir().expect("获取应用数据目录失败");
+            
+            let db_pool = database::init_database(&app_data_dir)
+                .expect("数据库初始化失败");
+            
+            // 将连接池存入 AppState
+            *app_state.db_pool.lock().unwrap() = Some(db_pool);
             println!("📦 已集成 Tantivy 全文搜索引擎");
             println!("🔍 支持中文分词（Jieba）");
-            
+            println!("🗃️ 已集成 SQLite 数据库");
+			
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("CheetahNote - 极速笔记");
             }

@@ -197,7 +197,7 @@ pub fn index_single_document(
 pub fn update_document_index(index: &Index, file_path: &Path) -> Result<()> {
     let (_, fields) = build_schema();
     
-    let mut writer: IndexWriter = index.writer(5_000_000)?;
+    let mut writer: IndexWriter = index.writer(20_000_000)?;
     index_single_document(&mut writer, &fields, file_path)?;
     writer.commit()?;
     
@@ -208,7 +208,7 @@ pub fn update_document_index(index: &Index, file_path: &Path) -> Result<()> {
 pub fn delete_document(index: &Index, file_path: &str) -> Result<()> {
     let (_, fields) = build_schema();
     
-    let mut writer: IndexWriter = index.writer(5_000_000)
+    let mut writer: IndexWriter = index.writer(20_000_000)
         .with_context(|| "创建索引写入器失败")?;
     
     let path_term = tantivy::Term::from_field_text(fields.path, file_path);
