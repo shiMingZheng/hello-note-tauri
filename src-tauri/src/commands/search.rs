@@ -1,10 +1,10 @@
 //这个文件将包含与 Tantivy 搜索功能桥接的命令。 src/commands/search.rs
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::State;
-use crate::search::{self, initialize_index, index_documents, search as search_notes_impl};
+// [修复] `index_documents` 不再直接调用，而是通过 `index_files` 命令触发
+use crate::search::{self, initialize_index, search as search_notes_impl}; 
 use crate::AppState;
-use std::path::Path;
 
 #[tauri::command]
 pub async fn initialize_index_command(
@@ -27,6 +27,8 @@ pub async fn initialize_index_command(
     }
 }
 
+// src-tauri/src/commands/search.rs
+
 #[tauri::command]
 pub async fn index_files(base_path: String, state: State<'_, AppState>) -> Result<(), String> {
     let path = PathBuf::from(&base_path);
@@ -34,19 +36,24 @@ pub async fn index_files(base_path: String, state: State<'_, AppState>) -> Resul
         return Err(format!("路径不存在或不是目录: {}", base_path));
     }
     
-    let index = state.search_index.lock().unwrap();
-    if let Some(index) = index.as_ref() {
-        match index_documents(index, &path) {
+    let index_lock = state.search_index.lock().unwrap();
+    let db_pool_lock = state.db_pool.lock().unwrap();
+
+    // [修复] 这是正确的逻辑，它调用 crate::search::index_documents
+    if let (Some(index), Some(db_pool)) = (index_lock.as_ref(), db_pool_lock.as_ref()) {
+        match crate::search::index_documents(index, db_pool, &path) {
             Ok(()) => {
                 *state.current_path.lock().unwrap() = Some(base_path);
                 Ok(())
             }
-            Err(e) => Err(format!("索引文件失败: {}", e))
+            Err(e) => Err(format!("索引文件和同步数据库失败: {}", e))
         }
     } else {
-        Err("索引尚未初始化，请先调用 initialize_index_command".to_string())
+        Err("索引或数据库尚未初始化".to_string())
     }
 }
+
+// ... (其余函数保持不变) ...
 
 #[tauri::command]
 pub async fn search_notes(
