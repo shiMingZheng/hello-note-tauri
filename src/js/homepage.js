@@ -61,8 +61,8 @@ function renderHistory(history) {
         item.addEventListener('click', () => {
             const path = item.dataset.path;
             if (path) {
-                loadFileToEditor(path);
-                switchToTab('editor');
+                  // [修改] 使用新的 tabManager 来打开或切换到页签
+                tabManager.openTab(path);
             }
         });
     });

@@ -22,110 +22,41 @@ function resetSearchInactivityTimer() {
 // 标签功能 (新增)
 // ========================================
 
-/**
- * 渲染当前文件的标签列表
- */
-function renderCurrentFileTags() {
-    tagListElement.innerHTML = '';
-    appState.currentFileTags.forEach(tag => {
-        const tagEl = document.createElement('span');
-        tagEl.className = 'tag-item';
-        tagEl.textContent = tag;
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-tag-btn';
-        removeBtn.textContent = '×';
-        removeBtn.onclick = () => handleRemoveTag(tag);
-        
-        tagEl.appendChild(removeBtn);
-        tagListElement.appendChild(tagEl);
-    });
-}
-
-/**
- * 处理添加新标签
- * @param {Event} e 
- */
-async function handleAddTag(e) {
-    if (e.key === 'Enter') {
-        const tagName = tagInputElement.value.trim();
-        if (tagName && appState.activeFilePath && !appState.currentFileTags.includes(tagName)) {
-            try {
-                await invoke('add_tag_to_file', { path: appState.activeFilePath, tagName });
-                appState.currentFileTags.push(tagName);
-                appState.currentFileTags.sort();
-                renderCurrentFileTags();
-                tagInputElement.value = '';
-                // 可以在这里调用一个函数来刷新侧边栏的全局标签列表
-                // await refreshAllTagsList();
-            } catch (error) {
-                console.error('添加标签失败:', error);
-                showError('添加标签失败: ' + error);
-            }
-        }
-    }
-}
-
-/**
- * 处理移除标签
- * @param {string} tagName 
- */
-async function handleRemoveTag(tagName) {
-    if (!appState.activeFilePath) return;
-    try {
-        await invoke('remove_tag_from_file', { path: appState.activeFilePath, tagName });
-        appState.currentFileTags = appState.currentFileTags.filter(t => t !== tagName);
-        renderCurrentFileTags();
-        // 可以在这里调用一个函数来刷新侧边栏的全局标签列表
-        // await refreshAllTagsList();
-    } catch (error) {
-        console.error('移除标签失败:', error);
-        showError('移除标签失败: ' + error);
-    }
-}
 
 // ========================================
 // 文件编辑操作 (已修改)
 // ========================================
 
-// src/js/editor.js
 
+// 找到 loadFileToEditor 函数并用下面代码替换
 async function loadFileToEditor(path) {
-    console.log('📄 加载文件:', path);
+    console.log('📄 加载文件内容到编辑器:', path);
+    if (appState.activeFilePath === path && !appState.hasUnsavedChanges) {
+        // 如果文件已加载且无改动，则无需重复加载
+        return;
+    }
     
-    if (htmlPreview) htmlPreview.innerHTML = '';
-
     try {
         const content = await invoke('read_file_content', { path });
         markdownEditor.value = content;
         
         appState.activeFilePath = path;
         appState.hasUnsavedChanges = false;
-        saveLastFile(path);
         
-        const fileName = path.split(/[/\\]/).pop();
-        document.getElementById('file-title').textContent = fileName;
         
-        // [核心修复] 调用页签切换函数，而不是直接操作样式
-        switchToTab('editor');
-        
-        // 加载并渲染文件的标签
-        appState.currentFileTags = await invoke('get_tags_for_file', { path });
-        renderCurrentFileTags();
-        tagInputElement.value = '';
-        
+        // 如果当前是预览模式，则刷新预览
         if (appState.currentViewMode === 'preview') {
             updatePreview();
         }
         
-        handleVirtualScroll();
-        console.log('✅ 文件加载成功，标签:', appState.currentFileTags);
-        
     } catch (error) {
-        console.error('❌ 加载文件失败:', error);
+        console.error('❌ 加载文件内容失败:', error);
         showError('加载文件失败: ' + error);
+        tabManager.closeTab(path); // 加载失败，关闭页签
     }
 }
+
+// 移除 switchToTab 函数，因为它已移入 tabManager
 
 // ... (switchViewMode, updatePreview, handleSaveFile 保持不变) ...
 

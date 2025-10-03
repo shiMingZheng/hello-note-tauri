@@ -20,10 +20,9 @@ const appState = {
 };
 
 let openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fileListElement,
-    fileListSpacer, searchResultsList, editorWrapper, markdownEditor, htmlPreview, 
+    fileListSpacer, searchResultsList,  markdownEditor, htmlPreview, 
     editModeBtn, previewModeBtn, saveBtn, contextMenu, newNoteBtn, newFolderBtn, 
-    deleteFileBtn, customConfirmDialog, tagListElement, tagInputElement,
-    tabHome, tabEditor, homepage;
+    deleteFileBtn, customConfirmDialog;
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -68,7 +67,6 @@ function initDOMElements() {
 
         fileListElement = getElement('file-list');
         searchResultsList = getElement('search-results-list');
-        editorWrapper = getElement('editor-wrapper');
         markdownEditor = getElement('markdown-editor');
         htmlPreview = getElement('html-preview');
         editModeBtn = getElement('edit-mode-btn');
@@ -79,11 +77,7 @@ function initDOMElements() {
         newFolderBtn = getElement('new-folder-btn');
         deleteFileBtn = getElement('delete-file-btn');
         customConfirmDialog = getElement('custom-confirm-dialog');
-        tagListElement = getElement('tag-list');
-        tagInputElement = getElement('tag-input');
-        tabHome = getElement('tab-home');
-        tabEditor = getElement('tab-editor');
-        homepage = getElement('homepage');
+
     } catch (error) {
         throw error;
     }
@@ -102,9 +96,7 @@ function bindEvents() {
     newFolderBtn.addEventListener('click', handleCreateFolder);
     deleteFileBtn.addEventListener('click', handleDeleteFile);
     document.addEventListener('click', () => hideContextMenu());
-    tagInputElement.addEventListener('keyup', handleAddTag);
-    tabHome.addEventListener('click', () => switchToTab('home'));
-    tabEditor.addEventListener('click', () => switchToTab('editor'));
+
     markdownEditor.addEventListener('input', () => { appState.hasUnsavedChanges = true; });
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 's') {
@@ -117,17 +109,4 @@ function bindEvents() {
     console.log('✅ 事件绑定完成');
 }
 
-function switchToTab(tabName) {
-    if (tabName === 'home') {
-        tabHome.classList.add('active');
-        tabEditor.classList.remove('active');
-        homepage.classList.add('active');
-        editorWrapper.classList.remove('active');
-    } else {
-        tabHome.classList.remove('active');
-        tabEditor.classList.add('active');
-        homepage.classList.remove('active');
-        editorWrapper.classList.add('active');
-    }
-}
 window.switchToTab = switchToTab;

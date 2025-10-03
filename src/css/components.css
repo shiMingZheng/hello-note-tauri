@@ -664,7 +664,7 @@
     border: none;
     background: transparent;
     outline: none;
-    padding: 4px;
+    padding: 1px;
     font-size: 13px;
     color: var(--text-primary);
     flex-grow: 1;
@@ -729,21 +729,11 @@
     font-weight: 600;
 }
 
-.tab-content {
-    display: none; /* 默认隐藏所有页签内容 */
-    flex-grow: 1;
-    overflow: hidden; /* 防止内容溢出 */
-}
 
 .tab-content.active {
     display: flex; /* [核心修复] 当有 .active 类时，显示为 flex 布局 */
     flex-direction: column; /* 让内部元素垂直排列 */
 }
-/* [核心修复] 确保 #editor-wrapper 本身没有 display: none 规则 */
-#editor-wrapper {
-    /* 此处为空，因为其显示状态完全由 .tab-content 和 .active 类控制 */
-}
-
 
 /* ========================================
    新首页样式
@@ -819,4 +809,250 @@
     margin-left: 16px;
     font-size: 12px;
     color: var(--text-secondary);
+}
+
+/* src/css/components.css */
+
+/* ========================================
+   新主头部和多页签样式
+   ======================================== */
+
+.main-header {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    flex-shrink: 0;
+}
+
+.static-tabs, .dynamic-tabs {
+    display: flex;
+}
+
+.dynamic-tabs {
+    flex-grow: 1;
+    overflow-x: auto;
+    display: flex; /* [修改] 确保内部元素水平排列 */
+    align-items: center; /* [修改] 垂直居中对齐 */
+    /* ... */
+}
+.dynamic-tabs::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+    position: relative;
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    background-color: var(--bg-primary);
+    border-bottom-color: var(--primary-color);
+    font-weight: 500;
+}
+
+.dynamic-tab-item {
+    padding-right: 30px; /* 为关闭按钮留出空间 */
+}
+
+.close-tab-btn {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+.close-tab-btn:hover {
+    background-color: #ddd;
+    color: #333;
+}
+.tab-btn.active .close-tab-btn {
+    color: var(--text-primary);
+}
+
+/* 确保“+”按钮在页签容器末尾，而不是紧挨着最后一个页签 */
+.add-tab-btn {
+    /* [修复] 移除 margin-left: auto，让它紧跟在最后一个页签后面 */
+    margin-left: 4px; 
+    margin-right: 8px;
+    flex-shrink: 0; /* 防止按钮被压缩 */
+}
+.main-header-actions {
+    margin-left: auto; /* 将按钮推到最右侧 */
+    display: flex;
+    gap: 10px;
+}
+
+#content-area {
+    position: relative;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+/* 修改旧的页签内容样式 */
+.tab-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    flex-direction: column;
+}
+.tab-content.active {
+    display: flex;
+}
+
+/* 移除旧的 editor-wrapper 样式 */
+#editor-wrapper {
+    /* 移除 display: none !important; 等规则 */
+    /* 现在它由 JS 控制显示 */
+}
+/* [核心修复] 修改 main-content 的布局 */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column; /* 确保子元素垂直排列 */
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+/* src/css/components.css */
+
+/* ========================================
+   标签管理弹窗样式
+   ======================================== */
+.tag-modal {
+    background: white;
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    width: 90%;
+    max-width: 450px;
+    display: flex;
+    flex-direction: column;
+}
+
+.tag-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+.tag-modal-header h3 { margin: 0; }
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.tag-modal-content {
+    padding: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.tag-search-wrapper {
+    margin-bottom: 20px;
+}
+#tag-modal-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    font-size: 14px;
+}
+
+.tag-section {
+    margin-bottom: 15px;
+}
+.tag-section h4 {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.tag-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tag-pill {
+    padding: 5px 12px;
+    border-radius: 15px;
+    font-size: 13px;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    transition: all 0.2s;
+}
+
+.tag-pill.selected {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.tag-modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+/* src/css/components.css */
+
+/* ========================================
+   [修复] 编辑器全屏布局样式
+   ======================================== */
+
+/* 确保 #editor-wrapper 在激活时是一个能撑满父容器的 flex 纵向布局 */
+#editor-wrapper.tab-content.active {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 确保 .tag-bar 高度固定，不被压缩 */
+.tag-bar {
+    flex-shrink: 0;
+}
+
+/* [核心修复] 让 .editor-container 占据所有剩余的垂直空间 */
+.editor-container {
+    flex-grow: 1; /* 这是最关键的属性，让此容器“成长”以填满父元素 */
+    display: flex; /* 自身也成为 flex 容器，以便控制内部的 textarea */
+    overflow: hidden; /* 防止其子元素溢出 */
+}
+
+/* [核心修复] 让 textarea 和 preview 填满 .editor-container */
+.markdown-editor,
+.html-preview {
+    flex: 1; /* 让它们在 .editor-container 内部自由伸缩 */
+    width: 100%;
+    height: 100%; /* 确保高度完全填充 */
+    padding: 20px;
+    box-sizing: border-box; /* 确保 padding 不会撑破容器 */
+    border: none;
+    outline: none;
 }

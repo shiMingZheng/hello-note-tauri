@@ -200,6 +200,7 @@ function createFileTreeItem(item) {
     return li;
 }
 
+// 找到 handleFileListClick 函数并修改
 function handleFileListClick(e) {
     const li = e.target.closest('li');
     if (!li) return;
@@ -211,7 +212,8 @@ function handleFileListClick(e) {
     if (isDir) {
         toggleFolderLazy(path);
     } else {
-        loadFileToEditor(path);
+        // [修改] 不再直接调用 loadFileToEditor，而是通过 tabManager 打开
+        tabManager.openTab(path);
     }
 }
 

@@ -53,38 +53,40 @@
         </div>
 
         <main class="main-content">
-            <div class="main-tabs">
-                <button id="tab-home" class="tab-btn active">首页</button>
-                <button id="tab-editor" class="tab-btn">编辑器</button>
-            </div>
-        
-            <div id="homepage" class="tab-content active">
-                <div class="homepage-header">
-                    <h1>🐆 CheetahNote 活动中心</h1>
-                    <p>在这里查看您最近的笔记活动</p>
-                </div>
-                <div id="history-list" class="history-list"></div>
-            </div>
-            
-            <div id="editor-wrapper" class="tab-content">
-                <div class="editor-header">
-                    <h2 id="file-title">无标题</h2>
-                    <div class="editor-actions">
-                        <button id="edit-mode-btn" class="mode-btn active">📝 编辑</button>
-                        <button id="preview-mode-btn" class="mode-btn">👁️ 预览</button>
-                        <button id="save-btn" class="save-btn">💾 保存</button>
-                    </div>
-                </div>
-				<div class="tag-bar">
-					<div id="tag-list" class="tag-list"></div>
-					<input type="text" id="tag-input" class="tag-input" placeholder="添加标签...">
+			<div class="main-header">
+				<div class="static-tabs">
+					<button id="tab-home" class="tab-btn active">首页</button>
 				</div>
-                <div class="editor-container">
-                    <textarea id="markdown-editor" class="markdown-editor" placeholder="在这里编写 Markdown..."></textarea>
-                    <div id="html-preview" class="html-preview"></div>
-                </div>
-            </div>
-        </main>
+				<div id="dynamic-tab-container" class="dynamic-tabs">
+					</div>
+				<button id="add-new-note-tab-btn" class="icon-btn add-tab-btn">+</button>
+		
+				<div id="main-header-actions" class="main-header-actions" style="display: none;">
+					<button id="add-tag-btn" class="mode-btn">🏷️ 标签</button>
+					<button id="edit-mode-btn" class="mode-btn active">📝 编辑</button>
+					<button id="preview-mode-btn" class="mode-btn">👁️ 预览</button>
+					<button id="save-btn" class="save-btn">💾 保存</button>
+				</div>
+			</div>
+		
+			<div id="content-area">
+				<div id="homepage" class="tab-content active">
+					<div class="homepage-header">
+						<h1>🐆 CheetahNote 活动中心</h1>
+						<p>在这里查看您最近的笔记活动</p>
+					</div>
+					<div id="history-list" class="history-list">
+						</div>
+				</div>
+				
+				<div id="editor-wrapper" style="display: none;">
+					<div class="editor-container">
+						<textarea id="markdown-editor" class="markdown-editor" placeholder="在这里编写 Markdown..."></textarea>
+						<div id="html-preview" class="html-preview"></div>
+					</div>
+				</div>
+			</div>
+		</main>
     </div>
 
     <div id="custom-confirm-dialog" class="custom-dialog-overlay" style="display: none;">
@@ -103,13 +105,42 @@
         </div>
     </div>
 	
+	</div> <div id="tag-modal-overlay" class="custom-dialog-overlay" style="display: none;">
+    <div class="tag-modal">
+        <div class="tag-modal-header">
+            <h3>设置标签</h3>
+            <button id="tag-modal-close-btn" class="close-btn">×</button>
+        </div>
+        <div class="tag-modal-content">
+            <div class="tag-search-wrapper">
+                <input type="text" id="tag-modal-search-input" placeholder="搜索或创建新标签...">
+            </div>
+            <div class="tag-section">
+                <h4>我的标签</h4>
+                <div id="tag-modal-current-tags" class="tag-group">
+                    </div>
+            </div>
+            <div class="tag-section">
+                <h4>所有标签</h4>
+                <div id="tag-modal-all-tags" class="tag-group">
+                    </div>
+            </div>
+        </div>
+        <div class="tag-modal-footer">
+            <button id="tag-modal-cancel-btn" class="btn-secondary">取消</button>
+            <button id="tag-modal-done-btn" class="btn-primary">完成</button>
+        </div>
+    </div>
+</div>
     <script src="js/app.js"></script>
     <script src="js/ui-utils.js"></script>
     <script src="js/ui_actions.js"></script>
     <script src="js/virtual-scroll.js"></script>
-    <script src="js/file-manager.js"></script>
+    <script src="js/tab_manager.js"></script> 
+	<script src="js/file-manager.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/editor.js"></script>
     <script src="js/homepage.js"></script>
+    <script src="js/tag_modal.js"></script> </body>
+	
 </body>
-</html>
