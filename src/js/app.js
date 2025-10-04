@@ -22,7 +22,7 @@ const appState = {
 let openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fileListElement,
     fileListSpacer, searchResultsList,  markdownEditor, htmlPreview, 
      saveBtn, contextMenu, newNoteBtn, newFolderBtn, 
-    deleteFileBtn, customConfirmDialog,viewToggleBtn, addTagBtn;
+    deleteFileBtn, customConfirmDialog,viewToggleBtn,pinNoteBtn, unpinNoteBtn;
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -78,7 +78,9 @@ function initDOMElements() {
 		// [修改] 移除 editModeBtn 和 previewModeBtn，添加新按钮
         viewToggleBtn = getElement('view-toggle-btn');
         saveBtn = getElement('save-btn');
-		addTagBtn = getElement('add-tag-btn'); // <-- [新增] 获取标签按钮元素
+		  // [新增]
+        pinNoteBtn = getElement('pin-note-btn');
+        unpinNoteBtn = getElement('unpin-note-btn');
 
     } catch (error) {
         throw error;
@@ -93,7 +95,6 @@ function bindEvents() {
     searchInput.addEventListener('input', debounce(handleSearch, 300));
     clearSearchBtn.addEventListener('click', clearSearch);
     
-   addTagBtn.addEventListener('click', () => window.tagModal.open());
     viewToggleBtn.addEventListener('click', toggleViewMode);
     saveBtn.addEventListener('click', handleSaveFile);
     
@@ -115,6 +116,10 @@ function bindEvents() {
     
     fileListElement.addEventListener('click', handleFileListClick);
     fileListElement.addEventListener('contextmenu', handleFileListContextMenu);
+	
+	 // [新增]
+    pinNoteBtn.addEventListener('click', handlePinNote);
+    unpinNoteBtn.addEventListener('click', handleUnpinNote);
     
     console.log('✅ 事件绑定完成');
 }

@@ -360,6 +360,39 @@ async function performDelete(target, itemType, itemName) {
     }
 }
 
+// [修改] showContextMenu 函数，以根据文件状态显示/隐藏置顶选项,这个实际是新增的，原先看不到这个函数
+
+
+// [新增] 两个处理置顶/取消置顶的函数
+async function handlePinNote() {
+    hideContextMenu();
+    const targetPath = appState.contextTarget.path;
+    if (!targetPath) return;
+    try {
+        await invoke('pin_note', { path: targetPath });
+        if (window.loadPinnedNotes) {
+            window.loadPinnedNotes(); // 刷新首页
+        }
+    } catch (error) {
+        showError("置顶失败: " + error);
+    }
+}
+
+async function handleUnpinNote() {
+    hideContextMenu();
+    const targetPath = appState.contextTarget.path;
+    if (!targetPath) return;
+    try {
+        await invoke('unpin_note', { path: targetPath });
+        if (window.loadPinnedNotes) {
+            window.loadPinnedNotes(); // 刷新首页
+        }
+    } catch (error) {
+        showError("取消置顶失败: " + error);
+    }
+}
+
+
 console.log('✅ file-manager.js 加载完成');
 
 // [最终修复] 将核心函数显式挂载到全局 window 对象上
@@ -370,3 +403,6 @@ window.handleCreateNote = handleCreateNote;
 window.handleCreateFolder = handleCreateFolder;
 window.handleDeleteFile = handleDeleteFile;
 window.restoreLastSession = restoreLastSession;
+// ... 在文件末尾的 window 对象挂载处添加 ...
+window.handlePinNote = handlePinNote;
+window.handleUnpinNote = handleUnpinNote;

@@ -61,6 +61,10 @@ pub fn run() {
 			commands::tags::get_all_tags,
 			commands::tags::get_files_by_tag,
             // 工具命令
+			 // [新增] 置顶命令
+            commands::pins::pin_note,
+            commands::pins::unpin_note,
+            commands::pins::get_pinned_notes,
             commands::utils::parse_markdown,
 			commands::history::record_file_event, 
 			commands::history::get_history

@@ -4,9 +4,14 @@
 console.log('📜 homepage.js 开始加载...');
 
 let historyListElement;
+let pinnedNotesGridElement; // [新增]
+
 
 function initializeHomepage() {
     historyListElement = document.getElementById('history-list');
+	pinnedNotesGridElement = document.getElementById('pinned-notes-grid'); // [新增]
+    loadPinnedNotes(); // [新增]
+
     loadHistory();
 }
 
@@ -68,5 +73,43 @@ function renderHistory(history) {
     });
 }
 
+// [新增] 加载并渲染置顶笔记的函数
+async function loadPinnedNotes() {
+    try {
+        const pinnedNotes = await invoke('get_pinned_notes');
+        renderPinnedNotes(pinnedNotes);
+    } catch (error) {
+        console.error('加载置顶笔记失败:', error);
+        pinnedNotesGridElement.innerHTML = '<p class="empty-state">加载置顶笔记失败</p>';
+    }
+}
+
+// [新增] 渲染置顶笔记卡片的函数
+function renderPinnedNotes(notes) {
+    if (!pinnedNotesGridElement) return;
+    
+    pinnedNotesGridElement.innerHTML = ''; // 清空
+    
+    if (!notes || notes.length === 0) {
+        pinnedNotesGridElement.innerHTML = '<p class="empty-state">您还没有置顶任何笔记。在左侧文件上右键点击即可置顶。</p>';
+        return;
+    }
+
+    notes.forEach(note => {
+        const card = document.createElement('div');
+        card.className = 'pinned-note-card';
+        card.title = note.path;
+        card.innerHTML = `<h4>${note.title}</h4>`;
+        
+        card.addEventListener('click', () => {
+            tabManager.openTab(note.path);
+        });
+        
+        pinnedNotesGridElement.appendChild(card);
+    });
+}
+
+
 // 将函数暴露到全局
 window.initializeHomepage = initializeHomepage;
+window.loadPinnedNotes = loadPinnedNotes; // [新增]

@@ -57,6 +57,9 @@
 
         <div id="context-menu" class="context-menu">
             <ul>
+				<li id="pin-note-btn">📌 置顶笔记</li>
+				<li id="unpin-note-btn" style="display: none;">📌 取消置顶</li>
+
                 <li id="new-note-btn">📄 新建笔记</li>
                 <li id="new-folder-btn">📁 新建文件夹</li>
                 <li id="delete-file-btn">🗑️ 删除</li>
@@ -74,7 +77,6 @@
 				<div class="header-spacer"></div>
 		
 				<div id="main-header-actions" class="main-header-actions" style="display: none;">
-					<button id="add-tag-btn" class="mode-btn">🏷️ 标签</button>
 					<button id="view-toggle-btn" class="mode-btn">👁️ 预览</button> 
 					<button id="save-btn" class="save-btn">💾 保存</button>
 				</div>
@@ -82,9 +84,14 @@
 		
 			<div id="content-area">
 				<div id="homepage" class="tab-content active">
-					<div class="homepage-header">
-						<h1>🐆 CheetahNote 活动中心</h1>
-						<p>在这里查看您最近的笔记活动</p>
+					<div class="pinned-notes-section">
+						<h2>📌 置顶笔记</h2>
+						<div id="pinned-notes-grid" class="pinned-notes-grid">
+							</div>
+					</div>
+			
+					<hr class="section-divider"> <div class="homepage-header">
+						<h3>最近的笔记</h3>
 					</div>
 					<div id="history-list" class="history-list"></div>
 				</div>
@@ -143,18 +150,17 @@
     </div>
 </div>
 
-      <script src="js/app.js"></script>
-	  
     <script src="js/ui-utils.js"></script>
     <script src="js/virtual-scroll.js"></script>
-    <script src="js/tab_manager.js"></script> 
-    <script src="js/tag_modal.js"></script> 
+    <script src="js/tab_manager.js"></script>
+    <script src="js/tag_modal.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/homepage.js"></script>
     <script src="js/editor.js"></script>
     <script src="js/file-manager.js"></script>
     <script src="js/ui_actions.js"></script>
 
-   
+    <script src="js/app.js"></script>
+
 </body>
 </html>
