@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CheetahNote - 极速笔记</title>
     
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link href="https://unpkg.com/vis-network/styles/vis-network.min.css" rel="stylesheet" type="text/css" />
+
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/utils.css">
 </head>
-
 
 <body>
     <div class="container">
@@ -21,6 +23,7 @@
                 <div class="sidebar-header-actions">
                     <button id="toggle-tags-btn" class="icon-btn">🏷️</button> 
                     <button id="search-toggle-btn" class="icon-btn">🔍</button>
+                    <button id="graph-view-btn" class="icon-btn">🌐</button>
                     <button id="outline-btn" class="icon-btn">☰</button>
                 </div>
             </div>
@@ -32,6 +35,7 @@
                     <button id="clear-search-btn" class="clear-search-btn" style="display: none;">✕</button>
                 </div>
             </div>
+
             <div id="tags-popover" class="tags-popover" style="display: none;">
                 <div class="sidebar-section-header">
                     <h3>所有标签</h3>
@@ -46,11 +50,12 @@
             </div>
             
             <div class="sidebar-section">
-			        <div class="sidebar-section-header">
-					<h3>提及此笔记</h3>
-						</div>
-						<ul id="backlinks-list" class="backlinks-list">
-					</ul>
+                <div class="sidebar-section-header">
+                    <h3>提及此笔记</h3>
+                </div>
+                <ul id="backlinks-list" class="backlinks-list"></ul>
+            </div>
+            <div class="sidebar-section">
                 <div class="sidebar-section-header">
                     <h3>我的标签</h3>
                 </div>
@@ -62,9 +67,8 @@
 
         <div id="context-menu" class="context-menu">
             <ul>
-				<li id="pin-note-btn">📌 置顶笔记</li>
-				<li id="unpin-note-btn" style="display: none;">📌 取消置顶</li>
-
+                <li id="pin-note-btn">📌 置顶笔记</li>
+                <li id="unpin-note-btn" style="display: none;">📌 取消置顶</li>
                 <li id="new-note-btn">📄 新建笔记</li>
                 <li id="new-folder-btn">📁 新建文件夹</li>
                 <li id="delete-file-btn">🗑️ 删除</li>
@@ -72,45 +76,45 @@
         </div>
 
         <main class="main-content">
-			<div class="main-header">
-				<div class="static-tabs">
-					<button id="tab-home" class="tab-btn active">首页</button>
-				</div>
-				<div id="dynamic-tab-container" class="dynamic-tabs">
-					</div>
-				<button id="add-new-note-tab-btn" class="icon-btn add-tab-btn">+</button>
-				<div class="header-spacer"></div>
-		
-				<div id="main-header-actions" class="main-header-actions" style="display: none;">
-					<button id="view-toggle-btn" class="mode-btn">👁️ 预览</button> 
-					<button id="save-btn" class="save-btn">💾 保存</button>
-				</div>
-			</div>
-		
-			<div id="content-area">
-				<div id="homepage" class="tab-content active">
-					<div class="homepage-section">
-						<h3>📌 置顶笔记</h3>
-						<div id="pinned-notes-grid" class="pinned-notes-grid">
-							</div>
-					</div>
-				
-					<hr class="section-divider">
-				
-					<div class="homepage-section">
-						<h3>最近的笔记</h3>
-						<div id="history-list" class="history-list"></div>
-					</div>
-				</div>
-				
-				<div id="editor-wrapper" style="display: none;">
-					<div id="editor-container" class="editor-container">
-						<textarea id="markdown-editor" class="markdown-editor" placeholder="在这里编写 Markdown..."></textarea>
-						<div id="html-preview" class="html-preview"></div>
-					</div>
-				</div>
-			</div>
-		</main>
+            <div class="main-header">
+                <div class="static-tabs">
+                    <button id="tab-home" class="tab-btn active">首页</button>
+                </div>
+                <div id="dynamic-tab-container" class="dynamic-tabs"></div>
+                <button id="add-new-note-tab-btn" class="icon-btn add-tab-btn">+</button>
+                <div class="header-spacer"></div>
+                <div id="main-header-actions" class="main-header-actions" style="display: none;">
+                    <button id="view-toggle-btn" class="mode-btn">👁️ 预览</button> 
+                    <button id="save-btn" class="save-btn">💾 保存</button>
+                </div>
+            </div>
+        
+            <div id="content-area">
+                <div id="homepage" class="tab-content active">
+                    <div class="homepage-section">
+                        <h3>📌 置顶笔记</h3>
+                        <div id="pinned-notes-grid" class="pinned-notes-grid"></div>
+                    </div>
+                    <hr class="section-divider">
+                    <div class="homepage-section">
+                        <h3>最近的笔记</h3>
+                        <div id="history-list" class="history-list"></div>
+                    </div>
+                </div>
+                
+                <div id="editor-wrapper" class="tab-content">
+                    <div id="editor-container" class="editor-container">
+                        <textarea id="markdown-editor" class="markdown-editor" placeholder="在这里编写 Markdown..."></textarea>
+                        <div id="html-preview" class="html-preview"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="graph-overlay" class="graph-overlay" style="display: none;">
+       <div id="graph-container"></div>
+       <button id="close-graph-btn" class="close-graph-btn">×</button>
     </div>
 
     <div id="custom-confirm-dialog" class="custom-dialog-overlay" style="display: none;">
@@ -128,36 +132,34 @@
             </div>
         </div>
     </div>
-	
-	</div> <div id="tag-modal-overlay" class="custom-dialog-overlay" style="display: none;">
-    <div class="tag-modal">
-        <div class="tag-modal-header">
-            <h3>设置标签</h3>
-            <button id="tag-modal-close-btn" class="close-btn">×</button>
-        </div>
-        <div class="tag-modal-content">
-            <div class="tag-search-wrapper">
-                <input type="text" id="tag-modal-search-input" placeholder="搜索或创建新标签...">
+    
+    <div id="tag-modal-overlay" class="custom-dialog-overlay" style="display: none;">
+        <div class="tag-modal">
+            <div class="tag-modal-header">
+                <h3>设置标签</h3>
+                <button id="tag-modal-close-btn" class="close-btn">×</button>
             </div>
-            <div class="tag-section">
-                <h4>我的标签</h4>
-                <div id="tag-modal-current-tags" class="tag-group">
-                    </div>
+            <div class="tag-modal-content">
+                <div class="tag-search-wrapper">
+                    <input type="text" id="tag-modal-search-input" placeholder="搜索或创建新标签...">
+                </div>
+                <div class="tag-section">
+                    <h4>我的标签</h4>
+                    <div id="tag-modal-current-tags" class="tag-group"></div>
+                </div>
+                <div class="tag-section">
+                    <h4>所有标签</h4>
+                    <div id="tag-modal-all-tags" class="tag-group"></div>
+                </div>
             </div>
-            <div class="tag-section">
-                <h4>所有标签</h4>
-                <div id="tag-modal-all-tags" class="tag-group">
-                    </div>
+            <div class="tag-modal-footer">
+                <button id="tag-modal-cancel-btn" class="btn-secondary">取消</button>
+                <button id="tag-modal-done-btn" class="btn-primary">完成</button>
             </div>
-        </div>
-        <div class="tag-modal-footer">
-            <button id="tag-modal-cancel-btn" class="btn-secondary">取消</button>
-            <button id="tag-modal-done-btn" class="btn-primary">完成</button>
         </div>
     </div>
-</div>
 
-    <<script src="js/ui-utils.js"></script>
+    <script src="js/ui-utils.js"></script>
     <script src="js/virtual-scroll.js"></script>
     <script src="js/links.js"></script> 
     <script src="js/tab_manager.js"></script>
@@ -167,7 +169,7 @@
     <script src="js/editor.js"></script>
     <script src="js/file-manager.js"></script>
     <script src="js/ui_actions.js"></script>
-
+    <script src="js/graph.js"></script>
     <script src="js/app.js"></script>
 
 </body>

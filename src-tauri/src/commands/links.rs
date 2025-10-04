@@ -175,3 +175,65 @@ pub async fn debug_get_all_links(state: State<'_, AppState>) -> Result<Vec<Debug
     ");
     Ok(links)
 }
+
+// ▼▼▼ 【新增】为图谱视图定义数据结构和命令 ▼▼▼
+
+#[derive(Serialize, Clone)]
+pub struct GraphNode {
+    id: i64,
+    label: String,
+    path: String, // 我们需要 path 以便在点击节点时能打开文件
+}
+
+#[derive(Serialize, Clone)]
+pub struct GraphEdge {
+    from: i64,
+    to: i64,
+}
+
+#[derive(Serialize, Clone)]
+pub struct GraphData {
+    nodes: Vec<GraphNode>,
+    edges: Vec<GraphEdge>,
+}
+
+#[command]
+pub async fn get_graph_data(state: State<'_, AppState>) -> Result<GraphData, String> {
+    let db_pool = state.db_pool.lock().unwrap();
+    let conn = db_pool.as_ref().ok_or("数据库未初始化")?.get().map_err(|e| e.to_string())?;
+
+    // 1. 查询所有笔记作为“节点”
+    let mut nodes_stmt = conn.prepare("SELECT id, title, path FROM files WHERE title IS NOT NULL AND title != ''")
+        .map_err(|e| e.to_string())?;
+    let nodes_iter = nodes_stmt.query_map([], |row| {
+        Ok(GraphNode {
+            id: row.get(0)?,
+             // ▼▼▼ 【核心修改】在这里为 .get() 添加 <_, Option<String>> 类型标注 ▼▼▼
+            label: row.get::<_, Option<String>>(1)?.unwrap_or_else(|| "无标题".to_string()),
+         
+            path: row.get(2)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut nodes = Vec::new();
+    for node in nodes_iter {
+        nodes.push(node.map_err(|e| e.to_string())?);
+    }
+
+    // 2. 查询所有链接作为“边”
+    let mut edges_stmt = conn.prepare("SELECT source_file_id, target_file_id FROM links")
+        .map_err(|e| e.to_string())?;
+    let edges_iter = edges_stmt.query_map([], |row| {
+        Ok(GraphEdge {
+            from: row.get(0)?,
+            to: row.get(1)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut edges = Vec::new();
+    for edge in edges_iter {
+        edges.push(edge.map_err(|e| e.to_string())?);
+    }
+
+    Ok(GraphData { nodes, edges })
+}
