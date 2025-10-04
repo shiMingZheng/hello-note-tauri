@@ -58,7 +58,7 @@ const tabManager = {
         return this.openTabs.find(tab => tab.path === filePath);
     },
 
-    switchToTab(tabId) {
+      switchToTab(tabId) {
         this.activeTab = tabId;
         this.render();
 
@@ -66,37 +66,45 @@ const tabManager = {
             homepageEl.style.display = 'flex';
             editorWrapperEl.style.display = 'none';
             mainHeaderActions.style.display = 'none';
-			window.updateCurrentFileTagsUI(null); // [新增] 清空“我的标签”
-			 window.updateBacklinksUI(null); // [新增]
+            
+            // [修改] 当回到首页时，清除文件选中状态
+            appState.activeFilePath = null;
+            window.updateCurrentFileTagsUI(null);
+            window.updateBacklinksUI(null);
 
         } else {
             homepageEl.style.display = 'none';
             editorWrapperEl.style.display = 'flex';
-            mainHeaderActions.style.display = 'flex';
             
+            // [核心修改] 将当前激活的文件路径同步到全局状态
+            appState.activeFilePath = tabId; 
+
             const tabData = this.findTabByPath(tabId);
-            // [核心修改]
-			if (tabData && tabData.isNew) {
-				// 这是新的“空白页签”
-				mainHeaderActions.style.display = 'none'; // 隐藏“标签”和“保存”按钮
-				appState.activeFilePath = null;
-				markdownEditor.value = `# 空白页签\n\n您可以在左侧文件树中新建或打开一个笔记进行编辑。`;
-				markdownEditor.readOnly = true; // 设置编辑器为只读
-				window.updateCurrentFileTagsUI(null); // [新增] 清空“我的标签”
-				window.updateBacklinksUI(null); // [新增]
-				if (window.tagModal) {
-					appState.currentFileTags = [];
-				}
-			} else {
-				// 这是普通的文件页签
-				mainHeaderActions.style.display = 'flex'; // 显示操作按钮
-				markdownEditor.readOnly = false; // 确保编辑器是可写的
-				loadFileToEditor(tabId);
-				window.updateCurrentFileTagsUI(tabId); // [新增] 更新“我的标签”
-				window.updateBacklinksUI(tabId); // [新增]
-			}
+            
+            if (tabData && tabData.isNew) {
+                // (空白页签逻辑)
+                mainHeaderActions.style.display = 'none'; 
+                appState.activeFilePath = null; // 空白页签不对应任何文件，清除选中
+                markdownEditor.value = `# 空白页签\n\n您可以在左侧文件树中新建或打开一个笔记进行编辑。`;
+                markdownEditor.readOnly = true; 
+                window.updateCurrentFileTagsUI(null);
+                window.updateBacklinksUI(null);
+            } else {
+                // (普通文件页签逻辑)
+                mainHeaderActions.style.display = 'flex'; 
+                markdownEditor.readOnly = false;
+                loadFileToEditor(tabId);
+                window.updateCurrentFileTagsUI(tabId);
+                window.updateBacklinksUI(tabId);
+            }
+        }
+        
+        // [核心修改] 无论切换到哪个页签，都强制刷新一次文件列表以更新选中高亮
+        if (window.updateVirtualScrollData) {
+            updateVirtualScrollData();
         }
     },
+
 
     closeTab(filePath) {
         const index = this.openTabs.findIndex(tab => tab.path === filePath);

@@ -177,13 +177,12 @@
     user-select: none;
 }
 
-.file-list li:hover {
-     background-color: rgba(255, 255, 255, 0.1);
-}
 
 .file-list li.active {
-     background-color: rgba(74, 144, 226, 0.3);
-    font-weight: 500;
+    background-color: #e0eaf6; /* 使用一个柔和的蓝色背景 */
+     color: #3b82f6;            /* 字体颜色也变为蓝色 */
+     font-weight: 500;           /* 字体稍微加粗 */
+
 }
 
 .file-list li.folder {
