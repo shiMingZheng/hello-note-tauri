@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/utils.css">
 </head>
+
+
 <body>
     <div class="container">
         <aside class="sidebar">
@@ -60,11 +62,11 @@
 				<div id="dynamic-tab-container" class="dynamic-tabs">
 					</div>
 				<button id="add-new-note-tab-btn" class="icon-btn add-tab-btn">+</button>
+				<div class="header-spacer"></div>
 		
 				<div id="main-header-actions" class="main-header-actions" style="display: none;">
 					<button id="add-tag-btn" class="mode-btn">🏷️ 标签</button>
-					<button id="edit-mode-btn" class="mode-btn active">📝 编辑</button>
-					<button id="preview-mode-btn" class="mode-btn">👁️ 预览</button>
+					<button id="view-toggle-btn" class="mode-btn">👁️ 预览</button> 
 					<button id="save-btn" class="save-btn">💾 保存</button>
 				</div>
 			</div>
@@ -75,8 +77,7 @@
 						<h1>🐆 CheetahNote 活动中心</h1>
 						<p>在这里查看您最近的笔记活动</p>
 					</div>
-					<div id="history-list" class="history-list">
-						</div>
+					<div id="history-list" class="history-list"></div>
 				</div>
 				
 				<div id="editor-wrapper" style="display: none;">

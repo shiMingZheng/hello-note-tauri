@@ -831,10 +831,11 @@
 }
 
 .dynamic-tabs {
-    flex-grow: 1;
+    /*flex-grow: 1;*/
     overflow-x: auto;
     display: flex; /* [修改] 确保内部元素水平排列 */
     align-items: center; /* [修改] 垂直居中对齐 */
+	justify-content: flex-start; /* [新增] 确保内部元素从左侧开始排列 */
     /* ... */
 }
 .dynamic-tabs::-webkit-scrollbar {
@@ -887,11 +888,11 @@
 }
 
 /* 确保“+”按钮在页签容器末尾，而不是紧挨着最后一个页签 */
+/* [修改] 调整“+”按钮的 margin       margin-right: 8px;*/
 .add-tab-btn {
-    /* [修复] 移除 margin-left: auto，让它紧跟在最后一个页签后面 */
     margin-left: 4px; 
     margin-right: 8px;
-    flex-shrink: 0; /* 防止按钮被压缩 */
+    flex-shrink: 0; 
 }
 .main-header-actions {
     margin-left: auto; /* 将按钮推到最右侧 */
@@ -1055,4 +1056,9 @@
     box-sizing: border-box; /* 确保 padding 不会撑破容器 */
     border: none;
     outline: none;
+}
+
+/* [新增] 添加 spacer 样式 */
+.header-spacer {
+    flex-grow: 1; /* 这个元素将占据所有可用的多余空间 */
 }

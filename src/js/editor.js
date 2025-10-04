@@ -56,23 +56,24 @@ async function loadFileToEditor(path) {
     }
 }
 
-// 移除 switchToTab 函数，因为它已移入 tabManager
 
-// ... (switchViewMode, updatePreview, handleSaveFile 保持不变) ...
+// [新增] 切换编辑/预览模式的函数
+function toggleViewMode() {
+    // 切换到当前状态的反面
+    const newMode = appState.currentViewMode === 'edit' ? 'preview' : 'edit';
+    appState.currentViewMode = newMode;
 
-function switchViewMode(mode) {
-    appState.currentViewMode = mode;
-    if (mode === 'edit') {
+    if (newMode === 'edit') {
         markdownEditor.style.display = 'block';
         htmlPreview.style.display = 'none';
-        editModeBtn.classList.add('active');
-        previewModeBtn.classList.remove('active');
-        if (htmlPreview) htmlPreview.innerHTML = '';
-    } else { 
+        viewToggleBtn.innerHTML = '👁️ 预览'; // 更新按钮文本和图标
+        if (htmlPreview) {
+            htmlPreview.innerHTML = ''; // 清理内存
+        }
+    } else { // newMode === 'preview'
         markdownEditor.style.display = 'none';
         htmlPreview.style.display = 'block';
-        editModeBtn.classList.remove('active');
-        previewModeBtn.classList.add('active');
+        viewToggleBtn.innerHTML = '📝 编辑'; // 更新按钮文本和图标
         updatePreview();
     }
 }
@@ -174,6 +175,7 @@ console.log('✅ editor.js 加载完成');
 // [最终修复] 将核心函数显式挂载到全局 window 对象上
 window.handleSearch = handleSearch;
 window.clearSearch = clearSearch;
-window.switchViewMode = switchViewMode;
 window.handleSaveFile = handleSaveFile;
 window.handleAddTag = handleAddTag;
+// [新增] 将新函数暴露到全局
+window.toggleViewMode = toggleViewMode;

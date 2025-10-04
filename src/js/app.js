@@ -21,8 +21,8 @@ const appState = {
 
 let openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fileListElement,
     fileListSpacer, searchResultsList,  markdownEditor, htmlPreview, 
-    editModeBtn, previewModeBtn, saveBtn, contextMenu, newNoteBtn, newFolderBtn, 
-    deleteFileBtn, customConfirmDialog;
+     saveBtn, contextMenu, newNoteBtn, newFolderBtn, 
+    deleteFileBtn, customConfirmDialog,viewToggleBtn;
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -69,14 +69,15 @@ function initDOMElements() {
         searchResultsList = getElement('search-results-list');
         markdownEditor = getElement('markdown-editor');
         htmlPreview = getElement('html-preview');
-        editModeBtn = getElement('edit-mode-btn');
-        previewModeBtn = getElement('preview-mode-btn');
-        saveBtn = getElement('save-btn');
+               saveBtn = getElement('save-btn');
         contextMenu = getElement('context-menu');
         newNoteBtn = getElement('new-note-btn');
         newFolderBtn = getElement('new-folder-btn');
         deleteFileBtn = getElement('delete-file-btn');
         customConfirmDialog = getElement('custom-confirm-dialog');
+		// [修改] 移除 editModeBtn 和 previewModeBtn，添加新按钮
+        viewToggleBtn = getElement('view-toggle-btn');
+        saveBtn = getElement('save-btn');
 
     } catch (error) {
         throw error;
@@ -86,26 +87,34 @@ function initDOMElements() {
 
 function bindEvents() {
     console.log('🔗 开始绑定事件...');
+    
     openFolderBtn.addEventListener('click', handleOpenFolder);
     searchInput.addEventListener('input', debounce(handleSearch, 300));
     clearSearchBtn.addEventListener('click', clearSearch);
-    editModeBtn.addEventListener('click', () => switchViewMode('edit'));
-    previewModeBtn.addEventListener('click', () => switchViewMode('preview'));
+    
+    // [修复] 移除了对 addTagBtn 的事件绑定，因为它在 tag_modal.js 中处理
+    viewToggleBtn.addEventListener('click', toggleViewMode);
     saveBtn.addEventListener('click', handleSaveFile);
+    
     newNoteBtn.addEventListener('click', handleCreateNote);
     newFolderBtn.addEventListener('click', handleCreateFolder);
     deleteFileBtn.addEventListener('click', handleDeleteFile);
     document.addEventListener('click', () => hideContextMenu());
-
-    markdownEditor.addEventListener('input', () => { appState.hasUnsavedChanges = true; });
+    
+    markdownEditor.addEventListener('input', () => {
+        appState.hasUnsavedChanges = true;
+    });
+    
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 's') {
             e.preventDefault();
             handleSaveFile();
         }
     });
+    
     fileListElement.addEventListener('click', handleFileListClick);
     fileListElement.addEventListener('contextmenu', handleFileListContextMenu);
+    
     console.log('✅ 事件绑定完成');
 }
 
