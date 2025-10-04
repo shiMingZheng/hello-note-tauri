@@ -176,6 +176,6 @@ console.log('✅ editor.js 加载完成');
 window.handleSearch = handleSearch;
 window.clearSearch = clearSearch;
 window.handleSaveFile = handleSaveFile;
-window.handleAddTag = handleAddTag;
+// window.handleAddTag = handleAddTag; // <-- [删除] 或注释掉这一行
 // [新增] 将新函数暴露到全局
 window.toggleViewMode = toggleViewMode;

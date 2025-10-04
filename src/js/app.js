@@ -22,7 +22,7 @@ const appState = {
 let openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fileListElement,
     fileListSpacer, searchResultsList,  markdownEditor, htmlPreview, 
      saveBtn, contextMenu, newNoteBtn, newFolderBtn, 
-    deleteFileBtn, customConfirmDialog,viewToggleBtn;
+    deleteFileBtn, customConfirmDialog,viewToggleBtn, addTagBtn;
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -78,6 +78,7 @@ function initDOMElements() {
 		// [修改] 移除 editModeBtn 和 previewModeBtn，添加新按钮
         viewToggleBtn = getElement('view-toggle-btn');
         saveBtn = getElement('save-btn');
+		addTagBtn = getElement('add-tag-btn'); // <-- [新增] 获取标签按钮元素
 
     } catch (error) {
         throw error;
@@ -92,7 +93,7 @@ function bindEvents() {
     searchInput.addEventListener('input', debounce(handleSearch, 300));
     clearSearchBtn.addEventListener('click', clearSearch);
     
-    // [修复] 移除了对 addTagBtn 的事件绑定，因为它在 tag_modal.js 中处理
+   addTagBtn.addEventListener('click', () => window.tagModal.open());
     viewToggleBtn.addEventListener('click', toggleViewMode);
     saveBtn.addEventListener('click', handleSaveFile);
     
@@ -117,5 +118,3 @@ function bindEvents() {
     
     console.log('✅ 事件绑定完成');
 }
-
-window.switchToTab = switchToTab;

@@ -43,23 +43,32 @@ const tabManager = {
             homepageEl.style.display = 'flex';
             editorWrapperEl.style.display = 'none';
             mainHeaderActions.style.display = 'none';
+			window.updateCurrentFileTagsUI(null); // [新增] 清空“我的标签”
+
         } else {
             homepageEl.style.display = 'none';
             editorWrapperEl.style.display = 'flex';
             mainHeaderActions.style.display = 'flex';
             
             const tabData = this.findTabByPath(tabId);
-            if (tabData && tabData.isNew) {
-                // 是新标签，清空并设置默认内容
-                appState.activeFilePath = null; // 这是一个未保存的文件
-                markdownEditor.value = `# ${tabData.title.replace('.md', '')}\n\n`;
-                // 清理可能残留的旧标签
-                if (window.tagModal) {
-                    appState.currentFileTags = [];
-                }
-            } else {
-                loadFileToEditor(tabId);
-            }
+            // [核心修改]
+			if (tabData && tabData.isNew) {
+				// 这是新的“空白页签”
+				mainHeaderActions.style.display = 'none'; // 隐藏“标签”和“保存”按钮
+				appState.activeFilePath = null;
+				markdownEditor.value = `# 空白页签\n\n您可以在左侧文件树中新建或打开一个笔记进行编辑。`;
+				markdownEditor.readOnly = true; // 设置编辑器为只读
+				window.updateCurrentFileTagsUI(null); // [新增] 清空“我的标签”
+				if (window.tagModal) {
+					appState.currentFileTags = [];
+				}
+			} else {
+				// 这是普通的文件页签
+				mainHeaderActions.style.display = 'flex'; // 显示操作按钮
+				markdownEditor.readOnly = false; // 确保编辑器是可写的
+				loadFileToEditor(tabId);
+				window.updateCurrentFileTagsUI(tabId); // [新增] 更新“我的标签”
+			}
         }
     },
 

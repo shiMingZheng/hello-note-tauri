@@ -7,6 +7,12 @@ console.log('📜 sidebar.js 开始加载...');
 let tagSidebarListElement;
 let clearFilterBtnElement;
 
+// [新增] 声明新元素的变量
+let toggleTagsBtn;
+let tagsPopover;
+let currentFileTagsList;
+
+
 /**
  * 初始化侧边栏相关的 DOM 元素和事件
  */
@@ -14,7 +20,30 @@ function initializeSidebar() {
     tagSidebarListElement = document.getElementById('tag-sidebar-list');
     clearFilterBtnElement = document.getElementById('clear-filter-btn');
 
+      // [新增] 获取新元素
+    toggleTagsBtn = document.getElementById('toggle-tags-btn');
+    tagsPopover = document.getElementById('tags-popover');
+    currentFileTagsList = document.getElementById('current-file-tags-list');
+
     clearFilterBtnElement.addEventListener('click', handleClearTagFilter);
+    // [新增] 为新按钮绑定点击事件
+    toggleTagsBtn.addEventListener('click', toggleTagsPopover);
+    
+    // [新增] 点击浮层外部时关闭浮层
+    document.addEventListener('click', (e) => {
+        if (!tagsPopover.contains(e.target) && !toggleTagsBtn.contains(e.target)) {
+            tagsPopover.style.display = 'none';
+        }
+    });
+
+}
+// [新增] 切换“所有标签”浮层显示/隐藏的函数
+function toggleTagsPopover() {
+    const isVisible = tagsPopover.style.display === 'block';
+    tagsPopover.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+        refreshAllTagsList(); // 显示时刷新标签列表
+    }
 }
 
 /**
@@ -56,6 +85,8 @@ async function refreshAllTagsList() {
  */
 async function handleTagFilterClick(tagName) {
     console.log(`🏷️ 按标签筛选: ${tagName}`);
+	
+	tagsPopover.style.display = 'none'; // [新增] 点击后关闭浮层
     
     // 如果重复点击同一个标签，则取消筛选
     if (appState.activeTagFilter === tagName) {
@@ -91,8 +122,45 @@ function handleClearTagFilter() {
     refreshAllTagsList(); // 重新渲染以取消高亮
 }
 
+/**
+ * [新增] 更新“我的标签”区域的UI
+ * @param {string | null} filePath - 当前文件路径，或 null
+ */
+async function updateCurrentFileTagsUI(filePath) {
+    if (!currentFileTagsList) return;
+
+    if (!filePath) {
+        currentFileTagsList.innerHTML = '<li class="no-tags-info">未选择文件</li>';
+        return;
+    }
+
+    try {
+        const tags = await invoke('get_tags_for_file', { path: filePath });
+        appState.currentFileTags = tags;
+        
+        currentFileTagsList.innerHTML = '';
+        if (tags.length === 0) {
+            currentFileTagsList.innerHTML = '<li class="no-tags-info">无标签</li>';
+            return;
+        }
+        
+        tags.forEach(tagName => {
+            const li = document.createElement('li');
+            li.className = 'tag-pill-display';
+            li.textContent = tagName;
+            currentFileTagsList.appendChild(li);
+        });
+    } catch (error) {
+        console.error(`获取文件 ${filePath} 的标签失败:`, error);
+        currentFileTagsList.innerHTML = '<li class="no-tags-info">加载标签失败</li>';
+    }
+}
+
+
 // 在 DOM 加载后初始化
 document.addEventListener('DOMContentLoaded', initializeSidebar);
 console.log('✅ sidebar.js 加载完成');
 // [最终修复] 将核心函数显式挂载到全局 window 对象上
+// [修改] 将新函数也挂载到全局
 window.refreshAllTagsList = refreshAllTagsList;
+window.updateCurrentFileTagsUI = updateCurrentFileTagsUI;

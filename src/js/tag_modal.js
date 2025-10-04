@@ -3,7 +3,8 @@
 'use strict';
 console.log('📜 tag_modal.js 开始加载...');
 
-let modalOverlay, addTagBtn, closeModalBtn, doneBtn, cancelBtn, searchInput;
+// [修改] 重命名变量以避免冲突
+let modalOverlay,closeModalBtn, doneBtn, cancelBtn, tagModalSearchInput; 
 let allTagsContainer, currentTagsContainer;
 
 // 临时存储状态
@@ -13,19 +14,21 @@ let allAvailableTags = [];
 const tagModal = {
     init() {
         modalOverlay = document.getElementById('tag-modal-overlay');
-        addTagBtn = document.getElementById('add-tag-btn');
+        // addTagBtn 的事件监听已移至 app.js，这里不再需要
         closeModalBtn = document.getElementById('tag-modal-close-btn');
         doneBtn = document.getElementById('tag-modal-done-btn');
         cancelBtn = document.getElementById('tag-modal-cancel-btn');
-        searchInput = document.getElementById('tag-modal-search-input');
+        // [修改] 使用新的变量名
+        tagModalSearchInput = document.getElementById('tag-modal-search-input'); 
         allTagsContainer = document.getElementById('tag-modal-all-tags');
         currentTagsContainer = document.getElementById('tag-modal-current-tags');
 
-        addTagBtn.addEventListener('click', this.open);
+        // addTagBtn.addEventListener('click', this.open); // 已移除
         closeModalBtn.addEventListener('click', this.close);
         cancelBtn.addEventListener('click', this.close);
         doneBtn.addEventListener('click', this.handleDone);
-        searchInput.addEventListener('keyup', this.handleSearch);
+        // [修改] 使用新的变量名
+        tagModalSearchInput.addEventListener('keyup', this.handleSearch); 
     },
 
     async open() {
@@ -92,12 +95,15 @@ const tagModal = {
         this.render(searchInput.value);
     },
     
-    handleSearch(e) {
-        const query = searchInput.value.trim();
+	
+	handleSearch(e) {
+        // [修改] 使用新的变量名
+        const query = tagModalSearchInput.value.trim(); 
         if (e.key === 'Enter' && query) {
             // 创建新标签
             tagModal.handlePillClick(query.toLowerCase());
-            searchInput.value = '';
+            // [修改] 使用新的变量名
+            tagModalSearchInput.value = ''; 
             tagModal.render('');
         } else {
             tagModal.render(query);

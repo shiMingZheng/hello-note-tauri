@@ -135,6 +135,31 @@
     height: 100%;
     background: var(--bg-sidebar);
 }
+/* ... .file-list-container 样式之后 ... */
+
+/* [新增] “我的标签”列表样式 */
+.current-file-tags-list {
+    padding: 0 15px 10px;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.current-file-tags-list .tag-pill-display {
+    background-color: #e9ecef;
+    color: var(--text-secondary);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+.current-file-tags-list .no-tags-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ... 文件末尾的其他样式 ... */
 
 .file-list {
     list-style: none;
@@ -1062,3 +1087,24 @@
 .header-spacer {
     flex-grow: 1; /* 这个元素将占据所有可用的多余空间 */
 }
+
+/* src/css/components.css */
+
+/* ... .sidebar-header-actions 样式之后 ... */
+
+/* [新增] “所有标签”浮层样式 */
+.tags-popover {
+    position: absolute;
+    top: 50px; /* 位于头部下方 */
+    left: 10px;
+    right: 10px;
+    background-color: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+    padding: 10px;
+    max-height: 300px; /* 限制最大高度 */
+    overflow-y: auto;
+}
+
