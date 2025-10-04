@@ -1,4 +1,5 @@
 // src/commands/fs.rs
+use crate::commands::links::update_links_for_file;
 use crate::commands::history::record_file_event;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -119,23 +120,29 @@ pub async fn save_file(
     content: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    fs::write(&path, &content)
-        .map_err(|e| format!("保存文件失败: {}", e))?;
-	// ... 在 fs::write 之后 ...
-    // [修复] 使用 .clone() 来传递 path 和 state 的副本，保留原始值的所有权
-	let _ = record_file_event(path.clone(), "edited".to_string(), state.clone()).await;
-    
-    // [修复] 同时获取 index 和 db_pool
+    fs::write(&path, &content).map_err(|e| format!("保存文件失败: {}", e))?;
+
+    let _ = record_file_event(path.clone(), "edited".to_string(), state.clone()).await;
+
     let search_index_lock = state.search_index.lock().unwrap();
     let db_pool_lock = state.db_pool.lock().unwrap();
+
     if let (Some(index), Some(db_pool)) = (search_index_lock.as_ref(), db_pool_lock.as_ref()) {
+        // 更新全文索引
         let file_path = PathBuf::from(&path);
-        // [修复] 将 db_pool 作为参数传递
         if let Err(e) = crate::search::update_document_index(index, db_pool, &file_path) {
             eprintln!("更新索引和数据库失败: {}", e);
         }
+
+        // ▼▼▼ 【核心修改 2】获取一个可变的连接并传递 ▼▼▼
+        let mut conn = db_pool.get().map_err(|e| e.to_string())?;
+        if let Err(e) = update_links_for_file(&mut conn, &path) {
+            eprintln!("更新文件链接失败: {}", e);
+        }
+        // ▲▲▲ 【核心修改 2】结束 ▲▲▲
+        // ▲▲▲ 【核心修改】结束 ▲▲▲
     }
-    
+
     Ok(())
 }
 

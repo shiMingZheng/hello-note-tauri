@@ -6,3 +6,4 @@ pub mod utils;
 pub mod tags; 
 pub mod history;
 pub mod pins; // [新增]
+pub mod links; // [新增]

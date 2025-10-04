@@ -28,6 +28,7 @@ r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 
 chrono = "0.4"
+regex = "1.10" # [新增] 添加 regex 库
 
 [profile.dev]
 # 开发模式：快速编译

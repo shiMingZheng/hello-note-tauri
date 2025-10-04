@@ -67,6 +67,7 @@ const tabManager = {
             editorWrapperEl.style.display = 'none';
             mainHeaderActions.style.display = 'none';
 			window.updateCurrentFileTagsUI(null); // [新增] 清空“我的标签”
+			 window.updateBacklinksUI(null); // [新增]
 
         } else {
             homepageEl.style.display = 'none';
@@ -82,6 +83,7 @@ const tabManager = {
 				markdownEditor.value = `# 空白页签\n\n您可以在左侧文件树中新建或打开一个笔记进行编辑。`;
 				markdownEditor.readOnly = true; // 设置编辑器为只读
 				window.updateCurrentFileTagsUI(null); // [新增] 清空“我的标签”
+				window.updateBacklinksUI(null); // [新增]
 				if (window.tagModal) {
 					appState.currentFileTags = [];
 				}
@@ -91,6 +93,7 @@ const tabManager = {
 				markdownEditor.readOnly = false; // 确保编辑器是可写的
 				loadFileToEditor(tabId);
 				window.updateCurrentFileTagsUI(tabId); // [新增] 更新“我的标签”
+				window.updateBacklinksUI(tabId); // [新增]
 			}
         }
     },

@@ -93,6 +93,15 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
             event_datetime  TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_history_datetime ON history (event_datetime);
+		  /* ▼▼▼ [新增] links 表 ▼▼▼ */
+        CREATE TABLE IF NOT EXISTS links (
+            source_file_id  INTEGER,
+            target_file_id  INTEGER,
+            FOREIGN KEY (source_file_id) REFERENCES files (id) ON DELETE CASCADE,
+            FOREIGN KEY (target_file_id) REFERENCES files (id) ON DELETE CASCADE,
+            PRIMARY KEY (source_file_id, target_file_id)
+        );
+        /* ▲▲▲ [新增] links 表 ▲▲▲ */
         "
     ).with_context(|| "创建索引和其他表结构失败")?;
 

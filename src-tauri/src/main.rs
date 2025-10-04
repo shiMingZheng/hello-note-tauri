@@ -67,6 +67,9 @@ pub fn run() {
             commands::pins::get_pinned_notes,
             commands::utils::parse_markdown,
 			commands::history::record_file_event, 
+			// [新增]
+			commands::links::debug_get_all_links, // [新增]
+			commands::links::get_backlinks,
 			commands::history::get_history
         ])
         .setup(|app| {

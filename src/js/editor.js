@@ -81,8 +81,23 @@ function toggleViewMode() {
 async function updatePreview() {
     const content = markdownEditor.value;
     try {
+        // [修改] 现在 parse_markdown 需要传递 state，但 tauri 会自动处理，我们只需调用即可
         const html = await invoke('parse_markdown', { content });
         htmlPreview.innerHTML = html;
+
+        // ▼▼▼ 【核心新增】为预览区域的所有内部链接添加点击事件监听 ▼▼▼
+        htmlPreview.querySelectorAll('a.internal-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault(); // 阻止 a 标签的默认跳转行为
+                const targetPath = link.getAttribute('data-path');
+                if (targetPath) {
+                    console.log(`跳转到笔记: ${targetPath}`);
+                    tabManager.openTab(targetPath);
+                }
+            });
+        });
+        // ▲▲▲ 【核心新增】结束 ▲▲▲
+
     } catch (error) {
         console.error('❌ Markdown 解析失败:', error);
         htmlPreview.innerHTML = '<p style="color: red;">Markdown 解析失败</p>';

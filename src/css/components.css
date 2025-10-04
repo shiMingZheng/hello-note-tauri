@@ -1151,21 +1151,30 @@
 
 /* [核心修复] 让 .editor-container 占据所有剩余的垂直空间 */
 .editor-container {
-    flex-grow: 1; /* 这是最关键的属性，让此容器“成长”以填满父元素 */
-    display: flex; /* 自身也成为 flex 容器，以便控制内部的 textarea */
-    overflow: hidden; /* 防止其子元素溢出 */
+    flex-grow: 1; /* 让此容器“成长”以填满父元素的垂直空间 */
+    display: flex;
+    overflow: hidden;
+    min-height: 0; /* 关键修复：这是一个 Flexbox 技巧，可防止子元素在某些情况下溢出或计算错误 */
+
 }
 
 /* [核心修复] 让 textarea 和 preview 填满 .editor-container */
 .markdown-editor,
 .html-preview {
-    flex: 1; /* 让它们在 .editor-container 内部自由伸缩 */
-    width: 100%;
-    height: 100%; /* 确保高度完全填充 */
+    flex: 1; /* 让它们在 .editor-container 内部自由伸缩（宽度） */
+    /* 移除固定的 width 和 height，完全交给 Flexbox 的 align-items: stretch (默认行为) 来处理高度 */
+    
     padding: 20px;
-    box-sizing: border-box; /* 确保 padding 不会撑破容器 */
+    box-sizing: border-box;
     border: none;
     outline: none;
+    resize: none; /* 确保用户不能手动拖动调整 textarea 大小 */
+    /* 以下是您可能已有的其他样式，保持即可 */
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--text-primary);
+    background: white;
 }
 
 /* [新增] 添加 spacer 样式 */
@@ -1249,3 +1258,55 @@
     margin: 25px 40px;
 }
 
+/* src/css/components.css, 在文件末尾添加 */
+
+/* ========================================
+   反向链接列表样式
+   ======================================== */
+.backlinks-list {
+    list-style: none;
+    padding: 0 15px 15px;
+    font-size: 13px;
+    max-height: 150px; /* 限制一个最大高度 */
+    overflow-y: auto;
+}
+
+.backlinks-list li {
+    padding: 4px 0;
+    cursor: pointer;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.backlinks-list li:hover {
+    color: var(--primary-color);
+}
+
+/* src/css/components.css, 在文件末尾添加 */
+
+/* ========================================
+   内部链接样式
+   ======================================== */
+a.internal-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    background-color: rgba(74, 144, 226, 0.1);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+a.internal-link:hover {
+    text-decoration: underline;
+    background-color: rgba(74, 144, 226, 0.2);
+}
+
+.internal-link-broken {
+    color: var(--danger-color);
+    text-decoration: line-through;
+    background-color: rgba(231, 76, 60, 0.1);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
