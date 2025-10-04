@@ -21,15 +21,38 @@ const tabManager = {
         addNewNoteTabBtn.addEventListener('click', () => this.handleAddNewNote());
     },
 
-    openTab(filePath) {
-        if (!this.findTabByPath(filePath)) {
-            this.openTabs.push({ 
-                path: filePath,
-                title: filePath.split(/[/\\]/).pop()
-            });
+     openTab(filePath) {
+        // 1. 如果目标文件的页签已经存在，直接切换过去
+        if (this.findTabByPath(filePath)) {
+            this.switchToTab(filePath);
+            return;
         }
+
+        const newTabData = { 
+            path: filePath,
+            title: filePath.split(/[/\\]/).pop()
+        };
+
+        // 2. 如果当前在首页，则行为是“新建一个页签”
+        if (this.activeTab === 'home') {
+            this.openTabs.push(newTabData);
+        } 
+        // 3. 如果当前在任何文件页签或空白页签，则“替换当前页签”
+        else {
+            const currentIndex = this.openTabs.findIndex(tab => tab.path === this.activeTab);
+            if (currentIndex > -1) {
+                // 用新文件的数据替换掉当前激活的页签数据
+                this.openTabs[currentIndex] = newTabData;
+            } else {
+                // 兜底：如果出现意外情况找不到当前页签，则新建一个
+                this.openTabs.push(newTabData);
+            }
+        }
+
+        // 4. 最后，切换到这个新内容上
         this.switchToTab(filePath);
     },
+
 
     findTabByPath(filePath) {
         return this.openTabs.find(tab => tab.path === filePath);

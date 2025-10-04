@@ -205,7 +205,6 @@ function handleFileListClick(e) {
     const li = e.target.closest('li');
     if (!li) return;
     
-    e.stopPropagation();
     const path = li.dataset.path;
     const isDir = li.dataset.isDir === 'true';
     
@@ -269,7 +268,8 @@ async function handleCreateNote() {
     
     try {
         const targetPath = appState.contextTarget.path;
-        await invoke('create_new_file', { dirPath: targetPath, fileName: fullFileName });
+         // [修改] create_new_file 会返回新文件的完整路径
+        const newFilePath = await invoke('create_new_file', { dirPath: targetPath, fileName: fullFileName });
         showSuccessMessage('笔记已创建: ' + fullFileName);
         
         appState.expandedFolders.add(targetPath);
@@ -282,6 +282,11 @@ async function handleCreateNote() {
         if (appState.indexInitialized) {
             invoke('index_files', { basePath: appState.rootPath }).catch(err => console.warn('后台索引失败:', err));
         }
+		     // [新增] 创建成功后，立即在当前页签打开这个新文件
+        if (newFilePath) {
+            tabManager.openTab(newFilePath);
+        }
+
     } catch (error) {
         console.error('❌ 创建笔记失败:', error);
         showError('创建笔记失败: ' + error);
@@ -389,6 +394,56 @@ async function handleUnpinNote() {
         }
     } catch (error) {
         showError("取消置顶失败: " + error);
+    }
+}
+
+// [修改] showContextMenu 函数，使其更智能
+async function showContextMenu(event, file) {
+    event.preventDefault(); // 确保总是阻止默认右键菜单
+    event.stopPropagation();
+
+    appState.contextTarget = {
+        path: file.path,
+        isDir: file.is_dir,
+        name: file.name
+    };
+
+    contextMenu.style.left = event.pageX + 'px';
+    contextMenu.style.top = event.pageY + 'px';
+    contextMenu.classList.add('visible');
+
+    // 先隐藏所有选项
+    pinNoteBtn.style.display = 'none';
+    unpinNoteBtn.style.display = 'none';
+    newNoteBtn.style.display = 'none';
+    newFolderBtn.style.display = 'none';
+    deleteFileBtn.style.display = 'none'; // 默认也隐藏删除
+
+    // 根据来源决定显示哪些选项
+    if (file.from === 'pinned-section') {
+        // 来源是置顶区：只显示“取消置顶”
+        unpinNoteBtn.style.display = 'block';
+    } else if (file.is_dir) {
+        // 来源是侧边栏的文件夹
+        newNoteBtn.style.display = 'block';
+        newFolderBtn.style.display = 'block';
+        deleteFileBtn.style.display = 'block';
+    } else {
+        // 来源是侧边栏的文件
+        deleteFileBtn.style.display = 'block';
+        // 检查文件的置顶状态来决定显示“置顶”还是“取消置顶”
+        try {
+            const pinnedNotes = await invoke('get_pinned_notes');
+            const isPinned = pinnedNotes.some(note => note.path === file.path);
+
+            if (isPinned) {
+                unpinNoteBtn.style.display = 'block';
+            } else {
+                pinNoteBtn.style.display = 'block';
+            }
+        } catch (error) {
+            console.error("检查置顶状态失败:", error);
+        }
     }
 }
 

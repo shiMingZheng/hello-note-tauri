@@ -49,12 +49,12 @@ function renderHistory(history) {
 
             html += `
                 <div class="history-item" data-path="${entry.file_path}">
-                    <div class="history-item-header">
+                    <div class="history-item-content">
                         <span class="event-icon" title="${eventText}">${eventIcon}</span>
                         <span class="path" title="${entry.file_path}">${fileName}</span>
+                        <span class="snippet">${entry.snippet || ''}</span>
                         <span class="time">${time}</span> 
                     </div>
-                    <p class="snippet">${entry.snippet || '...'}</p>
                 </div>
             `;
         });
@@ -85,11 +85,12 @@ async function loadPinnedNotes() {
 }
 
 // [新增] 渲染置顶笔记卡片的函数
+// [修改] 渲染置顶笔记卡片的函数
 function renderPinnedNotes(notes) {
     if (!pinnedNotesGridElement) return;
-    
+
     pinnedNotesGridElement.innerHTML = ''; // 清空
-    
+
     if (!notes || notes.length === 0) {
         pinnedNotesGridElement.innerHTML = '<p class="empty-state">您还没有置顶任何笔记。在左侧文件上右键点击即可置顶。</p>';
         return;
@@ -100,11 +101,25 @@ function renderPinnedNotes(notes) {
         card.className = 'pinned-note-card';
         card.title = note.path;
         card.innerHTML = `<h4>${note.title}</h4>`;
-        
+
+        // 左键点击打开笔记
         card.addEventListener('click', () => {
             tabManager.openTab(note.path);
         });
-        
+
+        // [新增] 右键点击显示上下文菜单
+        card.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            // 模拟一个文件对象，并传入特殊标记
+            const file_obj = { 
+                path: note.path, 
+                is_dir: false, 
+                name: note.title,
+                from: 'pinned-section' // 特殊标记
+            };
+            showContextMenu(e, file_obj);
+        });
+
         pinnedNotesGridElement.appendChild(card);
     });
 }
