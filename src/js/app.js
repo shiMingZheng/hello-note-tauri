@@ -19,11 +19,11 @@ const appState = {
     virtualScroll: { visibleItems: [], renderedRange: { start: 0, end: 0 }, scrollTop: 0, containerHeight: 0 }
 };
 
-//// [核心修改] 将 let 改为 var，以确保所有模块都能访问到这些DOM元素
+// [核心修改] 将 let 改为 var，以确保所有模块都能访问到这些DOM元素
 var openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fileListElement,
     fileListSpacer, searchResultsList,  markdownEditor, htmlPreview, 
      saveBtn, contextMenu, newNoteBtn, newFolderBtn, 
-    deleteFileBtn, customConfirmDialog,viewToggleBtn,pinNoteBtn, unpinNoteBtn;
+    deleteFileBtn, customConfirmDialog,viewToggleBtn,pinNoteBtn, unpinNoteBtn, editorContainer;
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -82,6 +82,7 @@ function initDOMElements() {
 		  // [新增]
         pinNoteBtn = getElement('pin-note-btn');
         unpinNoteBtn = getElement('unpin-note-btn');
+		editorContainer = getElement('editor-container'); // <-- [新增] 获取 editor-container 元素
 
     } catch (error) {
         throw error;

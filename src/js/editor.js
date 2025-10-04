@@ -58,25 +58,27 @@ async function loadFileToEditor(path) {
 
 
 // [新增] 切换编辑/预览模式的函数
+// ▼▼▼ 【核心修改】用下面这个新函数替换掉旧的 toggleViewMode 函数 ▼▼▼
 function toggleViewMode() {
     // 切换到当前状态的反面
     const newMode = appState.currentViewMode === 'edit' ? 'preview' : 'edit';
     appState.currentViewMode = newMode;
 
     if (newMode === 'edit') {
-        markdownEditor.style.display = 'block';
-        htmlPreview.style.display = 'none';
-        viewToggleBtn.innerHTML = '👁️ 预览'; // 更新按钮文本和图标
+        // 移除 'preview-mode' 类，回到默认的编辑状态
+        editorContainer.classList.remove('preview-mode');
+        viewToggleBtn.innerHTML = '👁️ 预览'; 
         if (htmlPreview) {
             htmlPreview.innerHTML = ''; // 清理内存
         }
     } else { // newMode === 'preview'
-        markdownEditor.style.display = 'none';
-        htmlPreview.style.display = 'block';
-        viewToggleBtn.innerHTML = '📝 编辑'; // 更新按钮文本和图标
+        // 添加 'preview-mode' 类，切换到预览状态
+        editorContainer.classList.add('preview-mode');
+        viewToggleBtn.innerHTML = '📝 编辑'; 
         updatePreview();
     }
 }
+// ▲▲▲ 【核心修改】结束 ▲▲▲
 
 async function updatePreview() {
     const content = markdownEditor.value;

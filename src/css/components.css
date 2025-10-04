@@ -440,23 +440,22 @@
 }
 
 .markdown-editor {
-    flex: 1;
-    padding: 20px;
-    border: none;
-    resize: none;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 14px;
-    line-height: 1.8;
-    color: var(--text-primary);
-    background: white;
-    outline: none;
+    display: block;
 }
 
+
+/* [核心修改] 使用 CSS 类来控制显示和隐藏 */
+/* 默认状态（编辑模式），预览区隐藏 */
 .html-preview {
-    flex: 1;
-    padding: 20px;
-    overflow-y: auto;
-    background: white;
+    display: none;
+}
+
+/* 当容器有 .preview-mode 类时，反转显示状态 */
+.editor-container.preview-mode .html-preview {
+    display: block;
+}
+.editor-container.preview-mode .markdown-editor {
+    display: none;
 }
 
 /* 预览区 Markdown 样式 */
@@ -1014,6 +1013,8 @@
     position: relative;
     flex-grow: 1;
     overflow: hidden;
+	display: flex; /* [关键] 让 #content-area 成为 flex 容器，使其子元素可以拉伸 */
+
 }
 
 /* 修改旧的页签内容样式 */
@@ -1032,6 +1033,10 @@
 
 /* 移除旧的 editor-wrapper 样式 */
 #editor-wrapper {
+   display: none; /* 由 JS 切换为 flex */
+    flex-grow: 1;
+
+
     /* 移除 display: none !important; 等规则 */
     /* 现在它由 JS 控制显示 */
 }
@@ -1138,44 +1143,48 @@
    [修复] 编辑器全屏布局样式
    ======================================== */
 
-/* 确保 #editor-wrapper 在激活时是一个能撑满父容器的 flex 纵向布局 */
+/* 确保 #editor-wrapper 在激活时是一个能撑满父容器的 flex 纵向布局 
 #editor-wrapper.tab-content.active {
     display: flex;
     flex-direction: column;
 }
-
+*/
 /* 确保 .tag-bar 高度固定，不被压缩 */
 .tag-bar {
     flex-shrink: 0;
 }
 
-/* [核心修复] 让 .editor-container 占据所有剩余的垂直空间 */
+/* [核心修改] 将 editor-container 设为相对定位的容器 */
 .editor-container {
-    flex-grow: 1; /* 让此容器“成长”以填满父元素的垂直空间 */
-    display: flex;
-    overflow: hidden;
-    min-height: 0; /* 关键修复：这是一个 Flexbox 技巧，可防止子元素在某些情况下溢出或计算错误 */
-
+    position: relative; /* 成为内部绝对定位元素的参照物 */
+    width: 100%;
+    height: 100%;
 }
 
-/* [核心修复] 让 textarea 和 preview 填满 .editor-container */
+
+/* [核心修改] 将编辑器和预览区都设为绝对定位，并撑满容器 */
 .markdown-editor,
 .html-preview {
-    flex: 1; /* 让它们在 .editor-container 内部自由伸缩（宽度） */
-    /* 移除固定的 width 和 height，完全交给 Flexbox 的 align-items: stretch (默认行为) 来处理高度 */
-    
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+
+    /* 外观和内边距样式 */
     padding: 20px;
     box-sizing: border-box;
     border: none;
     outline: none;
-    resize: none; /* 确保用户不能手动拖动调整 textarea 大小 */
-    /* 以下是您可能已有的其他样式，保持即可 */
+    resize: none;
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 14px;
     line-height: 1.8;
-    color: var(--text-primary);
     background: white;
+    color: var(--text-primary);
+    overflow-y: auto;
 }
+
 
 /* [新增] 添加 spacer 样式 */
 .header-spacer {
