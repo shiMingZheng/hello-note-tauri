@@ -2,7 +2,7 @@
 use crate::commands::history::record_file_event;
 use crate::commands::links::update_links_for_file;
 use crate::commands::path_utils::{to_absolute_path, to_relative_path};
-use crate::search_core::{delete_document, index_documents, update_document_index};
+use crate::search_core::{delete_document, update_document_index};
 use crate::AppState;
 use rusqlite::{params, Connection};
 use serde::Serialize;
@@ -215,19 +215,25 @@ pub async fn delete_folder(root_path: String, relative_path: String, state: Stat
     delete_item(root_path, relative_path, state).await
 }
 
-// ▼▼▼ 【核心修改】在这里 ▼▼▼
+/**
+ * [修复] 批量更新数据库中的路径
+ * 修复点：确保在事务开始前释放所有读锁
+ */
 fn update_paths_in_db(
     conn: &mut Connection,
     old_prefix: &str,
     new_prefix: &str,
 ) -> Result<(), rusqlite::Error> {
-    let separator = if cfg!(windows) { "\\" } else { "/" };
+    // 使用正确的路径分隔符
+    let separator = std::path::MAIN_SEPARATOR.to_string();
     let pattern = format!("{}{}%", old_prefix, separator);
 
-    // 步骤 1: 查询所有需要更新的路径，并将它们收集到一个 Vec 中。
-    // 使用一个独立的块 `{...}` 来确保 `stmt` 在我们开始事务之前被销毁。
+    // [关键修复] 步骤 1: 在独立块中查询并收集数据
     let updates = {
-        let mut stmt = conn.prepare("SELECT id, path FROM files WHERE path = ?1 OR path LIKE ?2")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, path FROM files WHERE path = ?1 OR path LIKE ?2"
+        )?;
+        
         let rows = stmt.query_map(params![old_prefix, pattern], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
         })?;
@@ -239,9 +245,9 @@ fn update_paths_in_db(
             updates_vec.push((new_path, id));
         }
         updates_vec
-    }; // `stmt` 在这里超出作用域，不可变借用结束。
+    }; // stmt 在这里被销毁，释放读锁
 
-    // 步骤 2: 现在可以安全地开始一个事务来进行修改。
+    // 步骤 2: 在事务中批量更新
     let tx = conn.transaction()?;
     for (new_path, id) in updates {
         tx.execute(
@@ -259,6 +265,13 @@ pub struct RenameResult {
     is_dir: bool,
 }
 
+/**
+ * [优化] 重命名文件或文件夹
+ * 修复点：
+ * 1. 返回 is_dir 字段，让前端知道是文件还是文件夹
+ * 2. 对文件夹使用增量索引更新，而不是全量重建
+ * 3. 添加详细的日志输出
+ */
 #[tauri::command]
 pub async fn rename_item(
     root_path: String,
@@ -266,43 +279,106 @@ pub async fn rename_item(
     new_name: String,
     state: State<'_, AppState>,
 ) -> Result<RenameResult, String> {
+    println!("🔄 重命名请求: {} -> {}", old_relative_path, new_name);
+    
     let base_path = Path::new(&root_path);
     let old_abs_path = to_absolute_path(base_path, Path::new(&old_relative_path));
+    
+    // 验证源文件/文件夹存在
     if !old_abs_path.exists() {
         return Err(format!("目标不存在: {}", old_abs_path.display()));
     }
+
+    // 验证新名称不包含路径分隔符
     if new_name.contains('/') || new_name.contains('\\') {
         return Err("新名称不能包含路径分隔符".to_string());
     }
+
+    // 构建新路径
     let mut new_abs_path = old_abs_path.clone();
     new_abs_path.set_file_name(&new_name);
+    
+    // 为文件自动添加 .md 扩展名
     if old_abs_path.is_file() && new_abs_path.extension().is_none() {
         new_abs_path.set_extension("md");
     }
+
+    // 检查目标是否已存在
     if new_abs_path.exists() {
         return Err("同名文件或文件夹已存在".to_string());
     }
 
+    // 执行文件系统重命名
     fs::rename(&old_abs_path, &new_abs_path)
         .map_err(|e| format!("文件系统重命名失败: {}", e))?;
+    
+    println!("✅ 文件系统重命名成功");
 
-    let new_relative_path = to_relative_path(base_path, &new_abs_path)
+    // 获取新的相对路径
+    let mut new_relative_path = to_relative_path(base_path, &new_abs_path)
         .unwrap()
         .to_string_lossy()
         .to_string();
 
+    // [关键修复] 统一路径分隔符为正斜杠（与前端一致）
+    new_relative_path = new_relative_path.replace('\\', "/");
+    
+    println!("  新相对路径: {}", new_relative_path);
+
     let is_dir = new_abs_path.is_dir();
+    
+    // 更新数据库和索引
     let db_pool_lock = state.db_pool.lock().unwrap();
     let search_index_lock = state.search_index.lock().unwrap();
 
     if let (Some(pool), Some(index)) = (db_pool_lock.as_ref(), search_index_lock.as_ref()) {
         let mut conn = pool.get().map_err(|e| e.to_string())?;
+        
+        // 批量更新数据库路径
         update_paths_in_db(&mut conn, &old_relative_path, &new_relative_path)
             .map_err(|e| format!("数据库批量更新路径失败: {}", e))?;
         
-        if let Err(e) = index_documents(index, pool, base_path) {
-            eprintln!("重命名后重新索引失败: {}", e);
+        println!("✅ 数据库路径更新成功");
+
+        // [优化] 增量更新索引
+        if is_dir {
+            // 文件夹：需要重新索引所有子文件
+            println!("📂 文件夹重命名，增量更新索引...");
+            
+            // 查询所有受影响的文件
+            let separator = std::path::MAIN_SEPARATOR.to_string();
+            let pattern = format!("{}{}%", new_relative_path, separator);
+            
+            let mut stmt = conn.prepare(
+                "SELECT path FROM files WHERE path = ?1 OR path LIKE ?2"
+            ).map_err(|e| e.to_string())?;
+            
+            let affected_files: Vec<String> = stmt
+                .query_map(params![new_relative_path, pattern], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .filter_map(Result::ok)
+                .collect();
+            
+            println!("  需要更新 {} 个文件的索引", affected_files.len());
+            
+            // 逐个更新索引
+            for relative_path in affected_files {
+                let file_path = Path::new(&relative_path);
+                if let Err(e) = update_document_index(index, pool, base_path, file_path) {
+                    eprintln!("  ⚠️ 更新索引失败 {}: {}", relative_path, e);
+                }
+            }
+            
+        } else {
+            // 单个文件：只更新这一个文件的索引
+            println!("📄 文件重命名，更新单个索引...");
+            let new_path = Path::new(&new_relative_path);
+            if let Err(e) = update_document_index(index, pool, base_path, new_path) {
+                eprintln!("  ⚠️ 更新索引失败: {}", e);
+            }
         }
+        
+        println!("✅ 索引更新完成");
     }
 
     Ok(RenameResult {

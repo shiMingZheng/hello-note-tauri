@@ -1,9 +1,8 @@
-// src/js/tab_manager.js - (新增 updatePathsForRenamedFolder 函数)
+// src/js/tab_manager.js - 已包含 updatePathsForRenamedFolder 函数
 
 'use strict';
 console.log('📜 tab_manager.js 开始加载...');
 
-// ... (顶部变量和 init, openTab, findTabByPath 等函数保持不变) ...
 let dynamicTabContainer, homeTabBtn, addNewNoteTabBtn, mainHeaderActions, editorWrapperEl, homepageEl;
 
 const tabManager = {
@@ -95,6 +94,9 @@ const tabManager = {
         }
     },
 
+    /**
+     * 更新单个标签页的路径（用于文件重命名）
+     */
     updateTabId(oldPath, newPath) {
         const tabIndex = this.openTabs.findIndex(tab => tab.path === oldPath);
         if (tabIndex > -1) {
@@ -108,24 +110,46 @@ const tabManager = {
         this.render();
     },
 
-    // ▼▼▼ 【新增】这个函数用于批量更新标签页路径 ▼▼▼
+    /**
+     * [关键函数] 批量更新文件夹重命名后的所有子文件标签页路径
+     * @param {string} oldPrefix - 旧的文件夹路径前缀
+     * @param {string} newPrefix - 新的文件夹路径前缀
+     */
     updatePathsForRenamedFolder(oldPrefix, newPrefix) {
+        console.log(`🔄 批量更新标签页路径: ${oldPrefix} -> ${newPrefix}`);
+        
         let activeTabUpdated = false;
+        let updatedCount = 0;
+
+        // 遍历所有打开的标签页
         this.openTabs.forEach(tab => {
+            // [关键] 检查标签页路径是否以旧前缀开头
             if (tab.path.startsWith(oldPrefix)) {
+                // 替换路径前缀
                 const newPath = tab.path.replace(oldPrefix, newPrefix);
+                const oldPath = tab.path;
+                
                 tab.path = newPath;
                 tab.title = newPath.split(/[/\\]/).pop();
-                if (this.activeTab === oldPrefix) {
+                
+                updatedCount++;
+                console.log(`  ✅ 更新标签页: ${oldPath} -> ${newPath}`);
+
+                // 如果当前激活的标签也被更新了，记录下来
+                if (this.activeTab === oldPath) {
                     this.activeTab = newPath;
                     activeTabUpdated = true;
                 }
             }
         });
 
+        // 如果激活标签被更新，同步更新 appState
         if (activeTabUpdated) {
             appState.activeFilePath = this.activeTab;
+            console.log(`  🎯 激活标签已更新: ${this.activeTab}`);
         }
+
+        console.log(`✅ 共更新 ${updatedCount} 个标签页`);
         this.render();
     },
 

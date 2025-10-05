@@ -94,29 +94,63 @@ async function openFolderByPath(folderPath) {
 }
 
 // ▼▼▼ 【优化】刷新文件树的逻辑 ▼▼▼
+// file-manager.js 中的 refreshFileTree 函数（修复版）
+
+/**
+ * [修复] 刷新文件树
+ * @param {string} relativePath - 要刷新的相对路径，空字符串表示根目录
+ * 
+ * 修复点：
+ * 1. 正确处理空字符串（根目录）的情况
+ * 2. 刷新后确保 Map 数据同步
+ * 3. 添加详细日志便于调试
+ */
 async function refreshFileTree(relativePath = "") {
-    if (!appState.rootPath) return;
+    if (!appState.rootPath) {
+        console.warn('⚠️ rootPath 未设置，无法刷新文件树');
+        return;
+    }
+
+    console.log(`🔄 刷新文件树: ${relativePath || '(根目录)'}`);
+    
     try {
         const nodes = await invoke('list_dir_lazy', { 
             rootPath: appState.rootPath, 
-            relativePath 
+            relativePath: relativePath 
         });
 
+        console.log(`  ✅ 获取到 ${nodes.length} 个节点`);
+
         if (relativePath === "") {
-            // 如果刷新根目录，直接替换整个树
+            // 刷新根目录：直接替换整个树
+            console.log('  📂 更新根目录');
             appState.fileTreeRoot = nodes;
+            
+            // [关键] 清空 Map，因为根目录变化了
+            appState.fileTreeMap.clear();
+            
         } else {
-            // 如果刷新子目录，更新 Map 中的数据
+            // 刷新子目录：更新 Map 中的数据
+            console.log(`  📁 更新子目录: ${relativePath}`);
             appState.fileTreeMap.set(relativePath, nodes);
-        }
-        
-        // 确保被刷新的目录是展开的
-        if (relativePath !== "") {
-            appState.expandedFolders.add(relativePath);
+            
+            // 确保该目录在展开状态集合中
+            if (!appState.expandedFolders.has(relativePath)) {
+                appState.expandedFolders.add(relativePath);
+                saveExpandedFolders();
+            }
         }
 
-        updateVirtualScrollData();
+        // [关键修复] 更新虚拟滚动数据
+        console.log('  🔄 更新虚拟滚动数据');
+        if (window.updateVirtualScrollData) {
+            updateVirtualScrollData();
+        }
+
+        console.log('✅ 文件树刷新完成');
+
     } catch (error) {
+        console.error('❌ 刷新文件树失败:', error);
         showError('加载文件夹失败: ' + error);
     }
 }
@@ -298,7 +332,13 @@ async function handleUnpinNote() {
         showError("取消置顶失败: " + error);
     }
 }
-// ▼▼▼ 【新增】重命名相关函数 ▼▼▼
+/**
+ * [修复] 处理重命名操作
+ * 修复点：
+ * 1. 正确处理文件夹重命名，批量更新所有子文件的标签页
+ * 2. 修复根目录文件重命名时的路径计算错误
+ * 3. 添加错误恢复机制
+ */
 function handleRenameItem() {
     hideContextMenu();
     const targetItem = appState.contextTarget;
@@ -327,29 +367,79 @@ function handleRenameItem() {
     input.select();
 
     const finishRename = async (newName) => {
-        if (newName && newName !== originalName) {
-            try {
-                const newRelativePath = await invoke('rename_item', {
-                    rootPath: appState.rootPath,
-                    oldRelativePath: targetItem.path,
-                    newName: newName
-                });
+        if (!newName || newName === originalName) {
+            textSpan.textContent = originalContent;
+            return;
+        }
 
-                // 更新UI
-                if (tabManager.activeTab === targetItem.path) {
-                    tabManager.updateTabId(targetItem.path, newRelativePath);
-                }
+        try {
+            console.log(`🔄 开始重命名: ${targetItem.path} -> ${newName}`);
+            
+            const result = await invoke('rename_item', {
+                rootPath: appState.rootPath,
+                oldRelativePath: targetItem.path,
+                newName: newName
+            });
+
+            console.log('✅ 后端返回结果:', result);
+
+            // [修复 1] 根据返回的 is_dir 判断是文件还是文件夹
+            if (result.is_dir) {
+                // [修复 2] 文件夹重命名：批量更新所有子文件的标签页路径
+                const oldPrefix = targetItem.path;
+                const newPrefix = result.new_path;
                 
-                const parentPath = targetItem.path.substring(0, targetItem.path.lastIndexOf('/'));
-                await refreshFileTree(parentPath);
-                showSuccessMessage('重命名成功');
+                console.log(`📁 文件夹重命名: ${oldPrefix} -> ${newPrefix}`);
+                
+                // 使用 tabManager 的新函数批量更新路径
+                if (tabManager.updatePathsForRenamedFolder) {
+                    tabManager.updatePathsForRenamedFolder(oldPrefix, newPrefix);
+                }
 
-            } catch (error) {
-                showError('重命名失败: ' + error);
-                textSpan.textContent = originalContent; // 恢复原始文本
+                // 清除该文件夹的缓存数据
+                appState.fileTreeMap.delete(oldPrefix);
+                
+                // 如果该文件夹是展开的，更新展开状态
+                if (appState.expandedFolders.has(oldPrefix)) {
+                    appState.expandedFolders.delete(oldPrefix);
+                    appState.expandedFolders.add(newPrefix);
+                    saveExpandedFolders();
+                }
+
+            } else {
+                // 文件重命名：更新所有打开该文件的标签页
+                console.log(`📄 文件重命名: ${targetItem.path} -> ${result.new_path}`);
+                
+                // [关键修复] 查找所有打开该文件的标签页并更新
+                const tabsToUpdate = tabManager.openTabs.filter(tab => tab.path === targetItem.path);
+                tabsToUpdate.forEach(tab => {
+                    tabManager.updateTabId(targetItem.path, result.new_path);
+                });
             }
-        } else {
-            textSpan.textContent = originalContent; // 恢复原始文本
+
+            // [修复 3] 正确计算父路径，处理根目录文件的情况
+            const separator = result.new_path.includes('\\') ? '\\' : '/';
+            const lastSlashIndex = targetItem.path.lastIndexOf(separator);
+            const parentPath = lastSlashIndex > 0 
+                ? targetItem.path.substring(0, lastSlashIndex)
+                : ""; // 根目录
+
+            console.log(`🔄 刷新文件树: ${parentPath || '(根目录)'}`);
+
+            // [关键修复] 刷新文件树前，先确保更新虚拟滚动数据
+            await refreshFileTree(parentPath);
+            
+            // [新增] 强制更新虚拟滚动视图
+            if (window.updateVirtualScrollData) {
+                updateVirtualScrollData();
+            }
+
+            showSuccessMessage('重命名成功');
+
+        } catch (error) {
+            console.error('❌ 重命名失败:', error);
+            showError('重命名失败: ' + error);
+            textSpan.textContent = originalContent;
         }
     };
 
@@ -363,7 +453,7 @@ function handleRenameItem() {
             input.blur();
         } else if (e.key === 'Escape') {
             e.preventDefault();
-            input.value = originalName; // 恢复原始值并结束
+            input.value = originalName;
             input.blur();
         }
     });
