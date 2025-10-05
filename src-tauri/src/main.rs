@@ -38,6 +38,7 @@ pub fn run() {
             commands::fs::create_new_folder,
             commands::fs::delete_item,
             commands::fs::delete_folder,
+			commands::fs::rename_item,
             // 搜索命令 (保持不变)
             commands::search::initialize_index_command,
             commands::search::index_files,

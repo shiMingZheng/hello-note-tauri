@@ -1367,3 +1367,20 @@ a.internal-link:hover {
     color: var(--text-primary); 
     font-weight: 600;
 }
+/* src/css/components.css */
+
+/* ========================================
+   文件重命名输入框样式
+   ======================================== */
+.rename-input {
+    width: calc(100% - 40px); /* 减去内边距和图标宽度 */
+    padding: 2px 4px;
+    margin-left: 5px;
+    border: 1px solid var(--accent-color);
+    border-radius: 4px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+}

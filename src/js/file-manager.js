@@ -1,7 +1,9 @@
 // src/js/file-manager.js
-// CheetahNote - 文件、文件夹及本地存储管理 (最终修复版)
+// CheetahNote - 文件、文件夹及本地存储管理 (新增重命名功能)
 
 'use strict';
+// ... (顶部变量和函数 saveLastFolder, saveLastFile, saveExpandedFolders, restoreLastSession, handleOpenFolder, openFolderByPath, refreshFileTree 保持不变) ...
+
 console.log('📜 file-manager.js 开始加载...');
 
 function saveLastFolder(folderPath) {
@@ -32,9 +34,8 @@ function saveExpandedFolders() {
 async function restoreLastSession() {
     try {
         const lastFolder = localStorage.getItem(STORAGE_KEYS.LAST_FOLDER);
-        const lastFile = localStorage.getItem(STORAGE_KEYS.LAST_FILE); // This is a relative path
+        const lastFile = localStorage.getItem(STORAGE_KEYS.LAST_FILE);
         const expandedStr = localStorage.getItem(STORAGE_KEYS.EXPANDED_FOLDERS);
-        
         if (expandedStr) {
             try {
                 const expanded = JSON.parse(expandedStr);
@@ -43,12 +44,9 @@ async function restoreLastSession() {
                 console.warn('恢复展开状态失败:', e);
             }
         }
-        
         if (lastFolder) {
             await openFolderByPath(lastFolder);
-            
             if (lastFile) {
-                // lastFile is relative, openTab handles it correctly
                 tabManager.openTab(lastFile);
             }
         }
@@ -59,12 +57,7 @@ async function restoreLastSession() {
 
 async function handleOpenFolder() {
     try {
-        const selected = await open({
-            directory: true,
-            multiple: false,
-            title: '选择笔记文件夹'
-        });
-        
+        const selected = await open({ directory: true, multiple: false, title: '选择笔记文件夹' });
         if (selected && typeof selected === 'string') {
             await openFolderByPath(selected);
         }
@@ -75,26 +68,20 @@ async function handleOpenFolder() {
 
 async function openFolderByPath(folderPath) {
     if (appState.isLoading) return;
-    
     try {
         await invoke('migrate_paths_to_relative', { rootPath: folderPath });
     } catch (e) {
         console.error("数据库迁移失败:", e);
         showError("数据库迁移失败，部分数据可能不兼容。");
     }
-
     appState.isLoading = true;
     appState.rootPath = folderPath;
-    
     appState.fileTreeRoot = [];
     appState.fileTreeMap.clear();
     appState.activeTagFilter = null;
-    
     saveLastFolder(folderPath);
-    
     try {
-        await refreshFileTree(""); // Refresh root with empty relative path
-        
+        await refreshFileTree("");
         searchBox.classList.add('active');
         if (window.refreshAllTagsList) {
              await refreshAllTagsList();
@@ -106,15 +93,26 @@ async function openFolderByPath(folderPath) {
     }
 }
 
+// ▼▼▼ 【优化】刷新文件树的逻辑 ▼▼▼
 async function refreshFileTree(relativePath = "") {
     if (!appState.rootPath) return;
     try {
-        const topLevelNodes = await invoke('list_dir_lazy', { rootPath: appState.rootPath, relativePath });
-        appState.fileTreeRoot = topLevelNodes;
+        const nodes = await invoke('list_dir_lazy', { 
+            rootPath: appState.rootPath, 
+            relativePath 
+        });
 
-        for (const expandedPath of appState.expandedFolders) {
-            const children = await invoke('list_dir_lazy', { rootPath: appState.rootPath, relativePath: expandedPath });
-            appState.fileTreeMap.set(expandedPath, children);
+        if (relativePath === "") {
+            // 如果刷新根目录，直接替换整个树
+            appState.fileTreeRoot = nodes;
+        } else {
+            // 如果刷新子目录，更新 Map 中的数据
+            appState.fileTreeMap.set(relativePath, nodes);
+        }
+        
+        // 确保被刷新的目录是展开的
+        if (relativePath !== "") {
+            appState.expandedFolders.add(relativePath);
         }
 
         updateVirtualScrollData();
@@ -123,46 +121,43 @@ async function refreshFileTree(relativePath = "") {
     }
 }
 
-// ▼▼▼【核心修改】在这里 ▼▼▼
 async function initializeIndexInBackground(folderPath) {
     try {
-        // [修复] 将参数键 basePath 修改为 rootPath
         await invoke('initialize_index_command', { rootPath: folderPath });
         appState.indexInitialized = true;
         appState.dbInitialized = true;
-        // [修复] 将参数键 basePath 修改为 rootPath
         await invoke('index_files', { rootPath: folderPath });
         showSuccessMessage('索引建立完成');
     } catch (error) {
         showError('索引建立失败: ' + error);
     }
 }
-// ▲▲▲【核心修改】在这里 ▲▲▲
 
 function createFileTreeItem(item) {
     const li = document.createElement('li');
-    let icon = item.is_dir 
-        ? (appState.expandedFolders.has(item.path) ? '📂' : '📁') 
-        : '📄';
-    
+    let icon = item.is_dir ? (appState.expandedFolders.has(item.path) ? '📂' : '📁') : '📄';
     const name = item.name.replace(/\\/g, '/').split('/').pop();
-    li.textContent = `${icon} ${name}`;
+    
+    const textSpan = document.createElement('span');
+    textSpan.className = 'item-name';
+    textSpan.textContent = `${icon} ${name}`;
+
+    li.appendChild(textSpan);
     li.className = item.is_dir ? 'folder' : 'file';
     li.style.cssText = `height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px; line-height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px; padding-left: ${12 + item.level * 20}px;`;
     li.dataset.path = item.path;
     li.dataset.isDir = item.is_dir;
     li.dataset.name = name;
-    
     if (!item.is_dir && item.path === appState.activeFilePath) {
         li.classList.add('active');
     }
-    
     return li;
 }
 
 function handleFileListClick(e) {
     const li = e.target.closest('li');
     if (!li) return;
+    if (li.querySelector('.rename-input')) return; // 如果正在重命名，则不执行任何操作
     const path = li.dataset.path;
     const isDir = li.dataset.isDir === 'true';
     if (isDir) {
@@ -199,6 +194,7 @@ async function toggleFolderLazy(folderPath) {
     saveExpandedFolders();
     updateVirtualScrollData();
 }
+
 
 async function handleCreateNote() {
     hideContextMenu();
@@ -302,15 +298,88 @@ async function handleUnpinNote() {
         showError("取消置顶失败: " + error);
     }
 }
+// ▼▼▼ 【新增】重命名相关函数 ▼▼▼
+function handleRenameItem() {
+    hideContextMenu();
+    const targetItem = appState.contextTarget;
+    if (!targetItem) return;
+
+    const li = document.querySelector(`li[data-path="${CSS.escape(targetItem.path)}"]`);
+    if (!li) return;
+
+    const textSpan = li.querySelector('.item-name');
+    const originalContent = textSpan.textContent;
+    const isFile = !targetItem.is_dir;
+
+    let originalName = targetItem.name;
+    if (isFile && originalName.endsWith('.md')) {
+        originalName = originalName.slice(0, -3);
+    }
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'rename-input';
+    input.value = originalName;
+
+    textSpan.innerHTML = (isFile ? '📄' : '📁') + ' ';
+    textSpan.appendChild(input);
+    input.focus();
+    input.select();
+
+    const finishRename = async (newName) => {
+        if (newName && newName !== originalName) {
+            try {
+                const newRelativePath = await invoke('rename_item', {
+                    rootPath: appState.rootPath,
+                    oldRelativePath: targetItem.path,
+                    newName: newName
+                });
+
+                // 更新UI
+                if (tabManager.activeTab === targetItem.path) {
+                    tabManager.updateTabId(targetItem.path, newRelativePath);
+                }
+                
+                const parentPath = targetItem.path.substring(0, targetItem.path.lastIndexOf('/'));
+                await refreshFileTree(parentPath);
+                showSuccessMessage('重命名成功');
+
+            } catch (error) {
+                showError('重命名失败: ' + error);
+                textSpan.textContent = originalContent; // 恢复原始文本
+            }
+        } else {
+            textSpan.textContent = originalContent; // 恢复原始文本
+        }
+    };
+
+    input.addEventListener('blur', () => {
+        finishRename(input.value.trim());
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            input.blur();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            input.value = originalName; // 恢复原始值并结束
+            input.blur();
+        }
+    });
+}
 
 async function showContextMenu(event, file) {
     event.preventDefault();
     event.stopPropagation();
-    appState.contextTarget = { path: file.path, isDir: file.is_dir, name: file.name };
+    appState.contextTarget = { path: file.path, is_dir: file.is_dir, name: file.name };
     
     contextMenu.style.left = event.pageX + 'px';
     contextMenu.style.top = event.pageY + 'px';
     contextMenu.classList.add('visible');
+
+    // 总是显示重命名按钮
+    renameItemBtn.style.display = 'block';
 
     pinNoteBtn.style.display = 'none';
     unpinNoteBtn.style.display = 'none';
@@ -340,6 +409,11 @@ async function showContextMenu(event, file) {
     }
 }
 
+// ▼▼▼ 【新增】在 HTML 中添加一个 id="rename-item-btn" 的按钮后，在这里添加事件监听 ▼▼▼
+// (请确保在 app.js 中初始化 renameItemBtn)
+// renameItemBtn.addEventListener('click', handleRenameItem);
+
+
 window.handleOpenFolder = handleOpenFolder;
 window.handleFileListClick = handleFileListClick;
 window.handleFileListContextMenu = handleFileListContextMenu;
@@ -349,3 +423,4 @@ window.handleDeleteFile = handleDeleteFile;
 window.restoreLastSession = restoreLastSession;
 window.handlePinNote = handlePinNote;
 window.handleUnpinNote = handleUnpinNote;
+window.handleRenameItem = handleRenameItem; // 将新函数暴露给全局

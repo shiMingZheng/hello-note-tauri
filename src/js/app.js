@@ -25,7 +25,7 @@ const appState = {
 var openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fileListElement,
     fileListSpacer, searchResultsList,  markdownEditor, htmlPreview, 
      saveBtn, contextMenu, newNoteBtn, newFolderBtn, 
-    deleteFileBtn, customConfirmDialog,viewToggleBtn,pinNoteBtn, unpinNoteBtn, editorContainer;
+    deleteFileBtn, customConfirmDialog,viewToggleBtn,pinNoteBtn, unpinNoteBtn, editorContainer,renameItemBtn;
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -82,6 +82,7 @@ function initDOMElements() {
         pinNoteBtn = getElement('pin-note-btn');
         unpinNoteBtn = getElement('unpin-note-btn');
 		editorContainer = getElement('editor-container');
+		renameItemBtn = getElement('rename-item-btn'); // <-- 添加这一行
 
     } catch (error) {
         throw error;
@@ -107,6 +108,7 @@ function bindEvents() {
     newFolderBtn.addEventListener('click', handleCreateFolder);
     deleteFileBtn.addEventListener('click', handleDeleteFile);
     document.addEventListener('click', () => hideContextMenu());
+	 renameItemBtn.addEventListener('click', handleRenameItem); // <-- 添加这一行
     
     markdownEditor.addEventListener('input', () => {
         appState.hasUnsavedChanges = true;
