@@ -9,16 +9,16 @@ function initializeLinks() {
     backlinksListElement = document.getElementById('backlinks-list');
 }
 
-async function updateBacklinksUI(filePath) {
+async function updateBacklinksUI(relativePath) {
     if (!backlinksListElement) return;
 
-    if (!filePath || filePath.startsWith('untitled-')) {
+    if (!relativePath || relativePath.startsWith('untitled-')) {
         backlinksListElement.innerHTML = '<li class="no-tags-info">无反向链接</li>';
         return;
     }
 
     try {
-        const backlinks = await invoke('get_backlinks', { filePath });
+        const backlinks = await invoke('get_backlinks', { relativePath });
         
         backlinksListElement.innerHTML = '';
         if (backlinks.length === 0) {

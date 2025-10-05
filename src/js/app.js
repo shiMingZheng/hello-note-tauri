@@ -1,5 +1,5 @@
 // src/js/app.js
-// CheetahNote - 应用入口、状态管理与初始化 (最终修复版 v3)
+// CheetahNote - 应用入口、状态管理与初始化 (最终修复版 v4)
 
 'use strict';
 console.log('📜 app.js 开始加载...');
@@ -12,7 +12,9 @@ const VIRTUAL_SCROLL_CONFIG = { ITEM_HEIGHT: 28, BUFFER_SIZE: 3, THROTTLE_DELAY:
 const STORAGE_KEYS = { LAST_FOLDER: 'cheetah_last_folder', LAST_FILE: 'cheetah_last_file', EXPANDED_FOLDERS: 'cheetah_expanded_folders' };
 
 const appState = {
-    rootPath: null, activeFilePath: null, dbInitialized: false, searchQuery: '', currentViewMode: 'edit',
+    rootPath: null, // 仓库的绝对路径
+    activeFilePath: null, // 当前激活文件的【相对路径】
+	dbInitialized: false, searchQuery: '', currentViewMode: 'edit',
     hasUnsavedChanges: false, isSearching: false, contextTarget: null, expandedFolders: new Set(),
     indexInitialized: false, fileTreeRoot: [], fileTreeMap: new Map(), currentFileTags: [],
     allTags: [], activeTagFilter: null, searchInactivityTimer: null, isLoading: false,
@@ -70,19 +72,16 @@ function initDOMElements() {
         searchResultsList = getElement('search-results-list');
         markdownEditor = getElement('markdown-editor');
         htmlPreview = getElement('html-preview');
-               saveBtn = getElement('save-btn');
+        saveBtn = getElement('save-btn');
         contextMenu = getElement('context-menu');
         newNoteBtn = getElement('new-note-btn');
         newFolderBtn = getElement('new-folder-btn');
         deleteFileBtn = getElement('delete-file-btn');
         customConfirmDialog = getElement('custom-confirm-dialog');
-		// [修改] 移除 editModeBtn 和 previewModeBtn，添加新按钮
         viewToggleBtn = getElement('view-toggle-btn');
-        saveBtn = getElement('save-btn');
-		  // [新增]
         pinNoteBtn = getElement('pin-note-btn');
         unpinNoteBtn = getElement('unpin-note-btn');
-		editorContainer = getElement('editor-container'); // <-- [新增] 获取 editor-container 元素
+		editorContainer = getElement('editor-container');
 
     } catch (error) {
         throw error;
@@ -90,11 +89,15 @@ function initDOMElements() {
     console.log('✅ DOM 元素已初始化');
 }
 
+// ▼▼▼【核心修改】在这里 ▼▼▼
 function bindEvents() {
     console.log('🔗 开始绑定事件...');
     
     openFolderBtn.addEventListener('click', handleOpenFolder);
+    
+    // [修复] 将搜索框的事件监听移动到这里
     searchInput.addEventListener('input', debounce(handleSearch, 300));
+    
     clearSearchBtn.addEventListener('click', clearSearch);
     
     viewToggleBtn.addEventListener('click', toggleViewMode);
@@ -119,9 +122,9 @@ function bindEvents() {
     fileListElement.addEventListener('click', handleFileListClick);
     fileListElement.addEventListener('contextmenu', handleFileListContextMenu);
 	
-	 // [新增]
     pinNoteBtn.addEventListener('click', handlePinNote);
     unpinNoteBtn.addEventListener('click', handleUnpinNote);
     
     console.log('✅ 事件绑定完成');
 }
+// ▲▲▲【核心修改】结束 ▲▲▲

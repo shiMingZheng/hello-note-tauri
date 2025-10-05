@@ -1,4 +1,4 @@
-// src/js/tab_manager.js - 完整最终版
+// src/js/tab_manager.js - 多标签页逻辑修复版
 
 'use strict';
 console.log('📜 tab_manager.js 开始加载...');
@@ -21,76 +21,57 @@ const tabManager = {
         addNewNoteTabBtn.addEventListener('click', () => this.handleAddNewNote());
     },
 
-     openTab(filePath) {
+    // ▼▼▼【核心修改】简化并修正 openTab 逻辑 ▼▼▼
+    openTab(filePath) {
         // 1. 如果目标文件的页签已经存在，直接切换过去
         if (this.findTabByPath(filePath)) {
             this.switchToTab(filePath);
             return;
         }
 
+        // 2. 如果页签不存在，则新建一个
         const newTabData = { 
             path: filePath,
             title: filePath.split(/[/\\]/).pop()
         };
+        this.openTabs.push(newTabData);
 
-        // 2. 如果当前在首页，则行为是“新建一个页签”
-        if (this.activeTab === 'home') {
-            this.openTabs.push(newTabData);
-        } 
-        // 3. 如果当前在任何文件页签或空白页签，则“替换当前页签”
-        else {
-            const currentIndex = this.openTabs.findIndex(tab => tab.path === this.activeTab);
-            if (currentIndex > -1) {
-                // 用新文件的数据替换掉当前激活的页签数据
-                this.openTabs[currentIndex] = newTabData;
-            } else {
-                // 兜底：如果出现意外情况找不到当前页签，则新建一个
-                this.openTabs.push(newTabData);
-            }
-        }
-
-        // 4. 最后，切换到这个新内容上
+        // 3. 切换到这个新创建的页签
         this.switchToTab(filePath);
     },
-
+    // ▲▲▲【核心修改】结束 ▲▲▲
 
     findTabByPath(filePath) {
         return this.openTabs.find(tab => tab.path === filePath);
     },
 
-      switchToTab(tabId) {
+    switchToTab(tabId) {
         this.activeTab = tabId;
+        appState.activeFilePath = (tabId === 'home') ? null : tabId;
         this.render();
 
         if (tabId === 'home') {
             homepageEl.style.display = 'flex';
             editorWrapperEl.style.display = 'none';
             mainHeaderActions.style.display = 'none';
-            
-            // [修改] 当回到首页时，清除文件选中状态
-            appState.activeFilePath = null;
             window.updateCurrentFileTagsUI(null);
             window.updateBacklinksUI(null);
-
         } else {
             homepageEl.style.display = 'none';
             editorWrapperEl.style.display = 'flex';
-            
-            // [核心修改] 将当前激活的文件路径同步到全局状态
-            appState.activeFilePath = tabId; 
 
             const tabData = this.findTabByPath(tabId);
             
             if (tabData && tabData.isNew) {
-                // (空白页签逻辑)
+                // 空白页签逻辑
                 mainHeaderActions.style.display = 'none'; 
-                appState.activeFilePath = null; // 空白页签不对应任何文件，清除选中
+                appState.activeFilePath = null;
                 markdownEditor.value = `# 空白页签\n\n您可以在左侧文件树中新建或打开一个笔记进行编辑。`;
                 markdownEditor.readOnly = true; 
                 window.updateCurrentFileTagsUI(null);
                 window.updateBacklinksUI(null);
             } else {
-                // (普通文件页签逻辑)
+                // 普通文件页签逻辑
                 mainHeaderActions.style.display = 'flex'; 
                 markdownEditor.readOnly = false;
                 loadFileToEditor(tabId);
@@ -99,12 +80,10 @@ const tabManager = {
             }
         }
         
-        // [核心修改] 无论切换到哪个页签，都强制刷新一次文件列表以更新选中高亮
         if (window.updateVirtualScrollData) {
             updateVirtualScrollData();
         }
     },
-
 
     closeTab(filePath) {
         const index = this.openTabs.findIndex(tab => tab.path === filePath);
@@ -145,13 +124,8 @@ const tabManager = {
         });
     },
 
-    /**
-     * [修复] 点击“+”号只创建新的空白页签，不创建文件
-     */
     handleAddNewNote() {
         const newTabId = `untitled-${Date.now()}`;
-        // 为了避免重名，可以做得更复杂一些，但暂时先用简单版本
-        const existingUntitled = this.openTabs.filter(t => t.isNew).length;
         const newTitle = `空白页签`;
         
         this.openTabs.push({ path: newTabId, title: newTitle, isNew: true });

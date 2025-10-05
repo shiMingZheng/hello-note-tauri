@@ -29,6 +29,8 @@ r2d2_sqlite = "0.31.0"
 
 chrono = "0.4"
 regex = "1.10" # [新增] 添加 regex 库
+pathdiff = "0.2" # [新增]
+tokio = { version = "1.47.1", features = ["rt-multi-thread", "macros"] }
 
 [profile.dev]
 # 开发模式：快速编译

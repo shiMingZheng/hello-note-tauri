@@ -1,44 +1,31 @@
-// src/commands/fs.rs
-use crate::commands::links::update_links_for_file;
+// src-tauri/src/commands/fs.rs
 use crate::commands::history::record_file_event;
-use std::fs;
-use std::path::{Path, PathBuf};
-use serde::Serialize;
-use tauri::State;
-use crate::search::delete_document; 
+use crate::commands::links::update_links_for_file;
+use crate::commands::path_utils::{to_absolute_path, to_relative_path};
+use crate::search::delete_document;
 use crate::AppState;
 use rusqlite::params;
-
-// ========================================
-// 数据结构定义 (已修改)
-// ========================================
+use serde::Serialize;
+use std::fs;
+use std::path::Path;
+use tauri::State;
 
 #[derive(Debug, Serialize)]
 pub struct FileNode {
     name: String,
-    path: String,
+    path: String, // This will be the relative path
     is_dir: bool,
-    // 新增: 用于告知前端此目录是否包含任何有效子项（.md文件或子目录）
-    has_children: bool, 
+    has_children: bool,
 }
 
-// ========================================
-// 文件系统命令 (已修改)
-// ========================================
-
-/// 检查目录是否包含任何有效内容（非隐藏的 .md 文件或子目录）
 fn directory_has_children(dir: &Path) -> bool {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             if let Some(name) = entry.file_name().to_str() {
-                if name.starts_with('.') {
-                    continue; // 跳过隐藏文件/目录
-                }
+                if name.starts_with('.') { continue; }
             }
             if let Ok(metadata) = entry.metadata() {
-                if metadata.is_dir() {
-                    return true;
-                }
+                if metadata.is_dir() { return true; }
                 if metadata.is_file() && entry.path().extension().and_then(|s| s.to_str()) == Some("md") {
                     return true;
                 }
@@ -48,226 +35,183 @@ fn directory_has_children(dir: &Path) -> bool {
     false
 }
 
-/// [新命令] 懒加载方式读取单层目录
 #[tauri::command]
-pub async fn list_dir_lazy(path: String) -> Result<Vec<FileNode>, String> {
-    let base_path = PathBuf::from(&path);
-    if !base_path.is_dir() {
-        return Ok(vec![]); // 如果不是目录，返回空数组
+pub async fn list_dir_lazy(root_path: String, relative_path: String) -> Result<Vec<FileNode>, String> {
+    let base_path = Path::new(&root_path);
+    let dir_to_read = to_absolute_path(base_path, Path::new(&relative_path));
+
+    if !dir_to_read.is_dir() {
+        return Ok(vec![]);
     }
 
     let mut nodes = Vec::new();
-    let entries = fs::read_dir(&base_path)
-        .map_err(|e| format!("读取目录失败: {}", e))?;
+    let entries = fs::read_dir(&dir_to_read).map_err(|e| format!("读取目录失败: {}", e))?;
 
     for entry in entries.flatten() {
-        let path = entry.path();
-        if let Some(name) = entry.file_name().to_str() {
-            if name.starts_with('.') {
-                continue;
-            }
+        let absolute_path = entry.path();
+        if let Some(name) = absolute_path.file_name().and_then(|s| s.to_str()) {
+            if name.starts_with('.') { continue; }
         }
-        
+
         if let Ok(metadata) = entry.metadata() {
-            let node = if metadata.is_dir() {
-                FileNode {
-                    name: entry.file_name().to_string_lossy().to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    is_dir: true,
-                    has_children: directory_has_children(&path),
-                }
-            } else if path.extension().and_then(|s| s.to_str()) == Some("md") {
-                FileNode {
-                    name: entry.file_name().to_string_lossy().to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    is_dir: false,
-                    has_children: false,
-                }
-            } else {
-                continue;
-            };
-            nodes.push(node);
+            if let Some(relative_node_path) = to_relative_path(base_path, &absolute_path) {
+                let node = if metadata.is_dir() {
+                    FileNode {
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        path: relative_node_path.to_string_lossy().to_string(),
+                        is_dir: true,
+                        has_children: directory_has_children(&absolute_path),
+                    }
+                } else if absolute_path.extension().and_then(|s| s.to_str()) == Some("md") {
+                    FileNode {
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        path: relative_node_path.to_string_lossy().to_string(),
+                        is_dir: false,
+                        has_children: false,
+                    }
+                } else {
+                    continue;
+                };
+                nodes.push(node);
+            }
         }
     }
 
     nodes.sort_by(|a, b| {
-        if a.is_dir == b.is_dir {
-            a.name.cmp(&b.name)
-        } else if a.is_dir {
-            std::cmp::Ordering::Less
-        } else {
-            std::cmp::Ordering::Greater
-        }
+        if a.is_dir == b.is_dir { a.name.cmp(&b.name) } 
+        else if a.is_dir { std::cmp::Ordering::Less } 
+        else { std::cmp::Ordering::Greater }
     });
 
     Ok(nodes)
 }
 
-
 #[tauri::command]
-pub async fn read_file_content(path: String) -> Result<String, String> {
-    fs::read_to_string(&path)
-        .map_err(|e| format!("读取文件失败: {}", e))
+pub async fn read_file_content(root_path: String, relative_path: String) -> Result<String, String> {
+    let absolute_path = to_absolute_path(Path::new(&root_path), Path::new(&relative_path));
+    fs::read_to_string(&absolute_path).map_err(|e| format!("读取文件失败: {}", e))
 }
-
-// ========================================
-// 文件操作命令 (保持不变)
-// ========================================
 
 #[tauri::command]
 pub async fn save_file(
-    path: String,
+    root_path: String,
+    relative_path: String,
     content: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    fs::write(&path, &content).map_err(|e| format!("保存文件失败: {}", e))?;
+    let base_path = Path::new(&root_path);
+    let absolute_path = to_absolute_path(base_path, Path::new(&relative_path));
+    fs::write(&absolute_path, &content).map_err(|e| format!("保存文件失败: {}", e))?;
 
-    let _ = record_file_event(path.clone(), "edited".to_string(), state.clone()).await;
+    let _ = record_file_event(root_path.clone(), relative_path.clone(), "edited".to_string(), state.clone()).await;
 
     let search_index_lock = state.search_index.lock().unwrap();
     let db_pool_lock = state.db_pool.lock().unwrap();
-
     if let (Some(index), Some(db_pool)) = (search_index_lock.as_ref(), db_pool_lock.as_ref()) {
-        // 更新全文索引
-        let file_path = PathBuf::from(&path);
-        if let Err(e) = crate::search::update_document_index(index, db_pool, &file_path) {
+        let relative_path_p = Path::new(&relative_path);
+        // Corrected function call
+        if let Err(e) = crate::search::update_document_index(index, db_pool, base_path, relative_path_p) {
             eprintln!("更新索引和数据库失败: {}", e);
         }
-
-        // ▼▼▼ 【核心修改 2】获取一个可变的连接并传递 ▼▼▼
+        
         let mut conn = db_pool.get().map_err(|e| e.to_string())?;
-        if let Err(e) = update_links_for_file(&mut conn, &path) {
+        if let Err(e) = update_links_for_file(&mut conn, &root_path, &relative_path) {
             eprintln!("更新文件链接失败: {}", e);
         }
-        // ▲▲▲ 【核心修改 2】结束 ▲▲▲
-        // ▲▲▲ 【核心修改】结束 ▲▲▲
     }
-
     Ok(())
 }
 
 #[tauri::command]
 pub async fn create_new_file(
-    dir_path: String,
+    root_path: String,
+    relative_dir_path: String,
     file_name: String,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    let dir = PathBuf::from(&dir_path);
-    if !dir.exists() || !dir.is_dir() {
-        return Err(format!("目录不存在: {}", dir_path));
+    let base_path = Path::new(&root_path);
+    let absolute_dir_path = to_absolute_path(base_path, Path::new(&relative_dir_path));
+
+    if !absolute_dir_path.exists() || !absolute_dir_path.is_dir() {
+        return Err(format!("目录不存在: {}", absolute_dir_path.display()));
     }
     
     let mut file_name_str = file_name;
-    if !file_name_str.ends_with(".md") {
-        file_name_str.push_str(".md");
-    }
+    if !file_name_str.ends_with(".md") { file_name_str.push_str(".md"); }
     
-    let file_path = dir.join(&file_name_str);
+    let absolute_file_path = absolute_dir_path.join(&file_name_str);
     
-    if file_path.exists() {
-        return Err(format!("文件已存在: {}", file_path.display()));
+    if absolute_file_path.exists() {
+        return Err(format!("文件已存在: {}", absolute_file_path.display()));
     }
     
     let initial_content = format!("# {}\n\n", file_name_str.trim_end_matches(".md"));
-    fs::write(&file_path, &initial_content)
-        .map_err(|e| format!("创建文件失败: {}", e))?;
-	// ... 在 fs::write 之后 ...
-	// [修复] 只需 clone state 即可，因为 file_path 在后面没有再使用
-	let _ = record_file_event(file_path.to_string_lossy().to_string(), "created".to_string(), state.clone()).await; 
-    // 同时获取 index 和 db_pool
+    fs::write(&absolute_file_path, &initial_content).map_err(|e| format!("创建文件失败: {}", e))?;
+    
+    let new_relative_path = to_relative_path(base_path, &absolute_file_path).unwrap();
+    let new_relative_path_str = new_relative_path.to_string_lossy().to_string();
+
+	let _ = record_file_event(root_path.clone(), new_relative_path_str.clone(), "created".to_string(), state.clone()).await; 
+
     let search_index_lock = state.search_index.lock().unwrap();
     let db_pool_lock = state.db_pool.lock().unwrap();
     if let (Some(index), Some(db_pool)) = (search_index_lock.as_ref(), db_pool_lock.as_ref()) {
-        // [修复] 在这里，我们既要更新全文索引，也要写入数据库
-        // 我们调用 update_document_index，它现在会处理这两件事
-        if let Err(e) = crate::search::update_document_index(index, db_pool, &file_path) {
+        // Corrected function call
+        if let Err(e) = crate::search::update_document_index(index, db_pool, base_path, &new_relative_path) {
             eprintln!("为新文件更新索引和数据库失败: {}", e);
         }
     }
     
-    Ok(file_path.to_string_lossy().to_string())
+    Ok(new_relative_path_str)
 }
 
 #[tauri::command]
-pub async fn create_new_folder(dir_path: String, folder_name: String) -> Result<String, String> {
-    let dir = PathBuf::from(&dir_path);
-    if !dir.exists() || !dir.is_dir() {
-        return Err(format!("目录不存在: {}", dir_path));
+pub async fn create_new_folder(root_path: String, relative_parent_path: String, folder_name: String) -> Result<String, String> {
+    let base_path = Path::new(&root_path);
+    let absolute_parent_path = to_absolute_path(base_path, Path::new(&relative_parent_path));
+    
+    if !absolute_parent_path.exists() || !absolute_parent_path.is_dir() {
+        return Err(format!("目录不存在: {}", absolute_parent_path.display()));
     }
     
-    let folder_path = dir.join(&folder_name);
+    let absolute_folder_path = absolute_parent_path.join(&folder_name);
     
-    if folder_path.exists() {
-        return Err(format!("文件夹已存在: {}", folder_path.display()));
+    if absolute_folder_path.exists() {
+        return Err(format!("文件夹已存在: {}", absolute_folder_path.display()));
     }
     
-    fs::create_dir(&folder_path)
-        .map_err(|e| format!("创建文件夹失败: {}", e))?;
+    fs::create_dir(&absolute_folder_path).map_err(|e| format!("创建文件夹失败: {}", e))?;
     
-    Ok(folder_path.to_string_lossy().to_string())
+    let new_relative_path = to_relative_path(base_path, &absolute_folder_path).unwrap();
+    Ok(new_relative_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
-pub async fn delete_item(path: String, state: State<'_, AppState>) -> Result<(), String> {
-    let item_path = PathBuf::from(&path);
+pub async fn delete_item(root_path: String, relative_path: String, state: State<'_, AppState>) -> Result<(), String> {
+    let base_path = Path::new(&root_path);
+    let absolute_path = to_absolute_path(base_path, Path::new(&relative_path));
     
-    if !item_path.exists() {
-        return Err(format!("路径不存在: {}", path));
+    if !absolute_path.exists() { return Err(format!("路径不存在: {}", absolute_path.display())); }
+    
+    if let Some(pool) = state.db_pool.lock().unwrap().as_ref() {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM files WHERE path = ?1", params![&relative_path]).map_err(|e| e.to_string())?;
     }
-    
-    if item_path.is_file() {
+
+    if absolute_path.is_file() {
         if let Some(index) = state.search_index.lock().unwrap().as_ref() {
-            if let Err(e) = delete_document(index, &path) {
+            if let Err(e) = delete_document(index, &relative_path) {
                 eprintln!("从索引中删除文档失败: {}", e);
             }
         }
-        
-		 // [新增] 在删除文件/目录前，先从数据库删除记录
-    if let Some(pool) = state.db_pool.lock().unwrap().as_ref() {
-        let conn = pool.get().map_err(|e| e.to_string())?;
-        // 使用 LIKE 'path%' 来删除目录下的所有文件记录
-        let path_for_db = if item_path.is_dir() {
-            format!("{}%", item_path.to_string_lossy())
-        } else {
-            path.clone()
-        };
-
-        // src-tauri/src/commands/fs.rs
-		conn.execute(
-			"DELETE FROM files WHERE path LIKE ?1",
-			params![path_for_db],
-		).map_err(|e| e.to_string())?;
-    }
-        fs::remove_file(&item_path)
-            .map_err(|e| format!("删除文件失败: {}", e))?;
+        fs::remove_file(&absolute_path).map_err(|e| format!("删除文件失败: {}", e))?;
     } else {
-        if let Some(index) = state.search_index.lock().unwrap().as_ref() {
-            delete_directory_from_index(index, &item_path);
-        }
-        
-        fs::remove_dir_all(&item_path)
-            .map_err(|e| format!("删除文件夹失败: {}", e))?;
+        fs::remove_dir_all(&absolute_path).map_err(|e| format!("删除文件夹失败: {}", e))?;
     }
-    
     Ok(())
 }
 
-fn delete_directory_from_index(index: &tantivy::Index, dir: &Path) {
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
-                if let Err(e) = delete_document(index, &path.to_string_lossy()) {
-                    eprintln!("删除索引失败: {}", e);
-                }
-            } else if path.is_dir() {
-                delete_directory_from_index(index, &path);
-            }
-        }
-    }
-}
-
 #[tauri::command]
-pub async fn delete_folder(path: String, state: State<'_, AppState>) -> Result<(), String> {
-    delete_item(path, state).await
+pub async fn delete_folder(root_path: String, relative_path: String, state: State<'_, AppState>) -> Result<(), String> {
+    delete_item(root_path, relative_path, state).await
 }

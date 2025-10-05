@@ -1,239 +1,169 @@
 // src-tauri/src/commands/links.rs
 
+use crate::commands::path_utils::to_absolute_path;
 use crate::AppState;
 use regex::Regex;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, params_from_iter, Connection, OptionalExtension, Result as RusqliteResult};
 use serde::Serialize;
+use std::collections::HashSet;
+use std::path::Path;
 use tauri::{command, State};
 
 #[derive(Debug, Serialize, Clone)]
 pub struct LinkItem {
-    path: String,
+    path: String, // 相对路径
     title: String,
 }
 
 fn parse_wikilinks(content: &str) -> Vec<String> {
     let re = Regex::new(r"\[\[([^\]]+)\]\]").unwrap();
     re.captures_iter(content)
-        .map(|cap| cap[1].to_string())
+        .map(|cap| cap[1].trim().to_string())
         .collect()
 }
 
-// ▼▼▼ 【核心修改 1】将 &Connection 改为 &mut Connection ▼▼▼
-// src-tauri/src/commands/links.rs
+// file_path 应该是相对路径
+pub fn update_links_for_file(
+    conn: &mut Connection,
+    root_path: &str,
+    relative_path: &str,
+) -> Result<(), String> {
+    let absolute_path = to_absolute_path(Path::new(root_path), Path::new(relative_path));
+    let content = match std::fs::read_to_string(absolute_path) {
+        Ok(c) => c,
+        Err(_) => return Ok(()), // 文件可能还不存在，这是正常情况
+    };
 
-// [修改] 替换旧的 update_links_for_file 函数
-pub fn update_links_for_file(conn: &mut Connection, file_path: &str) -> Result<(), String> {
-    println!("
-    [Link Debug] --- Updating links for file: '{}' ---", file_path);
-    let content = std::fs::read_to_string(file_path).map_err(|e| e.to_string())?;
-    
-    let source_file_id: i64 = match conn.query_row(
-        "SELECT id FROM files WHERE path = ?1",
-        params![file_path],
-        |row| row.get(0),
-    )
-    .optional()
-    .map_err(|e| e.to_string())?
+    let source_file_id: i64 = match conn
+        .query_row(
+            "SELECT id FROM files WHERE path = ?1",
+            params![relative_path],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?
     {
-        Some(id) => {
-            println!("[Link Debug] Source file found in DB with ID: {}", id);
-            id
-        },
-        None => {
-            println!("[Link Debug] 警告: 在更新链接时找不到文件 '{}' 的记录。可能是新文件，暂时跳过。", file_path);
-            return Ok(());
-        }
+        Some(id) => id,
+        None => return Ok(()),
     };
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
-
-    tx.execute("DELETE FROM links WHERE source_file_id = ?1", params![source_file_id])
-        .map_err(|e| e.to_string())?;
-    println!("[Link Debug] Cleared old links for source ID: {}", source_file_id);
+    tx.execute(
+        "DELETE FROM links WHERE source_file_id = ?1",
+        params![source_file_id],
+    )
+    .map_err(|e| e.to_string())?;
 
     let linked_targets = parse_wikilinks(&content);
-    println!("[Link Debug] Parsed {} link targets from content: {:?}", linked_targets.len(), linked_targets);
-
     if !linked_targets.is_empty() {
         let mut title_stmt = tx.prepare("SELECT id FROM files WHERE title = ?1").map_err(|e| e.to_string())?;
         let mut path_stmt = tx.prepare("SELECT id FROM files WHERE path LIKE ('%' || ?1)").map_err(|e| e.to_string())?;
 
         for target in linked_targets {
-            println!("[Link Debug] -> Processing target: '{}'", target);
             let mut target_ids: Vec<i64> = Vec::new();
-
-            // 策略1: 优先根据笔记标题 (title) 精确匹配
-            let title_matches = title_stmt.query_map(params![&target], |row| row.get(0));
-            if let Ok(rows) = title_matches {
+            if let Ok(rows) = title_stmt.query_map(params![&target], |row| row.get(0)) {
                 for id in rows {
-                    if let Ok(id_val) = id { target_ids.push(id_val); }
-                }
-            }
-            println!("[Link Debug]    - Found {} match(es) by title.", target_ids.len());
-
-            // 策略2: 如果标题没有匹配到，则根据文件名 (path) 模糊匹配
-            if target_ids.is_empty() {
-                let path_pattern = format!("{}.md", &target);
-                println!("[Link Debug]    - Title match failed, now matching path LIKE '%{}'", path_pattern);
-                let path_matches = path_stmt.query_map(params![&path_pattern], |row| row.get(0));
-                 if let Ok(rows) = path_matches {
-                    for id in rows {
-                        if let Ok(id_val) = id { target_ids.push(id_val); }
+                    if let Ok(id_val) = id {
+                        target_ids.push(id_val);
                     }
                 }
-                println!("[Link Debug]    - Found {} match(es) by path.", target_ids.len());
             }
-            
+            if target_ids.is_empty() {
+                let path_pattern = format!("{}.md", &target);
+                if let Ok(rows) = path_stmt.query_map(params![&path_pattern], |row| row.get(0)) {
+                    for id in rows {
+                        if let Ok(id_val) = id {
+                            target_ids.push(id_val);
+                        }
+                    }
+                }
+            }
             if target_ids.len() == 1 {
                 let target_file_id = target_ids[0];
-                println!("[Link Debug]    ✅ Found unique target. Linking {} -> {}", source_file_id, target_file_id);
                 tx.execute(
                     "INSERT OR IGNORE INTO links (source_file_id, target_file_id) VALUES (?1, ?2)",
                     params![source_file_id, target_file_id],
-                ).map_err(|e| e.to_string())?;
-            } else if target_ids.len() > 1 {
-                println!("[Link Debug]    ⚠️ Ambiguous link: Found {} matches for '{}'. Skipping.", target_ids.len(), target);
-            } else {
-                println!("[Link Debug]    ❌ No match found for target '{}'.", target);
+                )
+                .map_err(|e| e.to_string())?;
             }
         }
     }
-
     tx.commit().map_err(|e| e.to_string())?;
-    println!("[Link Debug] --- Link update finished for '{}' ---
-    ", file_path);
     Ok(())
 }
 
 #[command]
-pub async fn get_backlinks(file_path: String, state: State<'_, AppState>) -> Result<Vec<LinkItem>, String> {
+pub async fn get_backlinks(relative_path: String, state: State<'_, AppState>) -> Result<Vec<LinkItem>, String> {
     let db_pool = state.db_pool.lock().unwrap();
     let conn = db_pool.as_ref().ok_or("数据库未初始化")?.get().map_err(|e| e.to_string())?;
-
-    let mut stmt = conn.prepare(
-        "SELECT f.path, f.title FROM files f
-         INNER JOIN links l ON f.id = l.source_file_id
-         WHERE l.target_file_id = (SELECT id FROM files WHERE path = ?1)
-         ORDER BY f.title"
-    ).map_err(|e| e.to_string())?;
-
-    let link_iter = stmt.query_map(params![file_path], |row| {
+    let mut stmt = conn.prepare("SELECT f.path, f.title FROM files f INNER JOIN links l ON f.id = l.source_file_id WHERE l.target_file_id = (SELECT id FROM files WHERE path = ?1) ORDER BY f.title").map_err(|e| e.to_string())?;
+    let link_iter = stmt.query_map(params![relative_path], |row| -> RusqliteResult<LinkItem> {
         Ok(LinkItem {
             path: row.get(0)?,
             title: row.get::<_, Option<String>>(1)?.unwrap_or_else(|| "无标题".to_string()),
         })
     }).map_err(|e| e.to_string())?;
-
-    let mut links = Vec::new();
-    for link in link_iter {
-        links.push(link.map_err(|e| e.to_string())?);
-    }
+    let links: Vec<LinkItem> = link_iter.filter_map(Result::ok).collect();
     Ok(links)
 }
 
-// src-tauri/src/commands/links.rs
-
-// ... (文件顶部的 use 和 struct 定义保持不变) ...
-
-// 函数 update_links_for_file 保持不变
-
-// 函数 get_backlinks 保持不变
-
-// ▼▼▼ 【新增】超级调试命令 ▼▼▼
 #[derive(Debug, Serialize, Clone)]
 pub struct DebugLink {
     source_id: i64,
     target_id: i64,
 }
-
 #[command]
 pub async fn debug_get_all_links(state: State<'_, AppState>) -> Result<Vec<DebugLink>, String> {
-    println!("
-    [Link Debug] --- Executing debug_get_all_links ---");
     let db_pool = state.db_pool.lock().unwrap();
     let conn = db_pool.as_ref().ok_or("数据库未初始化")?.get().map_err(|e| e.to_string())?;
-
-    let mut stmt = conn
-        .prepare("SELECT source_file_id, target_file_id FROM links")
-        .map_err(|e| e.to_string())?;
-
-    let link_iter = stmt.query_map([], |row| {
-        Ok(DebugLink {
-            source_id: row.get(0)?,
-            target_id: row.get(1)?,
-        })
-    }).map_err(|e| e.to_string())?;
-
-    let mut links = Vec::new();
-    for link in link_iter {
-        links.push(link.map_err(|e| e.to_string())?);
-    }
-
-    println!("[Link Debug] Found {} links in the 'links' table.", links.len());
-    println!("[Link Debug] --- End debug_get_all_links ---
-    ");
+    let mut stmt = conn.prepare("SELECT source_file_id, target_file_id FROM links").map_err(|e| e.to_string())?;
+    let link_iter = stmt.query_map([], |row| Ok(DebugLink { source_id: row.get(0)?, target_id: row.get(1)? })).map_err(|e| e.to_string())?;
+    let links: Vec<DebugLink> = link_iter.filter_map(Result::ok).collect();
     Ok(links)
 }
 
-// ▼▼▼ 【新增】为图谱视图定义数据结构和命令 ▼▼▼
-
 #[derive(Serialize, Clone)]
 pub struct GraphNode {
-    id: i64,
-    label: String,
-    path: String, // 我们需要 path 以便在点击节点时能打开文件
+    pub id: i64,
+    pub label: String,
+    pub path: String,
 }
-
 #[derive(Serialize, Clone)]
 pub struct GraphEdge {
-    from: i64,
-    to: i64,
+    pub from: i64,
+    pub to: i64,
 }
-
 #[derive(Serialize, Clone)]
 pub struct GraphData {
-    nodes: Vec<GraphNode>,
-    edges: Vec<GraphEdge>,
+    pub nodes: Vec<GraphNode>,
+    pub edges: Vec<GraphEdge>,
 }
 
 #[command]
 pub async fn get_graph_data(state: State<'_, AppState>) -> Result<GraphData, String> {
     let db_pool = state.db_pool.lock().unwrap();
     let conn = db_pool.as_ref().ok_or("数据库未初始化")?.get().map_err(|e| e.to_string())?;
-
-    // 1. 查询所有笔记作为“节点”
-    let mut nodes_stmt = conn.prepare("SELECT id, title, path FROM files WHERE title IS NOT NULL AND title != ''")
-        .map_err(|e| e.to_string())?;
-    let nodes_iter = nodes_stmt.query_map([], |row| {
+    let mut edges_stmt = conn.prepare("SELECT source_file_id, target_file_id FROM links").map_err(|e| e.to_string())?;
+    let edges_iter = edges_stmt.query_map([], |row| Ok(GraphEdge { from: row.get(0)?, to: row.get(1)? })).map_err(|e| e.to_string())?;
+    let mut edges = Vec::new();
+    let mut connected_node_ids = HashSet::<i64>::new();
+    for edge_result in edges_iter {
+        let edge = edge_result.map_err(|e| e.to_string())?;
+        connected_node_ids.insert(edge.from);
+        connected_node_ids.insert(edge.to);
+        edges.push(edge);
+    }
+    if connected_node_ids.is_empty() { return Ok(GraphData { nodes: vec![], edges: vec![] }); }
+    let id_list: Vec<i64> = connected_node_ids.into_iter().collect();
+    let sql = format!("SELECT id, title, path FROM files WHERE id IN ({})", id_list.iter().map(|_| "?").collect::<Vec<_>>().join(","));
+    let mut nodes_stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let nodes_iter = nodes_stmt.query_map(params_from_iter(id_list), |row| {
         Ok(GraphNode {
             id: row.get(0)?,
-             // ▼▼▼ 【核心修改】在这里为 .get() 添加 <_, Option<String>> 类型标注 ▼▼▼
             label: row.get::<_, Option<String>>(1)?.unwrap_or_else(|| "无标题".to_string()),
-         
             path: row.get(2)?,
         })
     }).map_err(|e| e.to_string())?;
-
-    let mut nodes = Vec::new();
-    for node in nodes_iter {
-        nodes.push(node.map_err(|e| e.to_string())?);
-    }
-
-    // 2. 查询所有链接作为“边”
-    let mut edges_stmt = conn.prepare("SELECT source_file_id, target_file_id FROM links")
-        .map_err(|e| e.to_string())?;
-    let edges_iter = edges_stmt.query_map([], |row| {
-        Ok(GraphEdge {
-            from: row.get(0)?,
-            to: row.get(1)?,
-        })
-    }).map_err(|e| e.to_string())?;
-
-    let mut edges = Vec::new();
-    for edge in edges_iter {
-        edges.push(edge.map_err(|e| e.to_string())?);
-    }
-
+    let nodes: Vec<GraphNode> = nodes_iter.filter_map(Result::ok).collect();
     Ok(GraphData { nodes, edges })
 }

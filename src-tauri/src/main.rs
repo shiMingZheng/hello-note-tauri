@@ -71,6 +71,7 @@ pub fn run() {
 			commands::links::debug_get_all_links, // [新增]
 			commands::links::get_backlinks,
 			 commands::links::get_graph_data, // [新增]
+			commands::path_utils::migrate_paths_to_relative, // [新增]
 			commands::history::get_history
         ])
         .setup(|app| {

@@ -7,7 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-
+GEMINI.md
 #src/*
 README.MD
 README2.md

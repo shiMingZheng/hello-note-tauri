@@ -5,5 +5,6 @@ pub mod search;
 pub mod utils;
 pub mod tags; 
 pub mod history;
-pub mod pins; // [新增]
-pub mod links; // [新增]
+pub mod pins; 
+pub mod links; 
+pub mod path_utils; // [新增]
