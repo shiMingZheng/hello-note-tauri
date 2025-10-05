@@ -1,4 +1,4 @@
-// src/js/tab_manager.js - 多标签页逻辑修复版
+// src/js/tab_manager.js - 浏览器式页签逻辑修复版
 
 'use strict';
 console.log('📜 tab_manager.js 开始加载...');
@@ -21,22 +21,36 @@ const tabManager = {
         addNewNoteTabBtn.addEventListener('click', () => this.handleAddNewNote());
     },
 
-    // ▼▼▼【核心修改】简化并修正 openTab 逻辑 ▼▼▼
+    // ▼▼▼【核心修改】重写 openTab 函数以实现浏览器式页签逻辑 ▼▼▼
     openTab(filePath) {
-        // 1. 如果目标文件的页签已经存在，直接切换过去
+        // 规则 1: 如果笔记已在某个标签页打开，直接切换过去
         if (this.findTabByPath(filePath)) {
             this.switchToTab(filePath);
             return;
         }
 
-        // 2. 如果页签不存在，则新建一个
         const newTabData = { 
             path: filePath,
-            title: filePath.split(/[/\\]/).pop()
+            title: filePath.split(/[/\\]/).pop(),
+            isNew: false
         };
-        this.openTabs.push(newTabData);
 
-        // 3. 切换到这个新创建的页签
+        // 规则 2: 如果当前在主页，则新建一个标签页
+        if (this.activeTab === 'home') {
+            this.openTabs.push(newTabData);
+        } 
+        // 规则 3: 如果在任何其他标签页，则替换当前页签内容
+        else {
+            const currentIndex = this.openTabs.findIndex(tab => tab.path === this.activeTab);
+            if (currentIndex > -1) {
+                this.openTabs[currentIndex] = newTabData;
+            } else {
+                // 备用逻辑：如果出于某种原因找不到当前激活的标签，就新建一个
+                this.openTabs.push(newTabData);
+            }
+        }
+
+        // 切换到新内容，新标签的 ID 就是文件路径
         this.switchToTab(filePath);
     },
     // ▲▲▲【核心修改】结束 ▲▲▲
@@ -128,6 +142,7 @@ const tabManager = {
         const newTabId = `untitled-${Date.now()}`;
         const newTitle = `空白页签`;
         
+        // 点击“+”号总是新建一个标签
         this.openTabs.push({ path: newTabId, title: newTitle, isNew: true });
         this.switchToTab(newTabId);
     }

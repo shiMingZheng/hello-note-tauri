@@ -2,7 +2,8 @@
 use crate::commands::history::record_file_event;
 use crate::commands::links::update_links_for_file;
 use crate::commands::path_utils::{to_absolute_path, to_relative_path};
-use crate::search::delete_document;
+// ▼▼▼【核心修改】在这里 ▼▼▼
+use crate::search_core::{delete_document, update_document_index};
 use crate::AppState;
 use rusqlite::params;
 use serde::Serialize;
@@ -13,7 +14,7 @@ use tauri::State;
 #[derive(Debug, Serialize)]
 pub struct FileNode {
     name: String,
-    path: String, // This will be the relative path
+    path: String,
     is_dir: bool,
     has_children: bool,
 }
@@ -78,8 +79,8 @@ pub async fn list_dir_lazy(root_path: String, relative_path: String) -> Result<V
     }
 
     nodes.sort_by(|a, b| {
-        if a.is_dir == b.is_dir { a.name.cmp(&b.name) } 
-        else if a.is_dir { std::cmp::Ordering::Less } 
+        if a.is_dir == b.is_dir { a.name.cmp(&b.name) }
+        else if a.is_dir { std::cmp::Ordering::Less }
         else { std::cmp::Ordering::Greater }
     });
 
@@ -109,8 +110,7 @@ pub async fn save_file(
     let db_pool_lock = state.db_pool.lock().unwrap();
     if let (Some(index), Some(db_pool)) = (search_index_lock.as_ref(), db_pool_lock.as_ref()) {
         let relative_path_p = Path::new(&relative_path);
-        // Corrected function call
-        if let Err(e) = crate::search::update_document_index(index, db_pool, base_path, relative_path_p) {
+        if let Err(e) = update_document_index(index, db_pool, base_path, relative_path_p) {
             eprintln!("更新索引和数据库失败: {}", e);
         }
         
@@ -151,13 +151,12 @@ pub async fn create_new_file(
     let new_relative_path = to_relative_path(base_path, &absolute_file_path).unwrap();
     let new_relative_path_str = new_relative_path.to_string_lossy().to_string();
 
-	let _ = record_file_event(root_path.clone(), new_relative_path_str.clone(), "created".to_string(), state.clone()).await; 
+    let _ = record_file_event(root_path.clone(), new_relative_path_str.clone(), "created".to_string(), state.clone()).await; 
 
     let search_index_lock = state.search_index.lock().unwrap();
     let db_pool_lock = state.db_pool.lock().unwrap();
     if let (Some(index), Some(db_pool)) = (search_index_lock.as_ref(), db_pool_lock.as_ref()) {
-        // Corrected function call
-        if let Err(e) = crate::search::update_document_index(index, db_pool, base_path, &new_relative_path) {
+        if let Err(e) = update_document_index(index, db_pool, base_path, &new_relative_path) {
             eprintln!("为新文件更新索引和数据库失败: {}", e);
         }
     }
