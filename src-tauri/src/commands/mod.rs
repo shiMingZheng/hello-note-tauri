@@ -8,3 +8,4 @@ pub mod history;
 pub mod pins; 
 pub mod links; 
 pub mod path_utils; // [新增]
+pub mod workspace;

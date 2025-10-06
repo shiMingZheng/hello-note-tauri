@@ -4,30 +4,49 @@
 console.log('📜 homepage.js 开始加载...');
 
 let historyListElement;
-let pinnedNotesGridElement; // [新增]
-
+let pinnedNotesGridElement;
 
 function initializeHomepage() {
     historyListElement = document.getElementById('history-list');
-	pinnedNotesGridElement = document.getElementById('pinned-notes-grid'); // [新增]
-    loadPinnedNotes(); // [新增]
-
+    pinnedNotesGridElement = document.getElementById('pinned-notes-grid');
+    loadPinnedNotes();
     loadHistory();
 }
 
+// 检查数据库是否初始化
+async function isDatabaseInitialized() {
+    try {
+        const workspace = await invoke('get_current_workspace');
+        return workspace !== null;
+    } catch (error) {
+        return false;
+    }
+}
+
+// 加载历史记录
 async function loadHistory() {
+    if (!historyListElement) return;
+
+    // 检查数据库是否初始化
+    const hasWorkspace = await isDatabaseInitialized();
+    if (!hasWorkspace) {
+        historyListElement.innerHTML = '<p class="empty-message">📂 请先打开一个笔记仓库</p>';
+        return;
+    }
+
     try {
         const history = await invoke('get_history', { limit: 50 });
         renderHistory(history);
     } catch (error) {
         console.error('加载历史记录失败:', error);
-        historyListElement.innerHTML = '<p>加载历史记录失败</p>';
+        historyListElement.innerHTML = '<p class="empty-message">加载历史记录失败</p>';
     }
 }
 
+// 渲染历史记录
 function renderHistory(history) {
     if (!history || history.length === 0) {
-        historyListElement.innerHTML = '<p>暂无笔记活动</p>';
+        historyListElement.innerHTML = '<p class="empty-message">暂无笔记活动</p>';
         return;
     }
 
@@ -43,8 +62,6 @@ function renderHistory(history) {
             const fileName = entry.file_path.split(/[/\\]/).pop();
             const eventIcon = entry.event_type === 'created' ? '✨' : '📝';
             const eventText = entry.event_type === 'created' ? '新建' : '编辑';
-            
-            // [修改] 从 event_datetime 中提取时间
             const time = entry.event_datetime.split(' ')[1] || '';
 
             html += `
@@ -66,33 +83,40 @@ function renderHistory(history) {
         item.addEventListener('click', () => {
             const path = item.dataset.path;
             if (path) {
-                  // [修改] 使用新的 tabManager 来打开或切换到页签
                 tabManager.openTab(path);
             }
         });
     });
 }
 
-// [新增] 加载并渲染置顶笔记的函数
+// 加载置顶笔记
 async function loadPinnedNotes() {
+    if (!pinnedNotesGridElement) return;
+
+    // 检查数据库是否初始化
+    const hasWorkspace = await isDatabaseInitialized();
+    if (!hasWorkspace) {
+        pinnedNotesGridElement.innerHTML = '<p class="empty-message">📂 请先打开一个笔记仓库</p>';
+        return;
+    }
+
     try {
         const pinnedNotes = await invoke('get_pinned_notes');
         renderPinnedNotes(pinnedNotes);
     } catch (error) {
         console.error('加载置顶笔记失败:', error);
-        pinnedNotesGridElement.innerHTML = '<p class="empty-state">加载置顶笔记失败</p>';
+        pinnedNotesGridElement.innerHTML = '<p class="empty-message">加载置顶笔记失败</p>';
     }
 }
 
-// [新增] 渲染置顶笔记卡片的函数
-// [修改] 渲染置顶笔记卡片的函数
+// 渲染置顶笔记
 function renderPinnedNotes(notes) {
     if (!pinnedNotesGridElement) return;
 
-    pinnedNotesGridElement.innerHTML = ''; // 清空
+    pinnedNotesGridElement.innerHTML = '';
 
     if (!notes || notes.length === 0) {
-        pinnedNotesGridElement.innerHTML = '<p class="empty-state">您还没有置顶任何笔记。在左侧文件上右键点击即可置顶。</p>';
+        pinnedNotesGridElement.innerHTML = '<p class="empty-message">您还没有置顶任何笔记。在左侧文件上右键点击即可置顶。</p>';
         return;
     }
 
@@ -107,15 +131,14 @@ function renderPinnedNotes(notes) {
             tabManager.openTab(note.path);
         });
 
-        // [新增] 右键点击显示上下文菜单
+        // 右键点击显示上下文菜单
         card.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            // 模拟一个文件对象，并传入特殊标记
             const file_obj = { 
                 path: note.path, 
                 is_dir: false, 
                 name: note.title,
-                from: 'pinned-section' // 特殊标记
+                from: 'pinned-section'
             };
             showContextMenu(e, file_obj);
         });
@@ -124,7 +147,9 @@ function renderPinnedNotes(notes) {
     });
 }
 
-
-// 将函数暴露到全局
+// 导出到全局
 window.initializeHomepage = initializeHomepage;
-window.loadPinnedNotes = loadPinnedNotes; // [新增]
+window.loadPinnedNotes = loadPinnedNotes;
+window.loadHistory = loadHistory;
+
+console.log('✅ homepage.js 加载完成');
