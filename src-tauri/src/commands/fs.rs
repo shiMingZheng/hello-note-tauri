@@ -223,39 +223,57 @@ fn update_paths_in_db(
     conn: &mut Connection,
     old_prefix: &str,
     new_prefix: &str,
+    is_dir: bool,
 ) -> Result<(), rusqlite::Error> {
-    // 使用正确的路径分隔符
-    let separator = std::path::MAIN_SEPARATOR.to_string();
-    let pattern = format!("{}{}%", old_prefix, separator);
-
-    // [关键修复] 步骤 1: 在独立块中查询并收集数据
     let updates = {
-        let mut stmt = conn.prepare(
-            "SELECT id, path FROM files WHERE path = ?1 OR path LIKE ?2"
-        )?;
-        
-        let rows = stmt.query_map(params![old_prefix, pattern], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-        })?;
-
-        let mut updates_vec = Vec::new();
-        for row in rows {
-            let (id, old_path) = row?;
-            let new_path = old_path.replacen(old_prefix, new_prefix, 1);
-            updates_vec.push((new_path, id));
+        if is_dir {
+            // 文件夹：更新所有以此前缀开头的路径
+            let separator = std::path::MAIN_SEPARATOR.to_string();
+            let pattern = format!("{}{}%", old_prefix, separator);
+            
+            let mut stmt = conn.prepare(
+                "SELECT id, path FROM files WHERE path = ?1 OR path LIKE ?2"
+            )?;
+            
+            let rows = stmt.query_map(params![old_prefix, pattern], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })?;
+            
+            let mut updates_vec = Vec::new();
+            for row in rows {
+                let (id, old_path) = row?;
+                let new_path = old_path.replacen(old_prefix, new_prefix, 1);
+                updates_vec.push((new_path, id));
+            }
+            updates_vec
+        } else {
+            // 单个文件：直接更新这个路径
+            let mut stmt = conn.prepare(
+                "SELECT id FROM files WHERE path = ?1"
+            )?;
+            
+            let id: i64 = stmt.query_row(params![old_prefix], |row| row.get(0))?;
+            vec![(new_prefix.to_string(), id)]
         }
-        updates_vec
-    }; // stmt 在这里被销毁，释放读锁
+    };
 
-    // 步骤 2: 在事务中批量更新
+    if updates.is_empty() {
+        println!("  ⚠️ 警告: 数据库中没有找到对应的记录");
+        return Ok(());
+    }
+
+    // 在事务中批量更新
     let tx = conn.transaction()?;
-    for (new_path, id) in updates {
+    for (new_path, id) in &updates {
         tx.execute(
-            "UPDATE files SET path = ?1 WHERE id = ?2",
+            "UPDATE files SET path = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
             params![new_path, id],
         )?;
     }
-    tx.commit()
+    tx.commit()?;
+    
+    println!("✅ 更新了 {} 条数据库记录", updates.len());
+    Ok(())
 }
 
 #[derive(Debug, Serialize)]
@@ -335,8 +353,8 @@ pub async fn rename_item(
         let mut conn = pool.get().map_err(|e| e.to_string())?;
         
         // 批量更新数据库路径
-        update_paths_in_db(&mut conn, &old_relative_path, &new_relative_path)
-            .map_err(|e| format!("数据库批量更新路径失败: {}", e))?;
+		update_paths_in_db(&mut conn, &old_relative_path, &new_relative_path, is_dir)
+			.map_err(|e| format!("数据库批量更新路径失败: {}", e))?;
         
         println!("✅ 数据库路径更新成功");
 

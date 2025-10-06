@@ -124,7 +124,12 @@ function renderPinnedNotes(notes) {
         const card = document.createElement('div');
         card.className = 'pinned-note-card';
         card.title = note.path;
-        card.innerHTML = `<h4>${note.title}</h4>`;
+		const fileName = note.path.split(/[/\\]/).pop().replace('.md', '');
+
+        card.innerHTML = `<div class="pinned-note-header">
+        <h4>${note.title || fileName}</h4>
+    </div>
+    <div class="pinned-note-path">${note.path}</div>`;
 
         // 左键点击打开笔记
         card.addEventListener('click', () => {
