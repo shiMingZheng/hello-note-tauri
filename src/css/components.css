@@ -1384,3 +1384,30 @@ a.internal-link:hover {
     font-size: inherit;
     outline: none;
 }
+/* ========================================
+   在根目录下新建文件和文件夹样式
+   ======================================== */
+
+.sidebar-header-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.icon-btn {
+    padding: 6px 8px;
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.icon-btn:hover {
+    background: #f0f0f0;
+    border-color: #999;
+}
+
+.icon-btn:active {
+    transform: scale(0.95);
+}

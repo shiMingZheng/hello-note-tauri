@@ -39,7 +39,8 @@ const appState = {
 var openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fileListElement,
     fileListSpacer, searchResultsList, markdownEditor, htmlPreview,
     saveBtn, contextMenu, newNoteBtn, newFolderBtn,
-    deleteFileBtn, customConfirmDialog, viewToggleBtn, pinNoteBtn, unpinNoteBtn, editorContainer, renameItemBtn;
+    deleteFileBtn, customConfirmDialog, viewToggleBtn, pinNoteBtn, unpinNoteBtn, editorContainer, renameItemBtn,
+	newNoteRootBtn, newFolderRootBtn;;
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 app.js DOMContentLoaded');
@@ -180,6 +181,8 @@ function initDOMElements() {
         unpinNoteBtn = getElement('unpin-note-btn');
         editorContainer = getElement('editor-container');
         renameItemBtn = getElement('rename-item-btn');
+		newNoteRootBtn = getElement('new-note-root-btn'); // [新增]
+		newFolderRootBtn = getElement('new-folder-root-btn'); // [新增]
 
     } catch (error) {
         throw error;
@@ -203,12 +206,28 @@ function bindEvents() {
     deleteFileBtn.addEventListener('click', handleDeleteFile);
     document.addEventListener('click', () => hideContextMenu());
     renameItemBtn.addEventListener('click', handleRenameItem);
+	// [新增] 绑定根目录新建按钮事件
+    newNoteRootBtn.addEventListener('click', handleCreateNoteInRoot);
+    newFolderRootBtn.addEventListener('click', handleCreateFolderInRoot);
     
     markdownEditor.addEventListener('input', () => {
         appState.hasUnsavedChanges = true;
     });
     
     document.addEventListener('keydown', (e) => {
+		 // Ctrl+N 新建笔记
+        if (e.ctrlKey && e.key === 'n' && !e.shiftKey) {
+            e.preventDefault();
+            handleCreateNoteInRoot();
+        }
+        
+        // Ctrl+Shift+N 新建文件夹
+        if (e.ctrlKey && e.shiftKey && e.key === 'N') {
+            e.preventDefault();
+            handleCreateFolderInRoot();
+        }
+        
+        // Ctrl+S 保存
         if (e.ctrlKey && e.key === 's') {
             e.preventDefault();
             handleSaveFile();

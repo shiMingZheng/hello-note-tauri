@@ -381,8 +381,166 @@ async function showContextMenu(event, file) {
     }
 }
 
-// 导出函数到全局
-// 导出函数到全局
+/**
+ * 在根目录新建笔记 - 内联输入
+ */
+async function handleCreateNoteInRoot() {
+    if (!appState.rootPath) {
+        showError('请先打开一个笔记仓库');
+        return;
+    }
+
+    // 创建内联输入框
+    const inputWrapper = document.createElement('li');
+    inputWrapper.className = 'file-tree-inline-input';
+    inputWrapper.style.cssText = `
+        height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px;
+        line-height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px;
+        padding-left: 12px;
+        display: flex;
+        align-items: center;
+        background: #f0f8ff;
+    `;
+    
+    inputWrapper.innerHTML = `
+        <span>📄 </span>
+        <input type="text" 
+               class="inline-file-input" 
+               placeholder="笔记名称" 
+               autocomplete="off"
+               style="flex: 1; border: 1px solid #4a9eff; padding: 2px 6px; outline: none; background: white; border-radius: 2px;">
+    `;
+    
+    // 插入到文件树顶部
+    fileListElement.insertBefore(inputWrapper, fileListElement.firstChild);
+    
+    const input = inputWrapper.querySelector('input');
+    input.focus();
+    
+    const finishCreate = async () => {
+        const fileName = input.value.trim();
+        inputWrapper.remove();
+        
+        if (!fileName) return;
+        
+        try {
+            const newRelativePath = await invoke('create_new_file', { 
+                rootPath: appState.rootPath, 
+                relativeDirPath: "",
+                fileName: fileName.replace(/\.md$/, '')
+            });
+            
+            showSuccessMessage('笔记已创建');
+            await refreshFileTree("");
+            
+            if (newRelativePath) {
+                tabManager.openTab(newRelativePath);
+            }
+        } catch (error) {
+            showError('创建笔记失败: ' + error);
+        }
+    };
+    
+    input.addEventListener('blur', () => {
+        setTimeout(() => {
+            if (inputWrapper.parentNode) {
+                inputWrapper.remove();
+            }
+        }, 200);
+    });
+    
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            finishCreate();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            inputWrapper.remove();
+        }
+    });
+}
+
+/**
+ * 在根目录新建文件夹 - 内联输入
+ */
+async function handleCreateFolderInRoot() {
+    if (!appState.rootPath) {
+        showError('请先打开一个笔记仓库');
+        return;
+    }
+
+    const inputWrapper = document.createElement('li');
+    inputWrapper.className = 'file-tree-inline-input';
+    inputWrapper.style.cssText = `
+        height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px;
+        line-height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px;
+        padding-left: 12px;
+        display: flex;
+        align-items: center;
+        background: #f0f8ff;
+    `;
+    
+    inputWrapper.innerHTML = `
+        <span>📁 </span>
+        <input type="text" 
+               class="inline-file-input" 
+               placeholder="文件夹名称" 
+               autocomplete="off"
+               style="flex: 1; border: 1px solid #4a9eff; padding: 2px 6px; outline: none; background: white; border-radius: 2px;">
+    `;
+    
+    fileListElement.insertBefore(inputWrapper, fileListElement.firstChild);
+    
+    const input = inputWrapper.querySelector('input');
+    input.focus();
+    
+    const finishCreate = async () => {
+        const folderName = input.value.trim();
+        inputWrapper.remove();
+        
+        if (!folderName) return;
+        
+        try {
+            await invoke('create_new_folder', { 
+                rootPath: appState.rootPath, 
+                relativeParentPath: "",
+                folderName: folderName
+            });
+            
+            showSuccessMessage('文件夹已创建');
+            await refreshFileTree("");
+            
+            if (window.updateVirtualScrollData) {
+                updateVirtualScrollData();
+            }
+        } catch (error) {
+            showError('创建文件夹失败: ' + error);
+        }
+    };
+    
+    input.addEventListener('blur', () => {
+        setTimeout(() => {
+            if (inputWrapper.parentNode) {
+                inputWrapper.remove();
+            }
+        }, 200);
+    });
+    
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            finishCreate();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            inputWrapper.remove();
+        }
+    });
+}
+
+// 在导出部分添加这两个函数
+window.handleCreateNoteInRoot = handleCreateNoteInRoot;
+window.handleCreateFolderInRoot = handleCreateFolderInRoot;
+
 window.saveLastFile = saveLastFile;
 window.saveExpandedFolders = saveExpandedFolders;
 window.refreshFileTree = refreshFileTree;
