@@ -148,6 +148,33 @@ const workspaceManager = {
             await invoke('load_workspace', { workspacePath: path });
             console.log('✅ 工作区加载成功');
 			
+			
+			 // [新增] 同步文件系统
+        console.log('🔄 同步文件系统...');
+        try {
+            const syncResult = await invoke('sync_workspace', { rootPath: path });
+            
+            if (syncResult.added > 0 || syncResult.removed > 0) {
+                console.log(`📊 同步结果: 添加 ${syncResult.added} 个文件, 删除 ${syncResult.removed} 个文件`);
+                showSuccessMessage(`已同步: 新增 ${syncResult.added}, 移除 ${syncResult.removed}`);
+            } else {
+                console.log('✅ 文件系统已同步');
+            }
+        } catch (syncError) {
+            console.warn('⚠️ 文件系统同步失败:', syncError);
+            // 同步失败不阻止工作区加载
+        }
+        
+       
+		 // [新增] 检查是否有未完成的索引任务
+        const isIndexing = await invoke('check_indexing_status');
+        if (isIndexing) {
+            console.log('⚠️ 检测到未完成的索引任务');
+            if (window.startIndexingStatusCheck) {
+                window.startIndexingStatusCheck();
+            }
+        }
+		
 			   // [新增] 刷新首页数据
         if (window.initializeHomepage) {
             window.initializeHomepage();

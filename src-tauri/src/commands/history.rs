@@ -29,19 +29,18 @@ pub async fn record_file_event(
     if let Some(pool) = db_pool_lock.as_ref() {
         let conn = pool.get().map_err(|e| e.to_string())?;
         
-        // 1. 获取或创建 file_id
+        // [修改] 统一使用文件名作为 title
+        let title = relative_path
+            .split('/')
+            .last()
+            .unwrap_or(&relative_path)
+            .trim_end_matches(".md");
+        
         let file_id: i64 = conn.query_row(
             "SELECT id FROM files WHERE path = ?1",
             params![&relative_path],
             |row| row.get(0),
         ).or_else(|_| {
-            // 如果文件不存在，先插入
-            let title = relative_path
-                .split('/')
-                .last()
-                .unwrap_or(&relative_path)
-                .trim_end_matches(".md");
-            
             conn.execute(
                 "INSERT INTO files (path, title, created_at, updated_at) 
                  VALUES (?1, ?2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
@@ -51,7 +50,6 @@ pub async fn record_file_event(
             conn.query_row("SELECT last_insert_rowid()", [], |row| row.get(0))
         }).map_err(|e| e.to_string())?;
         
-        // 2. 记录历史事件
         let now = chrono::Local::now();
         let event_date = now.format("%Y-%m-%d").to_string();
         let event_datetime = now.format("%Y-%m-%d %H:%M:%S").to_string();
@@ -61,8 +59,6 @@ pub async fn record_file_event(
              VALUES (?1, ?2, ?3, ?4)",
             params![file_id, event_type, event_date, event_datetime],
         ).map_err(|e| e.to_string())?;
-        
-        println!("✅ 记录历史: {} - {}", relative_path, event_type);
     }
     
     Ok(())

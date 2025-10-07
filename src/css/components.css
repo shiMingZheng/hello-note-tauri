@@ -1400,3 +1400,42 @@ a.internal-link:hover {
     transform: scale(0.95);
 }
 
+.indexing-indicator {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(74, 158, 255, 0.95);
+    color: white;
+    padding: 10px 16px;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    animation: slideInRight 0.3s ease;
+}
+
+.indexing-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.indexing-spinner {
+    animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}

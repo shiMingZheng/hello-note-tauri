@@ -32,6 +32,8 @@ regex = "1.10" # [新增] 添加 regex 库
 pathdiff = "0.2" # [新增]
 tokio = { version = "1.47.1", features = ["rt-multi-thread", "macros"] }
 
+walkdir = "2"
+
 [profile.dev]
 # 开发模式：快速编译
 opt-level = 0

@@ -3,9 +3,8 @@
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"
 )]
-
+use tauri::{Builder, Manager}; 
 use std::sync::{Arc, Mutex};
-use tauri::{Builder, Manager, State};
 
 mod search_core;
 mod commands;
@@ -59,6 +58,9 @@ pub fn run() {
     commands::tags::get_tags_for_file,
     commands::tags::get_all_tags,
     commands::tags::get_files_by_tag,
+	
+	commands::utils::check_indexing_status,  // [新增]
+	 commands::sync::sync_workspace, 
     
     // 其他命令
     commands::pins::pin_note,

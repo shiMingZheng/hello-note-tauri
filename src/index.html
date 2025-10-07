@@ -21,11 +21,12 @@
                     📂 打开
                 </button>
                 <div class="sidebar-header-actions">
+				     <button id="sync-workspace-btn" class="icon-btn" title="同步文件系统">🔄</button>
 				      <!-- [新增] 新建笔记和文件夹按钮 -->
 					   <!-- [新增] 新建按钮 -->
 					<button id="new-note-root-btn" class="icon-btn" title="新建笔记 (Ctrl+N)">📄</button>
 					<button id="new-folder-root-btn" class="icon-btn" title="新建文件夹 (Ctrl+Shift+N)">📁</button>
-           
+                     
             
                     <button id="toggle-tags-btn" class="icon-btn">🏷️</button> 
                     <button id="search-toggle-btn" class="icon-btn">🔍</button>
@@ -166,6 +167,14 @@
             </div>
         </div>
     </div>
+	
+		<!-- 在 body 最后添加 -->
+	<div id="indexing-indicator" class="indexing-indicator" style="display: none;">
+		<div class="indexing-content">
+			<span class="indexing-spinner">🔄</span>
+			<span>索引更新中...</span>
+		</div>
+	</div>
 
     <script src="js/ui-utils.js"></script>
     <script src="js/virtual-scroll.js"></script>

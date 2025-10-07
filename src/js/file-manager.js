@@ -310,6 +310,10 @@ function handleRenameItem() {
             if (window.updateVirtualScrollData) {
                 updateVirtualScrollData();
             }
+                // [关键] 启动索引状态监控
+			if (window.startIndexingStatusCheck) {
+				window.startIndexingStatusCheck();
+			}
 
             // [新增] 刷新首页数据
             if (window.loadPinnedNotes) {

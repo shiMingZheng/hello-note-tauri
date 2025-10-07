@@ -58,3 +58,24 @@ pub async fn parse_markdown(
 
     Ok(html_output)
 }
+/// 检查索引是否正在更新
+#[command]
+pub async fn check_indexing_status(
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let db_pool_lock = state.db_pool.lock().unwrap();
+    
+    if let Some(pool) = db_pool_lock.as_ref() {
+        if let Ok(conn) = pool.get() {
+            let is_indexing: Result<String, _> = conn.query_row(
+                "SELECT value FROM index_status WHERE key = 'indexing'",
+                [],
+                |row| row.get(0),
+            );
+            
+            return Ok(is_indexing.is_ok());
+        }
+    }
+    
+    Ok(false)
+}

@@ -2,13 +2,14 @@
 use crate::commands::history::record_file_event;
 use crate::commands::links::update_links_for_file;
 use crate::commands::path_utils::{to_absolute_path, to_relative_path};
-use crate::search_core::{delete_document, update_document_index,reindex_document};
 use crate::AppState;
 use rusqlite::{params, Connection};
 use serde::Serialize;
 use std::fs;
 use std::path::Path; // [修复] 移除了未使用的 PathBuf
 use tauri::State;
+use crate::search_core::{delete_document, update_document_index}; // 移除 reindex_document
+
 
 // ... (顶部 FileNode 等结构体和函数保持不变) ...
 #[derive(Debug, Serialize)]
@@ -133,13 +134,7 @@ pub async fn create_new_file(
     let new_relative_path = to_relative_path(base_path, &absolute_file_path).unwrap();
     let new_relative_path_str = new_relative_path.to_string_lossy().to_string();
     let _ = record_file_event(root_path.clone(), new_relative_path_str.clone(), "created".to_string(), state.clone()).await; 
-    let search_index_lock = state.search_index.lock().unwrap();
-    let db_pool_lock = state.db_pool.lock().unwrap();
-    if let (Some(index), Some(db_pool)) = (search_index_lock.as_ref(), db_pool_lock.as_ref()) {
-        if let Err(e) = update_document_index(index, db_pool, base_path, &new_relative_path) {
-            eprintln!("为新文件更新索引和数据库失败: {}", e);
-        }
-    }
+    
     Ok(new_relative_path_str)
 }
 
@@ -226,84 +221,59 @@ fn update_paths_in_db(
     new_prefix: &str,
     is_dir: bool,
 ) -> Result<(), rusqlite::Error> {
-    let updates = {
-        if is_dir {
-            // 文件夹：更新所有以此前缀开头的路径
-            let separator = std::path::MAIN_SEPARATOR.to_string();
-            let pattern = format!("{}{}%", old_prefix, separator);
-            
-            let mut stmt = conn.prepare(
-                "SELECT id, path FROM files WHERE path = ?1 OR path LIKE ?2"
-            )?;
-            
-            let rows = stmt.query_map(params![old_prefix, pattern], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-            })?;
-            
-            let mut updates_vec = Vec::new();
-            for row in rows {
-                let (id, old_path) = row?;
-                let new_path = old_path.replacen(old_prefix, new_prefix, 1);
-                updates_vec.push((new_path, id));
-            }
-            updates_vec
-        } else {
-            // 单个文件：直接更新这个路径
-            let mut stmt = conn.prepare(
-                "SELECT id FROM files WHERE path = ?1"
-            )?;
-            
-            match stmt.query_row(params![old_prefix], |row| row.get(0)) {
-                Ok(id) => {
-                    println!("  找到文件记录，id={}", id);
-                    vec![(new_prefix.to_string(), id)]
-                },
-                Err(rusqlite::Error::QueryReturnedNoRows) => {
-                    println!("  ⚠️ 警告: files 表中没有找到 path={}", old_prefix);
-                    vec![]
-                },
-                Err(e) => return Err(e),
-            }
-        }
-    };
-
-    if updates.is_empty() {
-        println!("  ⚠️ 没有需要更新的数据库记录");
-        return Ok(());
-    }
-
-    // 在事务中批量更新
-    let tx = conn.transaction()?;
-    for (new_path, id) in &updates {
-		// 同时更新 title（从新路径提取文件名）
-        let new_title = new_path
+    
+    if is_dir {
+        let separator = if cfg!(windows) { "\\" } else { "/" };
+        let pattern = format!("{}{}%", old_prefix, separator);
+        
+        let tx = conn.transaction()?;
+        
+        // [修改] title 始终等于文件名
+        let updated = tx.execute(
+            "UPDATE files 
+             SET path = REPLACE(path, ?1, ?2),
+                 title = substr(
+                     REPLACE(path, ?1, ?2), 
+                     length(REPLACE(path, ?1, ?2)) - instr(reverse(REPLACE(path, ?1, ?2)), '/') + 2
+                 ),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE path = ?1 OR path LIKE ?3",
+            params![old_prefix, new_prefix, pattern],
+        )?;
+        
+        // 移除 .md 后缀
+        tx.execute(
+            "UPDATE files 
+             SET title = REPLACE(title, '.md', '') 
+             WHERE title LIKE '%.md'",
+            [],
+        )?;
+        
+        tx.commit()?;
+        println!("  更新了 {} 条文件夹记录", updated);
+        
+    } else {
+        // [修改] 单个文件的 title 就是文件名
+        let new_title = new_prefix
             .split('/')
             .last()
-            .unwrap_or(new_path)
+            .unwrap_or(new_prefix)
             .trim_end_matches(".md");
-        // 更新 path
-		println!("  开始更新数据库记录: id={}, path={}, title={}", id, new_path, new_title);
-		//let sql = "UPDATE files SET path = ?, title = 'testddddd', updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-         let sql = "UPDATE files SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-		// 2. 调整 params! 的顺序，使其与SQL中 '?' 的出现顺序完全对应
-		//    第一个 ? -> path -> new_path
-		//    第二个 ? -> title -> new_title
-		//    第三个 ? -> id -> id
-		tx.execute(
-			sql,
-			params![new_path,id],
-		)?;
-       // tx.execute(
-         //   "UPDATE files SET path = ?1,title = ?3, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
-          //  params![new_path, id,new_title],
-       // )?;
-       
         
-        println!("  更新数据库记录: id={}, path={}, title={}", id, new_path, new_title);
+        let updated = conn.execute(
+            "UPDATE files 
+             SET path = ?1, 
+                 title = ?2,
+                 updated_at = CURRENT_TIMESTAMP 
+             WHERE path = ?3",
+            params![new_prefix, new_title, old_prefix],
+        )?;
+        
+        if updated > 0 {
+            println!("  更新了文件记录: {}", new_title);
+        }
     }
-    tx.commit()?;
-    
-    println!("✅ 数据库更新完成，共更新 {} 条记录", updates.len());
+
     Ok(())
 }
 
@@ -365,57 +335,98 @@ pub async fn rename_item(
 
     new_relative_path = new_relative_path.replace('\\', "/");
     
-    println!("  旧路径: {}", old_relative_path);
-    println!("  新路径: {}", new_relative_path);
-
     let is_dir = new_abs_path.is_dir();
     
-    // [关键] 更新数据库和索引
+    // 同步更新数据库（快速）
     let db_pool_lock = state.db_pool.lock().unwrap();
     let search_index_lock = state.search_index.lock().unwrap();
 
-    if let (Some(pool), Some(index)) = (db_pool_lock.as_ref(), search_index_lock.as_ref()) {
+    if let Some(pool) = db_pool_lock.as_ref() {
         let mut conn = pool.get().map_err(|e| e.to_string())?;
         
-        // [关键] 批量更新数据库路径
-        println!("📝 开始更新数据库...");
+        println!("📝 更新数据库...");
         update_paths_in_db(&mut conn, &old_relative_path, &new_relative_path, is_dir)
             .map_err(|e| format!("数据库更新失败: {}", e))?;
+        
+        println!("✅ 数据库更新完成");
+        
+        // [新增] 标记索引需要更新
+        let _ = conn.execute(
+            "INSERT OR REPLACE INTO index_status (key, value, updated_at) 
+             VALUES ('indexing', 'true', CURRENT_TIMESTAMP)",
+            [],
+        );
+    }
 
-        // 更新索引
-        if is_dir {
-            println!("📂 文件夹重命名，增量更新索引...");
-            let separator = std::path::MAIN_SEPARATOR.to_string();
-            let pattern = format!("{}{}%", new_relative_path, separator);
+    // [关键] 异步更新索引（文件和文件夹都异步）
+    if let (Some(pool), Some(index)) = (db_pool_lock.as_ref(), search_index_lock.as_ref()) {
+        let pool_clone = pool.clone();
+        let index_clone = index.clone();
+        let base_path_owned = base_path.to_path_buf();
+        let new_relative_path_clone = new_relative_path.clone();
+        let is_dir_clone = is_dir;
+        
+        tauri::async_runtime::spawn(async move {
+            println!("🔍 [后台] 开始异步更新索引...");
+            let start_time = std::time::Instant::now();
             
-            let mut stmt = conn.prepare(
-                "SELECT path FROM files WHERE path = ?1 OR path LIKE ?2"
-            ).map_err(|e| e.to_string())?;
-            
-            let affected_files: Vec<String> = stmt
-                .query_map(params![new_relative_path, pattern], |row| row.get(0))
-                .map_err(|e| e.to_string())?
-                .filter_map(Result::ok)
-                .collect();
-            
-            println!("  需要更新 {} 个文件的索引", affected_files.len());
-            
-            for relative_path in affected_files {
-                let file_path = Path::new(&relative_path);
-                if let Err(e) = update_document_index(index, pool, base_path, file_path) {
-                    eprintln!("  ⚠️ 更新索引失败 {}: {}", relative_path, e);
+            if is_dir_clone {
+                // 文件夹：更新所有子文件
+                if let Ok(conn) = pool_clone.get() {
+                    let separator = std::path::MAIN_SEPARATOR.to_string();
+                    let pattern = format!("{}{}%", new_relative_path_clone, separator);
+                    
+                    if let Ok(mut stmt) = conn.prepare(
+                        "SELECT path FROM files WHERE path = ?1 OR path LIKE ?2"
+                    ) {
+                        if let Ok(paths) = stmt.query_map(
+                            params![new_relative_path_clone, pattern], 
+                            |row| row.get::<_, String>(0)
+                        ) {
+                            let affected_files: Vec<String> = paths.filter_map(Result::ok).collect();
+                            println!("🔍 [后台] 需要更新 {} 个文件的索引", affected_files.len());
+                            
+                            for relative_path in affected_files {
+                                let file_path = std::path::Path::new(&relative_path);
+                                if let Err(e) = update_document_index(
+                                    &index_clone, 
+                                    &pool_clone, 
+                                    &base_path_owned, 
+                                    file_path
+                                ) {
+                                    eprintln!("🔍 [后台] ⚠️ 更新索引失败 {}: {}", relative_path, e);
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // 单个文件：更新一个索引
+                let new_path = std::path::Path::new(&new_relative_path_clone);
+                if let Err(e) = update_document_index(
+                    &index_clone, 
+                    &pool_clone, 
+                    &base_path_owned, 
+                    new_path
+                ) {
+                    eprintln!("🔍 [后台] ⚠️ 更新索引失败: {}", e);
                 }
             }
-        } else {
-            println!("📄 文件重命名，更新单个索引...");
-            let new_path = Path::new(&new_relative_path);
-            if let Err(e) = update_document_index(index, pool, base_path, new_path) {
-                eprintln!("  ⚠️ 更新索引失败: {}", e);
+            
+            let elapsed = start_time.elapsed();
+            println!("🔍 [后台] ✅ 索引更新完成，耗时: {:?}", elapsed);
+            
+            // 更新完成后清除标记
+            if let Ok(conn) = pool_clone.get() {
+                let _ = conn.execute(
+                    "DELETE FROM index_status WHERE key = 'indexing'",
+                    [],
+                );
             }
-        }
-        
-        println!("✅ 索引更新完成");
+        });
     }
+    
+    println!("✅ 重命名完成（索引正在后台更新）");
 
     Ok(RenameResult {
         new_path: new_relative_path,
