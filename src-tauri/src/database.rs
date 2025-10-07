@@ -102,6 +102,13 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
             FOREIGN KEY (target_file_id) REFERENCES files (id) ON DELETE CASCADE,
             PRIMARY KEY (source_file_id, target_file_id)
         );
+		
+		/* [新增] 索引状态表 */
+        CREATE TABLE IF NOT EXISTS index_status (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
         
         "
     ).with_context(|| "创建索引和其他表结构失败")?;

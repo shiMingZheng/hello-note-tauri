@@ -148,6 +148,37 @@ pub fn update_document_index(index: &Index, db_pool: &Pool<SqliteConnectionManag
     Ok(())
 }
 
+// 这个新函数不写入数据库，只负责重建 Tantivy 索引
+pub fn reindex_document(index: &Index, db_pool: &Pool<SqliteConnectionManager>, file_id: i64, base_path: &Path) -> Result<()> {
+    let (_, fields) = build_schema();
+    let mut writer: IndexWriter = index.writer(20_000_000)?;
+    let conn = db_pool.get()?;
+
+    // 1. 从数据库读取正确的信息（这已经是事实来源）
+    let (relative_path_str, title): (String, String) = conn.query_row(
+        "SELECT path, title FROM files WHERE id = ?1",
+        params![file_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+
+    // 2. 读取文件内容
+    let absolute_path = to_absolute_path(base_path, Path::new(&relative_path_str));
+    let content = fs::read_to_string(&absolute_path)?;
+
+    // 3. 更新 Tantivy 索引
+    let path_term = tantivy::Term::from_field_text(fields.path, &relative_path_str);
+    writer.delete_term(path_term); // 删除旧的（如果路径也变了的话）
+    writer.add_document(doc!(
+        fields.id => file_id as u64,
+        fields.path => relative_path_str.clone(),
+        fields.title => title, // 使用从数据库读来的正确 title
+        fields.content => content
+    ))?;
+    
+    writer.commit()?;
+    Ok(())
+}
+
 // ▼▼▼ 【核心修改】重写 search 函数以生成摘要 ▼▼▼
 pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
     if query.trim().is_empty() {

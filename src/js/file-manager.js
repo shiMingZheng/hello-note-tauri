@@ -275,13 +275,11 @@ function handleRenameItem() {
                 newName: newName
             });
 
-            console.log('✅ 后端返回结果:', result);
+            console.log('✅ 重命名成功:', result);
 
             if (result.is_dir) {
                 const oldPrefix = targetItem.path;
                 const newPrefix = result.new_path;
-                
-                console.log(`📁 文件夹重命名: ${oldPrefix} -> ${newPrefix}`);
                 
                 if (tabManager.updatePathsForRenamedFolder) {
                     tabManager.updatePathsForRenamedFolder(oldPrefix, newPrefix);
@@ -294,10 +292,7 @@ function handleRenameItem() {
                     appState.expandedFolders.add(newPrefix);
                     saveExpandedFolders();
                 }
-
             } else {
-                console.log(`📄 文件重命名: ${targetItem.path} -> ${result.new_path}`);
-                
                 const tabsToUpdate = tabManager.openTabs.filter(tab => tab.path === targetItem.path);
                 tabsToUpdate.forEach(tab => {
                     tabManager.updateTabId(targetItem.path, result.new_path);
@@ -310,12 +305,18 @@ function handleRenameItem() {
                 ? targetItem.path.substring(0, lastSlashIndex)
                 : "";
 
-            console.log(`🔄 刷新文件树: ${parentPath || '(根目录)'}`);
-
             await refreshFileTree(parentPath);
             
             if (window.updateVirtualScrollData) {
                 updateVirtualScrollData();
+            }
+
+            // [新增] 刷新首页数据
+            if (window.loadPinnedNotes) {
+                window.loadPinnedNotes();
+            }
+            if (window.loadHistory) {
+                window.loadHistory();
             }
 
             showSuccessMessage('重命名成功');

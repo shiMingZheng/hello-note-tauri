@@ -2,7 +2,7 @@
 use crate::commands::history::record_file_event;
 use crate::commands::links::update_links_for_file;
 use crate::commands::path_utils::{to_absolute_path, to_relative_path};
-use crate::search_core::{delete_document, update_document_index};
+use crate::search_core::{delete_document, update_document_index,reindex_document};
 use crate::AppState;
 use rusqlite::{params, Connection};
 use serde::Serialize;
@@ -219,6 +219,7 @@ pub async fn delete_folder(root_path: String, relative_path: String, state: Stat
  * [修复] 批量更新数据库中的路径
  * 修复点：确保在事务开始前释放所有读锁
  */
+
 fn update_paths_in_db(
     conn: &mut Connection,
     old_prefix: &str,
@@ -252,27 +253,57 @@ fn update_paths_in_db(
                 "SELECT id FROM files WHERE path = ?1"
             )?;
             
-            let id: i64 = stmt.query_row(params![old_prefix], |row| row.get(0))?;
-            vec![(new_prefix.to_string(), id)]
+            match stmt.query_row(params![old_prefix], |row| row.get(0)) {
+                Ok(id) => {
+                    println!("  找到文件记录，id={}", id);
+                    vec![(new_prefix.to_string(), id)]
+                },
+                Err(rusqlite::Error::QueryReturnedNoRows) => {
+                    println!("  ⚠️ 警告: files 表中没有找到 path={}", old_prefix);
+                    vec![]
+                },
+                Err(e) => return Err(e),
+            }
         }
     };
 
     if updates.is_empty() {
-        println!("  ⚠️ 警告: 数据库中没有找到对应的记录");
+        println!("  ⚠️ 没有需要更新的数据库记录");
         return Ok(());
     }
 
     // 在事务中批量更新
     let tx = conn.transaction()?;
     for (new_path, id) in &updates {
-        tx.execute(
-            "UPDATE files SET path = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
-            params![new_path, id],
-        )?;
+		// 同时更新 title（从新路径提取文件名）
+        let new_title = new_path
+            .split('/')
+            .last()
+            .unwrap_or(new_path)
+            .trim_end_matches(".md");
+        // 更新 path
+		println!("  开始更新数据库记录: id={}, path={}, title={}", id, new_path, new_title);
+		//let sql = "UPDATE files SET path = ?, title = 'testddddd', updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+         let sql = "UPDATE files SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+		// 2. 调整 params! 的顺序，使其与SQL中 '?' 的出现顺序完全对应
+		//    第一个 ? -> path -> new_path
+		//    第二个 ? -> title -> new_title
+		//    第三个 ? -> id -> id
+		tx.execute(
+			sql,
+			params![new_path,id],
+		)?;
+       // tx.execute(
+         //   "UPDATE files SET path = ?1,title = ?3, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+          //  params![new_path, id,new_title],
+       // )?;
+       
+        
+        println!("  更新数据库记录: id={}, path={}, title={}", id, new_path, new_title);
     }
     tx.commit()?;
     
-    println!("✅ 更新了 {} 条数据库记录", updates.len());
+    println!("✅ 数据库更新完成，共更新 {} 条记录", updates.len());
     Ok(())
 }
 
@@ -302,26 +333,21 @@ pub async fn rename_item(
     let base_path = Path::new(&root_path);
     let old_abs_path = to_absolute_path(base_path, Path::new(&old_relative_path));
     
-    // 验证源文件/文件夹存在
     if !old_abs_path.exists() {
         return Err(format!("目标不存在: {}", old_abs_path.display()));
     }
 
-    // 验证新名称不包含路径分隔符
     if new_name.contains('/') || new_name.contains('\\') {
         return Err("新名称不能包含路径分隔符".to_string());
     }
 
-    // 构建新路径
     let mut new_abs_path = old_abs_path.clone();
     new_abs_path.set_file_name(&new_name);
     
-    // 为文件自动添加 .md 扩展名
     if old_abs_path.is_file() && new_abs_path.extension().is_none() {
         new_abs_path.set_extension("md");
     }
 
-    // 检查目标是否已存在
     if new_abs_path.exists() {
         return Err("同名文件或文件夹已存在".to_string());
     }
@@ -332,38 +358,33 @@ pub async fn rename_item(
     
     println!("✅ 文件系统重命名成功");
 
-    // 获取新的相对路径
     let mut new_relative_path = to_relative_path(base_path, &new_abs_path)
         .unwrap()
         .to_string_lossy()
         .to_string();
 
-    // [关键修复] 统一路径分隔符为正斜杠（与前端一致）
     new_relative_path = new_relative_path.replace('\\', "/");
     
-    println!("  新相对路径: {}", new_relative_path);
+    println!("  旧路径: {}", old_relative_path);
+    println!("  新路径: {}", new_relative_path);
 
     let is_dir = new_abs_path.is_dir();
     
-    // 更新数据库和索引
+    // [关键] 更新数据库和索引
     let db_pool_lock = state.db_pool.lock().unwrap();
     let search_index_lock = state.search_index.lock().unwrap();
 
     if let (Some(pool), Some(index)) = (db_pool_lock.as_ref(), search_index_lock.as_ref()) {
         let mut conn = pool.get().map_err(|e| e.to_string())?;
         
-        // 批量更新数据库路径
-		update_paths_in_db(&mut conn, &old_relative_path, &new_relative_path, is_dir)
-			.map_err(|e| format!("数据库批量更新路径失败: {}", e))?;
-        
-        println!("✅ 数据库路径更新成功");
+        // [关键] 批量更新数据库路径
+        println!("📝 开始更新数据库...");
+        update_paths_in_db(&mut conn, &old_relative_path, &new_relative_path, is_dir)
+            .map_err(|e| format!("数据库更新失败: {}", e))?;
 
-        // [优化] 增量更新索引
+        // 更新索引
         if is_dir {
-            // 文件夹：需要重新索引所有子文件
             println!("📂 文件夹重命名，增量更新索引...");
-            
-            // 查询所有受影响的文件
             let separator = std::path::MAIN_SEPARATOR.to_string();
             let pattern = format!("{}{}%", new_relative_path, separator);
             
@@ -379,16 +400,13 @@ pub async fn rename_item(
             
             println!("  需要更新 {} 个文件的索引", affected_files.len());
             
-            // 逐个更新索引
             for relative_path in affected_files {
                 let file_path = Path::new(&relative_path);
                 if let Err(e) = update_document_index(index, pool, base_path, file_path) {
                     eprintln!("  ⚠️ 更新索引失败 {}: {}", relative_path, e);
                 }
             }
-            
         } else {
-            // 单个文件：只更新这一个文件的索引
             println!("📄 文件重命名，更新单个索引...");
             let new_path = Path::new(&new_relative_path);
             if let Err(e) = update_document_index(index, pool, base_path, new_path) {
