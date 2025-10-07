@@ -72,68 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-/**
- * [新增] 支持工作区的启动流程
- */
-async function startupWithWorkspace() {
-    console.log('🏁 开始启动流程...');
 
-    // 尝试恢复上次的工作区
-    const restored = await workspaceManager.restoreLastWorkspace();
-
-    if (restored) {
-        console.log('✅ 成功恢复上次的工作区');
-        
-        // 获取当前工作区路径
-        const currentWorkspace = await invoke('get_current_workspace');
-        
-        if (currentWorkspace) {
-            // 设置 rootPath
-            appState.rootPath = currentWorkspace;
-            
-            // 刷新文件树
-            await refreshFileTree("");
-            searchBox.style.display = 'block';
-            
-            if (window.refreshAllTagsList) {
-                await refreshAllTagsList();
-            }
-            
-            // 恢复上次打开的文件
-            await restoreLastFileInWorkspace();
-        }
-    } else {
-        console.log('📝 显示欢迎界面');
-        showWelcomeScreen();
-    }
-
-    console.log('✅ 应用启动完成');
-}
-
-/**
- * [新增] 在工作区内恢复上次打开的文件
- */
-async function restoreLastFileInWorkspace() {
-    try {
-        const lastFile = localStorage.getItem('cheetah_last_file');
-        const expandedStr = localStorage.getItem('cheetah_expanded_folders');
-        
-        if (expandedStr) {
-            try {
-                const expanded = JSON.parse(expandedStr);
-                appState.expandedFolders = new Set(expanded);
-            } catch (e) {
-                console.warn('恢复展开状态失败:', e);
-            }
-        }
-        
-        if (lastFile) {
-            tabManager.openTab(lastFile);
-        }
-    } catch (error) {
-        console.warn('恢复文件会话失败:', error);
-    }
-}
 
 /**
  * 显示欢迎界面
@@ -390,6 +329,97 @@ if (syncWorkspaceBtn) {
             showError('同步失败: ' + error);
         }
     });
+}
+
+// 在 app.js 的 startupWithWorkspace 函数中添加清理逻辑
+
+/**
+ * [新增] 支持工作区的启动流程 (带清理)
+ */
+async function startupWithWorkspace() {
+    console.log('🏁 开始启动流程...');
+
+    // 尝试恢复上次的工作区
+    const restored = await workspaceManager.restoreLastWorkspace();
+
+    if (restored) {
+        console.log('✅ 成功恢复上次的工作区');
+        
+        // 获取当前工作区路径
+        const currentWorkspace = await invoke('get_current_workspace');
+        
+        if (currentWorkspace) {
+            // 设置 rootPath
+            appState.rootPath = currentWorkspace;
+            
+            // [新增] 清理无效的历史记录和置顶
+            try {
+                console.log('🧹 清理无效的历史记录...');
+                const cleanupCount = await invoke('cleanup_invalid_history', { 
+                    rootPath: currentWorkspace 
+                });
+                
+                if (cleanupCount > 0) {
+                    console.log(`✅ 清理了 ${cleanupCount} 个无效记录`);
+                }
+            } catch (error) {
+                console.warn('清理历史记录失败:', error);
+            }
+            
+            // 刷新文件树
+            await refreshFileTree("");
+            searchBox.style.display = 'block';
+            
+            if (window.refreshAllTagsList) {
+                await refreshAllTagsList();
+            }
+            
+            // 恢复上次打开的文件
+            await restoreLastFileInWorkspace();
+        }
+    } else {
+        console.log('📝 显示欢迎界面');
+        showWelcomeScreen();
+    }
+
+    console.log('✅ 应用启动完成');
+}
+
+/**
+ * [新增] 在工作区内恢复上次打开的文件 (带验证)
+ */
+async function restoreLastFileInWorkspace() {
+    try {
+        const lastFile = localStorage.getItem('cheetah_last_file');
+        const expandedStr = localStorage.getItem('cheetah_expanded_folders');
+        
+        if (expandedStr) {
+            try {
+                const expanded = JSON.parse(expandedStr);
+                appState.expandedFolders = new Set(expanded);
+            } catch (e) {
+                console.warn('恢复展开状态失败:', e);
+            }
+        }
+        
+        // [修复] 验证文件是否存在再打开
+        if (lastFile) {
+            try {
+                await invoke('read_file_content', {
+                    rootPath: appState.rootPath,
+                    relativePath: lastFile
+                });
+                // 文件存在，打开它
+                tabManager.openTab(lastFile);
+            } catch (error) {
+                console.warn('上次打开的文件不存在:', lastFile);
+                // 清除无效的记录
+                localStorage.removeItem('cheetah_last_file');
+            }
+        }
+    } catch (error) {
+        console.warn('恢复文件会话失败:', error);
+    }
 }
 
 // 导出到全局

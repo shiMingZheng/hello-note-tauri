@@ -26,6 +26,22 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         println!("✅ 'is_pinned' 字段添加完成！");
     }
 
+    // === 迁移 2: 为 files 表添加 is_dir 字段 ===
+    let mut stmt = conn.prepare("PRAGMA table_info(files)")?;
+    let has_is_dir = stmt.query_map([], |row| {
+        let column_name: String = row.get(1)?;
+        Ok(column_name)
+    })?.any(|col| col.as_deref() == Ok("is_dir"));
+
+    if !has_is_dir {
+        println!("🔀 迁移数据库：正在为 'files' 表添加 'is_dir' 字段...");
+        conn.execute(
+            "ALTER TABLE files ADD COLUMN is_dir INTEGER DEFAULT 0",
+            [],
+        )?;
+        println!("✅ 'is_dir' 字段添加完成！");
+    }
+
     Ok(())
 }
 
@@ -60,8 +76,7 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
         [],
     ).with_context(|| "创建 'files' 基础表失败")?;
 
-    // 步骤 2: 执行迁移逻辑，确保 `is_pinned` 字段存在
-    // 无论是新库还是旧库，这步执行完后，`is_pinned` 字段必定存在
+    // 步骤 2: 执行迁移逻辑，确保新字段存在
     run_migrations(&conn).with_context(|| "数据库迁移失败")?;
 
     // 步骤 3: 现在，表结构已确定，再统一创建所有的表和索引
@@ -69,6 +84,7 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
         "
         CREATE INDEX IF NOT EXISTS idx_files_path ON files (path);
         CREATE INDEX IF NOT EXISTS idx_files_pinned ON files (is_pinned);
+        CREATE INDEX IF NOT EXISTS idx_files_is_dir ON files (is_dir);
 
         CREATE TABLE IF NOT EXISTS tags (
             id      INTEGER PRIMARY KEY,
@@ -94,7 +110,7 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
 		CREATE INDEX IF NOT EXISTS idx_history_datetime ON history (event_datetime);
         CREATE INDEX IF NOT EXISTS idx_history_file_id ON history (file_id);
 		
-		  /* ▼▼▼ [新增] links 表 ▼▼▼ */
+		/* links 表 */
         CREATE TABLE IF NOT EXISTS links (
             source_file_id  INTEGER,
             target_file_id  INTEGER,
@@ -103,7 +119,7 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
             PRIMARY KEY (source_file_id, target_file_id)
         );
 		
-		/* [新增] 索引状态表 */
+		/* 索引状态表 */
         CREATE TABLE IF NOT EXISTS index_status (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL,

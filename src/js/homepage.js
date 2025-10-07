@@ -79,10 +79,18 @@ function renderHistory(history) {
 
     // 绑定点击事件
     historyListElement.querySelectorAll('.history-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', async () => {
             const path = item.dataset.path;
             if (path) {
-                tabManager.openTab(path);
+                // [修复] 验证文件是否存在
+                if (await isFileExists(path)) {
+                    tabManager.openTab(path);
+                } else {
+                    showError(`文件不存在: ${path}`);
+                    // 刷新历史记录
+                    await cleanupInvalidHistory();
+                    loadHistory();
+                }
             }
         });
     });
@@ -132,8 +140,16 @@ function renderPinnedNotes(notes) {
             </div>
         `;
 
-        card.addEventListener('click', () => {
-            tabManager.openTab(note.path);
+        card.addEventListener('click', async () => {
+            // [修复] 验证文件是否存在
+            if (await isFileExists(note.path)) {
+                tabManager.openTab(note.path);
+            } else {
+                showError(`文件不存在: ${note.path}`);
+                // 取消置顶并刷新
+                await invoke('unpin_note', { relativePath: note.path });
+                loadPinnedNotes();
+            }
         });
 
         card.addEventListener('contextmenu', (e) => {
@@ -149,6 +165,34 @@ function renderPinnedNotes(notes) {
 
         pinnedNotesGridElement.appendChild(card);
     });
+}
+
+// [新增] 验证文件是否存在
+async function isFileExists(relativePath) {
+    if (!appState.rootPath) return false;
+    
+    try {
+        await invoke('read_file_content', {
+            rootPath: appState.rootPath,
+            relativePath: relativePath
+        });
+        return true;
+    } catch (error) {
+        console.warn(`文件不存在: ${relativePath}`, error);
+        return false;
+    }
+}
+
+// [新增] 清理无效的历史记录
+async function cleanupInvalidHistory() {
+    try {
+        await invoke('cleanup_invalid_history', { 
+            rootPath: appState.rootPath 
+        });
+        console.log('✅ 清理无效历史记录完成');
+    } catch (error) {
+        console.warn('清理历史记录失败:', error);
+    }
 }
 
 // 导出到全局

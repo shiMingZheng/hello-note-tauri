@@ -112,3 +112,68 @@ pub async fn get_history(
         Err("数据库未初始化".to_string())
     }
 }
+
+
+/// 清理无效的历史记录（文件已被删除）
+// 在 src-tauri/src/commands/history.rs 文件末尾添加以下代码
+
+/// 清理无效的历史记录（文件已被删除）
+#[command]
+pub async fn cleanup_invalid_history(
+    root_path: String,
+    state: State<'_, AppState>,
+) -> Result<usize, String> {
+    let db_pool_lock = state.db_pool.lock().unwrap();
+    
+    if let Some(pool) = db_pool_lock.as_ref() {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        let base_path = std::path::Path::new(&root_path);
+        
+        // 查找所有需要检查的文件
+        let file_records: Vec<(i64, String)> = {
+            conn.prepare(
+                "SELECT DISTINCT f.id, f.path FROM files f 
+                 INNER JOIN history h ON f.id = h.file_id"
+            )
+            .and_then(|mut stmt| {
+                stmt.query_map([], |row| {
+                    Ok((row.get(0)?, row.get(1)?))
+                })
+                .and_then(|rows| {
+                    rows.collect::<Result<Vec<_>, _>>()
+                })
+            })
+            .map_err(|e| e.to_string())?
+        };
+        
+        // 检查文件是否存在
+        let deleted_ids: Vec<i64> = file_records
+            .into_iter()
+            .filter(|(_, relative_path)| {
+                !base_path.join(relative_path).exists()
+            })
+            .map(|(id, _)| id)
+            .collect();
+        
+        if deleted_ids.is_empty() {
+            return Ok(0);
+        }
+        
+        // 删除无效记录
+        let deleted_count = deleted_ids.len();
+        
+        conn.execute_batch(&format!(
+            "BEGIN;
+             DELETE FROM history WHERE file_id IN ({});
+             UPDATE files SET is_pinned = 0 WHERE id IN ({});
+             COMMIT;",
+            deleted_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(","),
+            deleted_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",")
+        )).map_err(|e| e.to_string())?;
+        
+        println!("✅ 清理了 {} 个无效历史记录", deleted_count);
+        Ok(deleted_count)
+    } else {
+        Err("数据库未初始化".to_string())
+    }
+}

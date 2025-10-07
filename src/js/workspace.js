@@ -1,5 +1,5 @@
 // src/js/workspace.js
-// CheetahNote - 工作区管理模块
+// CheetahNote - 工作区管理模块 (优化启动流程)
 
 'use strict';
 console.log('📜 workspace.js 开始加载...');
@@ -94,7 +94,7 @@ const workspaceManager = {
                     return null;
                 }
 
-                // 初始化工作区
+                // 初始化新工作区
                 await this.initializeWorkspace(path);
             } else {
                 // 加载现有工作区
@@ -115,27 +115,34 @@ const workspaceManager = {
     /**
      * 初始化新工作区
      */
-   async initializeWorkspace(path) {
-    console.log('🚀 初始化工作区:', path);
-    showIndexingToast('正在初始化工作区...');
+    async initializeWorkspace(path) {
+        console.log('🚀 初始化工作区:', path);
+        showIndexingToast('正在初始化工作区...');
 
-    try {
-        await invoke('initialize_workspace', { workspacePath: path });
-        console.log('✅ 工作区初始化成功');
-        
-        await this.buildIndex(path);
-        
-        // [新增] 刷新首页数据
-        if (window.initializeHomepage) {
-            window.initializeHomepage();
+        try {
+            // 步骤1: 初始化数据库和目录结构
+            await invoke('initialize_workspace', { workspacePath: path });
+            console.log('✅ 工作区初始化成功');
+            
+            // 步骤2: 同步文件系统
+            console.log('🔄 同步文件系统...');
+            const syncResult = await invoke('sync_workspace', { rootPath: path });
+            console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
+            
+            // 步骤3: 构建搜索索引
+            await this.buildIndex(path);
+            
+            // 步骤4: 刷新UI
+            if (window.initializeHomepage) {
+                window.initializeHomepage();
+            }
+            
+            showSuccessMessage('工作区初始化完成');
+        } catch (error) {
+            console.error('初始化工作区失败:', error);
+            throw error;
         }
-        
-        showSuccessMessage('工作区初始化完成');
-    } catch (error) {
-        console.error('初始化工作区失败:', error);
-        throw error;
-    }
-},
+    },
 
     /**
      * 加载现有工作区
@@ -145,40 +152,46 @@ const workspaceManager = {
         showIndexingToast('正在加载工作区...');
 
         try {
+            // 步骤1: 加载数据库和索引
             await invoke('load_workspace', { workspacePath: path });
             console.log('✅ 工作区加载成功');
-			
-			
-			 // [新增] 同步文件系统
-        console.log('🔄 同步文件系统...');
-        try {
-            const syncResult = await invoke('sync_workspace', { rootPath: path });
             
-            if (syncResult.added > 0 || syncResult.removed > 0) {
-                console.log(`📊 同步结果: 添加 ${syncResult.added} 个文件, 删除 ${syncResult.removed} 个文件`);
-                showSuccessMessage(`已同步: 新增 ${syncResult.added}, 移除 ${syncResult.removed}`);
-            } else {
-                console.log('✅ 文件系统已同步');
+            // 步骤2: 同步文件系统（检测外部变更）
+            console.log('🔄 同步文件系统...');
+            try {
+                const syncResult = await invoke('sync_workspace', { rootPath: path });
+                
+                if (syncResult.added > 0 || syncResult.removed > 0) {
+                    console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
+                    
+                    // 步骤3: 如果有文件变更，更新搜索索引
+                    if (syncResult.added > 0 || syncResult.removed > 0) {
+                        console.log('🔍 检测到文件变更，更新搜索索引...');
+                        await this.updateIndexIncremental(path, syncResult);
+                    }
+                    
+                    showSuccessMessage(`已同步: 新增 ${syncResult.added}, 移除 ${syncResult.removed}`);
+                } else {
+                    console.log('✅ 文件系统已同步，无变更');
+                }
+            } catch (syncError) {
+                console.warn('⚠️ 文件系统同步失败:', syncError);
+                // 同步失败不阻止工作区加载
             }
-        } catch (syncError) {
-            console.warn('⚠️ 文件系统同步失败:', syncError);
-            // 同步失败不阻止工作区加载
-        }
-        
-       
-		 // [新增] 检查是否有未完成的索引任务
-        const isIndexing = await invoke('check_indexing_status');
-        if (isIndexing) {
-            console.log('⚠️ 检测到未完成的索引任务');
-            if (window.startIndexingStatusCheck) {
-                window.startIndexingStatusCheck();
+            
+            // 步骤4: 检查是否有未完成的索引任务
+            const isIndexing = await invoke('check_indexing_status');
+            if (isIndexing) {
+                console.log('⚠️ 检测到未完成的索引任务');
+                if (window.startIndexingStatusCheck) {
+                    window.startIndexingStatusCheck();
+                }
             }
-        }
-		
-			   // [新增] 刷新首页数据
-        if (window.initializeHomepage) {
-            window.initializeHomepage();
-        }
+            
+            // 步骤5: 刷新UI
+            if (window.initializeHomepage) {
+                window.initializeHomepage();
+            }
 
             showSuccessMessage('工作区加载完成');
         } catch (error) {
@@ -188,10 +201,11 @@ const workspaceManager = {
     },
 
     /**
-     * 构建搜索索引
+     * 构建搜索索引（全量）
      */
     async buildIndex(path) {
         console.log('🔍 构建搜索索引...');
+        showIndexingToast('正在构建搜索索引...');
 
         try {
             await invoke('initialize_index_command', { rootPath: path });
@@ -200,6 +214,31 @@ const workspaceManager = {
         } catch (error) {
             console.error('构建索引失败:', error);
             // 索引失败不应阻止工作区打开
+        }
+    },
+
+    /**
+     * 增量更新搜索索引
+     */
+    async updateIndexIncremental(path, syncResult) {
+        try {
+            // 确保索引已加载
+            await invoke('ensure_index_is_loaded', { rootPath: path });
+            
+            // 启动后台索引任务
+            if (syncResult.added > 0) {
+                console.log(`🔍 增量索引: 处理 ${syncResult.added} 个新文件`);
+                // 后端会自动处理新增文件的索引
+            }
+            
+            // 启动索引状态监控
+            if (window.startIndexingStatusCheck) {
+                window.startIndexingStatusCheck();
+            }
+            
+            console.log('✅ 索引更新任务已启动');
+        } catch (error) {
+            console.error('更新索引失败:', error);
         }
     },
 

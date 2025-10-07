@@ -44,6 +44,7 @@ pub fn run() {
     commands::fs::delete_item,
     commands::fs::delete_folder,
     commands::fs::rename_item,
+
     
     // 搜索命令
     commands::search::initialize_index_command,
@@ -68,6 +69,7 @@ pub fn run() {
     commands::pins::get_pinned_notes,
     commands::utils::parse_markdown,
     commands::history::record_file_event,
+	commands::history::cleanup_invalid_history,
     commands::links::debug_get_all_links,
     commands::links::get_backlinks,
     commands::links::get_graph_data,
