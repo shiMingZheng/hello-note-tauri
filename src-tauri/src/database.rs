@@ -83,16 +83,17 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
             FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE,
             PRIMARY KEY (file_id, tag_id)
         );
-        
-        CREATE TABLE IF NOT EXISTS history (
+         CREATE TABLE IF NOT EXISTS history (
             id              INTEGER PRIMARY KEY,
-            file_path       TEXT NOT NULL,
+            file_id         INTEGER NOT NULL,
             event_type      TEXT NOT NULL,
-            snippet         TEXT,
             event_date      TEXT NOT NULL,
-            event_datetime  TEXT NOT NULL
+            event_datetime  TEXT NOT NULL,
+            FOREIGN KEY (file_id) REFERENCES files (id) ON DELETE CASCADE
         );
-        CREATE INDEX IF NOT EXISTS idx_history_datetime ON history (event_datetime);
+		CREATE INDEX IF NOT EXISTS idx_history_datetime ON history (event_datetime);
+        CREATE INDEX IF NOT EXISTS idx_history_file_id ON history (file_id);
+		
 		  /* ▼▼▼ [新增] links 表 ▼▼▼ */
         CREATE TABLE IF NOT EXISTS links (
             source_file_id  INTEGER,
@@ -101,7 +102,7 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
             FOREIGN KEY (target_file_id) REFERENCES files (id) ON DELETE CASCADE,
             PRIMARY KEY (source_file_id, target_file_id)
         );
-        /* ▲▲▲ [新增] links 表 ▲▲▲ */
+        
         "
     ).with_context(|| "创建索引和其他表结构失败")?;
 

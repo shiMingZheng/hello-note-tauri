@@ -27,7 +27,6 @@ async function isDatabaseInitialized() {
 async function loadHistory() {
     if (!historyListElement) return;
 
-    // 检查数据库是否初始化
     const hasWorkspace = await isDatabaseInitialized();
     if (!hasWorkspace) {
         historyListElement.innerHTML = '<p class="empty-message">📂 请先打开一个笔记仓库</p>';
@@ -50,6 +49,7 @@ function renderHistory(history) {
         return;
     }
 
+    // 按日期分组
     const groupedByDate = history.reduce((acc, entry) => {
         (acc[entry.event_date] = acc[entry.event_date] || []).push(entry);
         return acc;
@@ -59,7 +59,6 @@ function renderHistory(history) {
     for (const date in groupedByDate) {
         html += `<div class="history-group"><h3>${date}</h3>`;
         groupedByDate[date].forEach(entry => {
-            const fileName = entry.file_path.split(/[/\\]/).pop();
             const eventIcon = entry.event_type === 'created' ? '✨' : '📝';
             const eventText = entry.event_type === 'created' ? '新建' : '编辑';
             const time = entry.event_datetime.split(' ')[1] || '';
@@ -68,9 +67,8 @@ function renderHistory(history) {
                 <div class="history-item" data-path="${entry.file_path}">
                     <div class="history-item-content">
                         <span class="event-icon" title="${eventText}">${eventIcon}</span>
-                        <span class="path" title="${entry.file_path}">${fileName}</span>
-                        <span class="snippet">${entry.snippet || ''}</span>
-                        <span class="time">${time}</span> 
+                        <span class="file-title">${entry.file_title}</span>
+                        <span class="time">${time}</span>
                     </div>
                 </div>
             `;
@@ -79,6 +77,7 @@ function renderHistory(history) {
     }
     historyListElement.innerHTML = html;
 
+    // 绑定点击事件
     historyListElement.querySelectorAll('.history-item').forEach(item => {
         item.addEventListener('click', () => {
             const path = item.dataset.path;
@@ -93,7 +92,6 @@ function renderHistory(history) {
 async function loadPinnedNotes() {
     if (!pinnedNotesGridElement) return;
 
-    // 检查数据库是否初始化
     const hasWorkspace = await isDatabaseInitialized();
     if (!hasWorkspace) {
         pinnedNotesGridElement.innerHTML = '<p class="empty-message">📂 请先打开一个笔记仓库</p>';
@@ -124,25 +122,26 @@ function renderPinnedNotes(notes) {
         const card = document.createElement('div');
         card.className = 'pinned-note-card';
         card.title = note.path;
-		const fileName = note.path.split(/[/\\]/).pop().replace('.md', '');
+        
+        const fileName = note.path.split(/[/\\]/).pop().replace('.md', '');
+        
+        card.innerHTML = `
+            <div class="pinned-note-header">
+                <span class="pinned-icon">📌</span>
+                <h4>${fileName}</h4>
+            </div>
+        `;
 
-        card.innerHTML = `<div class="pinned-note-header">
-        <h4>${note.title || fileName}</h4>
-    </div>
-    <div class="pinned-note-path">${note.path}</div>`;
-
-        // 左键点击打开笔记
         card.addEventListener('click', () => {
             tabManager.openTab(note.path);
         });
 
-        // 右键点击显示上下文菜单
         card.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             const file_obj = { 
                 path: note.path, 
                 is_dir: false, 
-                name: note.title,
+                name: fileName,
                 from: 'pinned-section'
             };
             showContextMenu(e, file_obj);
