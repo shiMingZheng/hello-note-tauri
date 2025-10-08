@@ -64,7 +64,10 @@ pub async fn initialize_workspace(
     println!("📦 初始化数据库...");
     let db_pool = init_database(&meta_dir)
         .map_err(|e| format!("初始化数据库失败: {}", e))?;
-    
+	
+        // [新增] 设置全局数据库连接池引用
+    indexing_jobs::set_db_pool(db_pool.clone());
+
     println!("🔍 初始化搜索索引...");
     let index_dir = meta_dir.join(".cheetah_index");
     let index = search_core::initialize_index(&index_dir)
@@ -109,6 +112,10 @@ pub async fn load_workspace(
     println!("📦 加载数据库...");
     let db_pool = init_database(&meta_dir)
         .map_err(|e| format!("加载数据库失败: {}", e))?;
+	// [新增] 设置全局数据库连接池引用
+    indexing_jobs::set_db_pool(db_pool.clone());
+    
+
     
     println!("🔍 加载搜索索引...");
     let index_dir = meta_dir.join(".cheetah_index");

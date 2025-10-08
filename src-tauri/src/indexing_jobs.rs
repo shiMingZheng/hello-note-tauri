@@ -3,13 +3,23 @@
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use once_cell::sync::Lazy;
 use serde::{Serialize, Deserialize};
-use std::path::PathBuf;
 use std::sync::Arc;
 use tantivy::Index;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, OptionalExtension}; // [修复] 添加 OptionalExtension
 use anyhow::Result;
+use crate::database::DbPool;
+use std::sync::Mutex;
+
+
+// [新增] 全局数据库连接池引用
+pub static DB_POOL_REF: Lazy<Mutex<Option<DbPool>>> = Lazy::new(|| Mutex::new(None));
+// [新增] 初始化数据库连接池引用
+pub fn set_db_pool(pool: DbPool) {
+    *DB_POOL_REF.lock().unwrap() = Some(pool);
+}
+
 
 use crate::search_core::{
     update_document_index,
@@ -190,6 +200,7 @@ fn process_job(
 // ============================================================================
 
 /// 处理数据库中所有待处理的任务
+/// 处理数据库中所有待处理的任务
 fn process_pending_db_jobs(
     db_pool: &Pool<SqliteConnectionManager>,
     index: &Arc<Index>,
@@ -273,6 +284,7 @@ fn process_pending_db_jobs(
 }
 
 /// 持久化失败的任务到数据库
+/// 持久化失败的任务到数据库
 fn persist_failed_job_to_db(
     db_pool: &Pool<SqliteConnectionManager>,
     job: &IndexingJob,
@@ -319,14 +331,20 @@ fn delete_job_from_db(
 
 /// 发送更新/保存任务
 pub fn dispatch_update_job(root_path: String, relative_path: String) -> Result<()> {
-    let job = IndexingJob {
-        db_id: None,
-        payload: JobPayload::UpdateOrSave {
-            root_path,
-            relative_path,
-        },
+    let payload = JobPayload::UpdateOrSave {
+        root_path,
+        relative_path,
     };
-
+    
+    // [关键修改] 先持久化到数据库
+    let job_id = persist_job_to_db(&payload)?;
+    
+    // 然后发送到内存通道
+    let job = IndexingJob {
+        db_id: Some(job_id),
+        payload,
+    };
+    
     JOB_CHANNEL
         .0
         .send(ControlSignal::Job(job))
@@ -341,13 +359,19 @@ pub fn dispatch_rename_job(
     old_relative_path: String,
     new_relative_path: String,
 ) -> Result<()> {
+    let payload = JobPayload::RenameOrMove {
+        root_path,
+        old_relative_path,
+        new_relative_path,
+    };
+    
+    // [关键修改] 先持久化到数据库
+    let job_id = persist_job_to_db(&payload)?;
+    
+    // 然后发送到内存通道
     let job = IndexingJob {
-        db_id: None,
-        payload: JobPayload::RenameOrMove {
-            root_path,
-            old_relative_path,
-            new_relative_path,
-        },
+        db_id: Some(job_id),
+        payload,
     };
 
     JOB_CHANNEL
@@ -360,9 +384,15 @@ pub fn dispatch_rename_job(
 
 /// 发送删除任务
 pub fn dispatch_delete_job(relative_path: String) -> Result<()> {
+    let payload = JobPayload::Delete { relative_path };
+    
+    // [关键修改] 先持久化到数据库
+    let job_id = persist_job_to_db(&payload)?;
+    
+    // 然后发送到内存通道
     let job = IndexingJob {
-        db_id: None,
-        payload: JobPayload::Delete { relative_path },
+        db_id: Some(job_id),
+        payload,
     };
 
     JOB_CHANNEL
@@ -370,5 +400,67 @@ pub fn dispatch_delete_job(relative_path: String) -> Result<()> {
         .send(ControlSignal::Job(job))
         .map_err(|e| anyhow::anyhow!("发送删除任务失败: {}", e))?;
 
+    Ok(())
+}
+// ============================================================================
+// [新增] 持久化函数
+// ============================================================================
+
+/// 立即持久化任务到数据库，返回任务ID
+fn persist_job_to_db(payload: &JobPayload) -> Result<i64> {
+    let db_pool_lock = DB_POOL_REF.lock().unwrap();
+    let db_pool = db_pool_lock.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("数据库连接池未初始化"))?;
+    
+    let conn = db_pool.get()?;
+    let payload_json = serde_json::to_string(payload)?;
+    
+    conn.execute(
+        "INSERT INTO indexing_jobs (payload, status, retry_count)
+         VALUES (?1, 'pending', 0)",
+        params![payload_json],
+    )?;
+    
+    let job_id = conn.last_insert_rowid();
+    Ok(job_id)
+}
+
+// src-tauri/src/indexing_jobs.rs
+
+/// 更新任务失败状态
+fn update_job_failure(
+    db_pool: &Pool<SqliteConnectionManager>,
+    job_id: i64,
+    error_msg: &str,
+) -> Result<()> {
+    let conn = db_pool.get()?;
+    
+    conn.execute(
+        "UPDATE indexing_jobs 
+         SET retry_count = retry_count + 1,
+             last_error = ?1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?2",
+        params![error_msg, job_id],
+    )?;
+    
+    // 检查是否超过最大重试次数
+    let (retry_count, max_retries): (i32, i32) = conn.query_row(
+        "SELECT retry_count, max_retries FROM indexing_jobs WHERE id = ?1",
+        params![job_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    
+    if retry_count >= max_retries {
+        conn.execute(
+            "UPDATE indexing_jobs 
+             SET status = 'failed',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?1",
+            params![job_id],
+        )?;
+        eprintln!("⚠️ [索引Worker] 任务 ID={} 已标记为失败", job_id);
+    }
+    
     Ok(())
 }
