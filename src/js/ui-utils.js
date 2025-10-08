@@ -82,41 +82,6 @@ function showCustomConfirm(title, message, icon = '⚠️') {
 }
 
 
-// ========================================
-// UI 提示函数
-// ========================================
-
-function showIndexingToast(message) {
-    const existingToast = document.getElementById('indexing-toast');
-    if (existingToast) {
-        existingToast.remove();
-    }
-    
-    const toast = document.createElement('div');
-    toast.id = 'indexing-toast';
-    toast.innerHTML = `
-        <span class="spinner">⏳</span>
-        <span>${message}</span>
-    `;
-    toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #3498db;
-        color: white;
-        padding: 12px 20px;
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        animation: slideIn 0.3s ease-out;
-    `;
-    
-    document.body.appendChild(toast);
-}
-
 function showSuccessMessage(message) {
     console.log('✅ ' + message);
     

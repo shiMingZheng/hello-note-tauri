@@ -41,9 +41,6 @@ var openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fi
     saveBtn, contextMenu, newNoteBtn, newFolderBtn,
     deleteFileBtn, customConfirmDialog, viewToggleBtn, pinNoteBtn, unpinNoteBtn, editorContainer, renameItemBtn,
 	newNoteRootBtn, newFolderRootBtn;
-// 在 app.js 中添加索引状态监控
-let indexingCheckInterval = null;
-let isMonitoringIndexing = false;
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -218,118 +215,6 @@ async function handleOpenWorkspace() {
 }
 
 
-/**
- * 启动索引状态监控
- */
-async function startIndexingStatusCheck() {
-    if (isMonitoringIndexing) {
-        console.log('索引监控已在运行');
-        return;
-    }
-    
-    console.log('🔍 启动索引状态监控');
-    isMonitoringIndexing = true;
-    
-    // 立即检查一次
-    await checkAndUpdateIndexingStatus();
-    
-    // 每2秒检查一次
-    indexingCheckInterval = setInterval(async () => {
-        await checkAndUpdateIndexingStatus();
-    }, 2000);
-}
-
-/**
- * 停止索引状态监控
- */
-function stopIndexingStatusCheck() {
-    if (indexingCheckInterval) {
-        console.log('🔍 停止索引状态监控');
-        clearInterval(indexingCheckInterval);
-        indexingCheckInterval = null;
-        isMonitoringIndexing = false;
-        hideIndexingIndicator();
-    }
-}
-
-/**
- * 检查并更新索引状态
- */
-async function checkAndUpdateIndexingStatus() {
-    try {
-        const isIndexing = await invoke('check_indexing_status');
-        
-        if (isIndexing) {
-            showIndexingIndicator();
-        } else {
-            hideIndexingIndicator();
-            // 如果索引已完成，停止监控
-            if (isMonitoringIndexing) {
-                stopIndexingStatusCheck();
-            }
-        }
-    } catch (error) {
-        console.error('检查索引状态失败:', error);
-        // 出错也停止监控
-        stopIndexingStatusCheck();
-    }
-}
-
-async function checkIndexingStatus() {
-    try {
-        return await invoke('check_indexing_status');
-    } catch (error) {
-        console.error('检查索引状态失败:', error);
-        return false;
-    }
-}
-
-function showIndexingIndicator() {
-    const indicator = document.getElementById('indexing-indicator');
-    if (indicator) {
-        indicator.style.display = 'block';
-    }
-}
-
-function hideIndexingIndicator() {
-    const indicator = document.getElementById('indexing-indicator');
-    if (indicator) {
-        indicator.style.display = 'none';
-    }
-}
-
-// 在 app.js 的 bindEvents 中 s=手动同步文件
-const syncWorkspaceBtn = document.getElementById('sync-workspace-btn');
-if (syncWorkspaceBtn) {
-    syncWorkspaceBtn.addEventListener('click', async () => {
-        if (!appState.rootPath) {
-            showError('请先打开一个笔记仓库');
-            return;
-        }
-        
-        showIndexingToast('正在同步文件系统...');
-        
-        try {
-            const result = await invoke('sync_workspace', { rootPath: appState.rootPath });
-            
-            hideIndexingToast();
-            
-            if (result.added > 0 || result.removed > 0) {
-                showSuccessMessage(`同步完成: 新增 ${result.added}, 移除 ${result.removed}`);
-                
-                // 刷新文件树和首页
-                await refreshFileTree("");
-                if (window.loadHistory) window.loadHistory();
-                if (window.loadPinnedNotes) window.loadPinnedNotes();
-            } else {
-                showSuccessMessage('文件系统已同步');
-            }
-        } catch (error) {
-            hideIndexingToast();
-            showError('同步失败: ' + error);
-        }
-    });
-}
 
 // 在 app.js 的 startupWithWorkspace 函数中添加清理逻辑
 
@@ -422,9 +307,6 @@ async function restoreLastFileInWorkspace() {
     }
 }
 
-// 导出到全局
-window.startIndexingStatusCheck = startIndexingStatusCheck;
-window.stopIndexingStatusCheck = stopIndexingStatusCheck;
 
 
 // 导出必要的函数和变量

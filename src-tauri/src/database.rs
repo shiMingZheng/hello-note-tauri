@@ -119,16 +119,23 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
             PRIMARY KEY (source_file_id, target_file_id)
         );
 		
-		/* 索引状态表 */
-        CREATE TABLE IF NOT EXISTS index_status (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        "
-    ).with_context(|| "创建索引和其他表结构失败")?;
-
+        /* [新增] 索引任务队列表 */
+		CREATE TABLE IF NOT EXISTS indexing_jobs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			payload TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			retry_count INTEGER NOT NULL DEFAULT 0,
+			max_retries INTEGER NOT NULL DEFAULT 3,
+			last_error TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		
+		CREATE INDEX IF NOT EXISTS idx_indexing_jobs_status 
+			ON indexing_jobs (status, created_at);
+				"
+			).with_context(|| "创建索引和其他表结构失败")?;
+		
 
     println!("✅ 数据库表结构初始化/验证完成");
     

@@ -9,6 +9,8 @@ use std::fs;
 use std::path::Path;
 use tauri::State;
 use crate::search_core::{delete_document, update_document_index,update_document_index_for_rename};
+use crate::indexing_jobs;
+use walkdir::WalkDir;
 
 #[derive(Debug, Serialize)]
 pub struct FileNode {
@@ -17,7 +19,40 @@ pub struct FileNode {
     is_dir: bool,
     has_children: bool,
 }
-
+/// 递归收集文件夹下的所有 .md 文件的相对路径
+fn collect_markdown_files(
+    base_path: &Path,
+    folder_relative_path: &str,
+) -> Result<Vec<String>, String> {
+    let folder_absolute_path = to_absolute_path(base_path, Path::new(folder_relative_path));
+    
+    let mut md_files = Vec::new();
+    
+    for entry in WalkDir::new(&folder_absolute_path)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        let path = entry.path();
+        
+        // 跳过目录本身，只处理文件
+        if !path.is_file() {
+            continue;
+        }
+        
+        // 只处理 .md 文件
+        if path.extension().and_then(|s| s.to_str()) != Some("md") {
+            continue;
+        }
+        
+        // 转换为相对路径
+        if let Some(relative_path) = to_relative_path(base_path, path) {
+            md_files.push(relative_path.to_string_lossy().to_string());
+        }
+    }
+    
+    Ok(md_files)
+}
 fn directory_has_children(dir: &Path) -> bool {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -103,18 +138,23 @@ pub async fn save_file(
     let absolute_path = to_absolute_path(base_path, Path::new(&relative_path));
     fs::write(&absolute_path, &content).map_err(|e| format!("保存文件失败: {}", e))?;
     let _ = record_file_event(root_path.clone(), relative_path.clone(), "edited".to_string(), state.clone()).await;
-    let search_index_lock = state.search_index.lock().unwrap();
-    let db_pool_lock = state.db_pool.lock().unwrap();
-    if let (Some(index), Some(db_pool)) = (search_index_lock.as_ref(), db_pool_lock.as_ref()) {
-        let relative_path_p = Path::new(&relative_path);
-        if let Err(e) = update_document_index(index, db_pool, base_path, relative_path_p) {
-            eprintln!("更新索引和数据库失败: {}", e);
-        }
-        let mut conn = db_pool.get().map_err(|e| e.to_string())?;
-        if let Err(e) = update_links_for_file(&mut conn, &root_path, &relative_path) {
-            eprintln!("更新文件链接失败: {}", e);
-        }
-    }
+   
+    // 异步更新索引
+	if let Err(e) = indexing_jobs::dispatch_update_job(
+		root_path.clone(),
+		relative_path.clone()
+	) {
+		eprintln!("⚠️ 分发索引任务失败: {}", e);
+	}
+	
+	// 链接更新代码保持不变
+	let db_pool_lock = state.db_pool.lock().unwrap();
+	if let Some(db_pool) = db_pool_lock.as_ref() {
+		let mut conn = db_pool.get().map_err(|e| e.to_string())?;
+		if let Err(e) = update_links_for_file(&mut conn, &root_path, &relative_path) {
+			eprintln!("⚠️ 更新链接失败: {}", e);
+		}
+	}
     Ok(())
 }
 
@@ -229,13 +269,12 @@ pub async fn delete_item(root_path: String, relative_path: String, state: State<
         conn.execute("DELETE FROM files WHERE path = ?1 OR path LIKE ?2", params![&relative_path, format!("{}{}%", &relative_path, separator)])
             .map_err(|e| e.to_string())?;
 
-        if let Some(index) = search_index_lock.as_ref() {
-            for path in paths_to_delete {
-                if let Err(e) = delete_document(index, &path) {
-                    eprintln!("从索引中删除文档 '{}' 失败: {}", path, e);
-                }
-            }
-        }
+		// 异步删除索引
+		for path in paths_to_delete {
+			if let Err(e) = indexing_jobs::dispatch_delete_job(path.clone()) {
+				eprintln!("⚠️ 分发删除任务失败: {}", e);
+			}
+		}
     }
 
     if absolute_path.is_file() {
@@ -403,65 +442,16 @@ pub async fn rename_item(
         let index_clone = index.clone();
         let base_path_owned = base_path.to_path_buf();
         let new_relative_path_clone = new_relative_path.clone();
-        let is_dir_clone = is_dir;
+        //let is_dir_clone = is_dir;
         
-        tauri::async_runtime::spawn(async move {
-            println!("🔍 [后台] 开始异步更新索引...");
-            let start_time = std::time::Instant::now();
-            
-            if is_dir_clone {
-                if let Ok(conn) = pool_clone.get() {
-                    let separator = std::path::MAIN_SEPARATOR.to_string();
-                    let pattern = format!("{}{}%", new_relative_path_clone, separator);
-                    
-                    if let Ok(mut stmt) = conn.prepare(
-                        "SELECT path FROM files WHERE (path = ?1 OR path LIKE ?2) AND is_dir = 0"
-                    ) {
-                        if let Ok(paths) = stmt.query_map(
-                            params![new_relative_path_clone, pattern], 
-                            |row| row.get::<_, String>(0)
-                        ) {
-                            let affected_files: Vec<String> = paths.filter_map(Result::ok).collect();
-                            println!("🔍 [后台] 需要更新 {} 个文件的索引", affected_files.len());
-                            
-                            for relative_path in affected_files {
-                                let file_path = std::path::Path::new(&relative_path);
-                                if let Err(e) = update_document_index(
-                                    &index_clone, 
-                                    &pool_clone, 
-                                    &base_path_owned, 
-                                    file_path
-                                ) {
-                                    eprintln!("🔍 [后台] ⚠️ 更新索引失败 {}: {}", relative_path, e);
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                let new_path = std::path::Path::new(&new_relative_path_clone);
-				
-                if let Err(e) = update_document_index_for_rename(
-                    &index_clone, 
-                    &pool_clone, 
-                    &base_path_owned, 
-					Path::new(&old_value.clone()),
-                    new_path
-                ) {
-                    eprintln!("🔍 [后台] ⚠️ 更新索引失败: {}", e);
-                }
-            }
-            
-            let elapsed = start_time.elapsed();
-            println!("🔍 [后台] ✅ 索引更新完成，耗时: {:?}", elapsed);
-            
-            if let Ok(conn) = pool_clone.get() {
-                let _ = conn.execute(
-                    "DELETE FROM index_status WHERE key = 'indexing'",
-                    [],
-                );
-            }
-        });
+      // 异步更新索引
+	if let Err(e) = indexing_jobs::dispatch_rename_job(
+		root_path.clone(),
+		old_relative_path.clone(),
+		new_relative_path.clone()
+	) {
+		eprintln!("⚠️ 分发重命名任务失败: {}", e);
+	}
     }
     
     println!("✅ 重命名完成（索引正在后台更新）");

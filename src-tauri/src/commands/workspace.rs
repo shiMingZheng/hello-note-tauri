@@ -1,15 +1,13 @@
 // src-tauri/src/commands/workspace.rs
-// CheetahNote - 工作区管理模块
-
 use crate::database::init_database;
 use crate::search_core;
+use crate::indexing_jobs; // [新增]
 use crate::AppState;
 use std::fs;
 use std::path::Path;
 use tauri::{command, State};
 use serde::Serialize;
 
-/// 工作区元数据目录名称
 const WORKSPACE_META_DIR: &str = ".cheetah-note";
 
 #[derive(Debug, Serialize)]
@@ -19,7 +17,6 @@ pub struct WorkspaceInfo {
     pub is_initialized: bool,
 }
 
-/// 检查指定路径是否为有效的工作区
 #[command]
 pub async fn check_workspace(workspace_path: String) -> Result<WorkspaceInfo, String> {
     let path = Path::new(&workspace_path);
@@ -44,7 +41,6 @@ pub async fn check_workspace(workspace_path: String) -> Result<WorkspaceInfo, St
     })
 }
 
-/// 初始化工作区（创建必要的目录和文件）
 #[command]
 pub async fn initialize_workspace(
     workspace_path: String,
@@ -54,12 +50,10 @@ pub async fn initialize_workspace(
     
     let path = Path::new(&workspace_path);
     
-    // 验证路径
     if !path.exists() || !path.is_dir() {
         return Err("无效的工作区路径".to_string());
     }
     
-    // 创建元数据目录
     let meta_dir = path.join(WORKSPACE_META_DIR);
     if !meta_dir.exists() {
         fs::create_dir_all(&meta_dir)
@@ -67,27 +61,32 @@ pub async fn initialize_workspace(
         println!("✅ 创建元数据目录: {}", meta_dir.display());
     }
     
-    // 初始化数据库
     println!("📦 初始化数据库...");
     let db_pool = init_database(&meta_dir)
         .map_err(|e| format!("初始化数据库失败: {}", e))?;
     
-    // 初始化搜索索引
     println!("🔍 初始化搜索索引...");
     let index_dir = meta_dir.join(".cheetah_index");
     let index = search_core::initialize_index(&index_dir)
         .map_err(|e| format!("初始化搜索索引失败: {}", e))?;
     
+    // [新增] 启动后台索引Worker
+    println!("🔄 启动后台索引Worker...");
+    let worker_handle = indexing_jobs::start_background_worker(
+        db_pool.clone(),
+        index.clone(),
+    );
+    
     // 更新应用状态
     *state.db_pool.lock().unwrap() = Some(db_pool);
     *state.search_index.lock().unwrap() = Some(index);
     *state.current_path.lock().unwrap() = Some(workspace_path.clone());
+    *state.worker_handle.lock().unwrap() = Some(worker_handle); // [新增]
     
     println!("✅ 工作区初始化完成");
     Ok(workspace_path)
 }
 
-/// 加载现有工作区
 #[command]
 pub async fn load_workspace(
     workspace_path: String,
@@ -98,7 +97,6 @@ pub async fn load_workspace(
     let path = Path::new(&workspace_path);
     let meta_dir = path.join(WORKSPACE_META_DIR);
     
-    // 验证工作区
     if !meta_dir.exists() {
         return Err("工作区未初始化，请先初始化".to_string());
     }
@@ -108,30 +106,51 @@ pub async fn load_workspace(
         return Err("数据库文件不存在".to_string());
     }
     
-    // 加载数据库
     println!("📦 加载数据库...");
     let db_pool = init_database(&meta_dir)
         .map_err(|e| format!("加载数据库失败: {}", e))?;
     
-    // 加载搜索索引
     println!("🔍 加载搜索索引...");
     let index_dir = meta_dir.join(".cheetah_index");
     let index = search_core::initialize_index(&index_dir)
         .map_err(|e| format!("加载搜索索引失败: {}", e))?;
     
+    // [新增] 启动后台索引Worker
+    println!("🔄 启动后台索引Worker...");
+    let worker_handle = indexing_jobs::start_background_worker(
+        db_pool.clone(),
+        index.clone(),
+    );
+    
     // 更新应用状态
     *state.db_pool.lock().unwrap() = Some(db_pool);
     *state.search_index.lock().unwrap() = Some(index);
     *state.current_path.lock().unwrap() = Some(workspace_path.clone());
+    *state.worker_handle.lock().unwrap() = Some(worker_handle); // [新增]
     
     println!("✅ 工作区加载完成");
     Ok(workspace_path)
 }
 
-/// 关闭当前工作区
 #[command]
 pub async fn close_workspace(state: State<'_, AppState>) -> Result<(), String> {
     println!("🔒 关闭当前工作区");
+    
+    // [新增] 发送关闭信号给Worker
+    let sender = indexing_jobs::JOB_CHANNEL.0.clone();
+    if let Err(e) = sender.send(indexing_jobs::ControlSignal::Shutdown) {
+        eprintln!("⚠️ 发送Worker关闭信号失败: {}", e);
+    }
+    
+    // [新增] 等待Worker线程结束
+    if let Ok(mut handle_lock) = state.worker_handle.lock() {
+        if let Some(handle) = handle_lock.take() {
+            println!("⏳ 等待索引Worker完成...");
+            if let Err(e) = handle.join() {
+                eprintln!("⚠️ Worker线程退出异常: {:?}", e);
+            }
+        }
+    }
     
     // 清理应用状态
     *state.db_pool.lock().unwrap() = None;
@@ -142,7 +161,6 @@ pub async fn close_workspace(state: State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
-/// 获取当前工作区路径
 #[command]
 pub async fn get_current_workspace(state: State<'_, AppState>) -> Result<Option<String>, String> {
     let current_path = state.current_path.lock().unwrap();
