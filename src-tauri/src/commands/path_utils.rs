@@ -5,11 +5,12 @@ use rusqlite::params;
 use std::path::{Path, PathBuf};
 use tauri::{command, State};
 
-// 将绝对路径转换为相对于 base_path 的相对路径
-pub fn to_relative_path(base_path: &Path, absolute_path: &Path) -> Option<PathBuf> {
-    pathdiff::diff_paths(absolute_path, base_path)
-}
+// 将绝对路径转换为相对于 base_path 的相对路径，分隔符统一
 
+pub fn to_relative_path(base_path: &Path, absolute_path: &Path) -> Option<String> {
+    pathdiff::diff_paths(absolute_path, base_path)
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+}
 // 将相对路径和 base_path 组合成绝对路径
 pub fn to_absolute_path(base_path: &Path, relative_path: &Path) -> PathBuf {
     base_path.join(relative_path)
@@ -47,12 +48,13 @@ pub async fn migrate_paths_to_relative(
             for (id, absolute_path_str) in rows_to_update {
                 let absolute_path = Path::new(&absolute_path_str);
                 if absolute_path.is_absolute() {
-                    if let Some(relative_path) = to_relative_path(base_path, absolute_path) {
-                        tx.execute(
-                            "UPDATE files SET path = ?1 WHERE id = ?2",
-                            params![relative_path.to_string_lossy(), id],
-                        ).map_err(|e| e.to_string())?;
-                    }
+					if let Some(relative_path) = to_relative_path(base_path, absolute_path) {
+                    tx.execute(
+                        "UPDATE files SET path = ?1 WHERE id = ?2",
+                        // [修复] 直接使用 relative_path，它已经是 String
+                        params![relative_path, id],
+                    ).map_err(|e| e.to_string())?;
+                }
                 }
             }
         }
@@ -72,10 +74,11 @@ pub async fn migrate_paths_to_relative(
                 let absolute_path = Path::new(&absolute_path_str);
                 if absolute_path.is_absolute() {
                     if let Some(relative_path) = to_relative_path(base_path, absolute_path) {
-                        tx.execute(
-                            "UPDATE history SET file_path = ?1 WHERE id = ?2",
-                            params![relative_path.to_string_lossy(), id],
-                        ).map_err(|e| e.to_string())?;
+                    tx.execute(
+                        "UPDATE history SET file_path = ?1 WHERE id = ?2",
+                        // [修复] 直接使用 relative_path，它已经是 String
+                        params![relative_path, id],
+                    ).map_err(|e| e.to_string())?;
                     }
                 }
             }

@@ -99,7 +99,7 @@ fn scan_disk_files_recursive(
             scan_disk_files_recursive(&absolute_path, base_path, files_on_disk)?;
         } else if absolute_path.extension().and_then(|s| s.to_str()) == Some("md") {
             if let Some(relative_path) = to_relative_path(base_path, &absolute_path) {
-                files_on_disk.insert(relative_path.to_string_lossy().into_owned());
+                files_on_disk.insert(relative_path);
             }
         }
     }
@@ -188,6 +188,7 @@ pub fn update_document_index_for_rename(
 	let relative_path_str_new = relative_path_new.to_string_lossy().to_string();
     // [修正] 使用正确的函数名
     let title = extract_title_from_path(&relative_path_str_new);
+	 println!("🔍 [索引] 查询fileid'，用路径relative_path_str_new: {}", relative_path_str_new);
     let file_id: i64 = conn.query_row(
         "SELECT id FROM files WHERE path = ?1",
         params![relative_path_str_new],

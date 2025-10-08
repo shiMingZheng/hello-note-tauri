@@ -8,7 +8,7 @@ use serde::Serialize;
 use std::fs;
 use std::path::Path;
 use tauri::State;
-use crate::search_core::{delete_document, update_document_index,update_document_index_for_rename};
+
 use crate::indexing_jobs;
 use walkdir::WalkDir;
 
@@ -19,38 +19,25 @@ pub struct FileNode {
     is_dir: bool,
     has_children: bool,
 }
+
 /// 递归收集文件夹下的所有 .md 文件的相对路径
+/// [FIX] This function should now return Vec<String> and standardize paths
 fn collect_markdown_files(
     base_path: &Path,
     folder_relative_path: &str,
 ) -> Result<Vec<String>, String> {
     let folder_absolute_path = to_absolute_path(base_path, Path::new(folder_relative_path));
-    
     let mut md_files = Vec::new();
-    
-    for entry in WalkDir::new(&folder_absolute_path)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
-        
-        // 跳过目录本身，只处理文件
-        if !path.is_file() {
-            continue;
-        }
-        
-        // 只处理 .md 文件
-        if path.extension().and_then(|s| s.to_str()) != Some("md") {
-            continue;
-        }
-        
-        // 转换为相对路径
-        if let Some(relative_path) = to_relative_path(base_path, path) {
-            md_files.push(relative_path.to_string_lossy().to_string());
+
+    for entry in WalkDir::new(&folder_absolute_path).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_type().is_file() {
+            if let Some(relative_path_str) = to_relative_path(base_path, entry.path()) {
+                if relative_path_str.ends_with(".md") {
+                    md_files.push(relative_path_str);
+                }
+            }
         }
     }
-    
     Ok(md_files)
 }
 fn directory_has_children(dir: &Path) -> bool {
@@ -83,18 +70,21 @@ pub async fn list_dir_lazy(root_path: String, relative_path: String) -> Result<V
             if name.starts_with('.') { continue; }
         }
         if let Ok(metadata) = entry.metadata() {
+            // This `relative_node_path` is now an `Option<String>`
             if let Some(relative_node_path) = to_relative_path(base_path, &absolute_path) {
                 let node = if metadata.is_dir() {
                     FileNode {
                         name: entry.file_name().to_string_lossy().to_string(),
-                        path: relative_node_path.to_string_lossy().to_string(),
+                        // [FIX] Use the String directly
+                        path: relative_node_path,
                         is_dir: true,
                         has_children: directory_has_children(&absolute_path),
                     }
                 } else if absolute_path.extension().and_then(|s| s.to_str()) == Some("md") {
                     FileNode {
                         name: entry.file_name().to_string_lossy().to_string(),
-                        path: relative_node_path.to_string_lossy().to_string(),
+                        // [FIX] Use the String directly
+                        path: relative_node_path,
                         is_dir: false,
                         has_children: false,
                     }
@@ -110,6 +100,7 @@ pub async fn list_dir_lazy(root_path: String, relative_path: String) -> Result<V
     });
     Ok(nodes)
 }
+
 
 #[tauri::command]
 pub async fn read_file_content(root_path: String, relative_path: String) -> Result<String, String> {
@@ -178,8 +169,10 @@ pub async fn create_new_file(
     }
     let initial_content = format!("# {}\n\n", file_name_str.trim_end_matches(".md"));
     fs::write(&absolute_file_path, &initial_content).map_err(|e| format!("创建文件失败: {}", e))?;
-    let new_relative_path = to_relative_path(base_path, &absolute_file_path).unwrap();
-    let new_relative_path_str = new_relative_path.to_string_lossy().to_string();
+
+	// [修改] 使用新的 to_relative_path，它已经标准化了路径
+    let new_relative_path_str = to_relative_path(base_path, &absolute_file_path)
+        .ok_or_else(|| "无法生成相对路径".to_string())?;
     
     // [修复] 在独立作用域中处理数据库，确保锁被释放
     {
@@ -199,6 +192,7 @@ pub async fn create_new_file(
     let _ = record_file_event(root_path.clone(), new_relative_path_str.clone(), "created".to_string(), state.clone()).await; 
     
     Ok(new_relative_path_str)
+	
 }
 
 #[tauri::command]
@@ -218,9 +212,11 @@ pub async fn create_new_folder(
         return Err(format!("文件夹已存在: {}", absolute_folder_path.display()));
     }
     fs::create_dir(&absolute_folder_path).map_err(|e| format!("创建文件夹失败: {}", e))?;
-    let new_relative_path = to_relative_path(base_path, &absolute_folder_path).unwrap();
-    let new_relative_path_str = new_relative_path.to_string_lossy().to_string();
-    
+ 
+	// [修改] 使用新的 to_relative_path
+    let new_relative_path_str = to_relative_path(base_path, &absolute_folder_path)
+        .ok_or_else(|| "无法生成相对路径".to_string())?;
+
     // [修复] 在独立作用域中处理数据库
     {
         let db_pool_lock = state.db_pool.lock().unwrap();
@@ -269,7 +265,8 @@ pub async fn delete_item(
         let db_pool_lock = state.db_pool.lock().unwrap();
         if let Some(pool) = db_pool_lock.as_ref() {
             let conn = pool.get().map_err(|e| e.to_string())?;
-            let separator = if cfg!(windows) { "\\" } else { "/" };
+           // [修改] 硬编码分隔符为 '/'
+            let separator = "/";
             conn.execute(
                 "DELETE FROM files WHERE path = ?1 OR path LIKE ?2",
                 params![&relative_path, format!("{}{}%", &relative_path, separator)]
@@ -310,9 +307,11 @@ fn update_paths_in_db(
 ) -> Result<(), rusqlite::Error> {
     
     if is_dir {
-        let separator = if cfg!(windows) { "\\" } else { "/" };
+        //let separator = if cfg!(windows) { "\\" } else { "/" };
+				 // [修复] 这里应该总是使用 '/', 因为数据库中存储的是标准化后的路径
+        let separator = "/"; 
         let pattern = format!("{}{}%", old_prefix, separator);
-        
+		
         let tx = conn.transaction()?;
         
        // [修复] 先获取需要更新的所有路径
@@ -391,6 +390,7 @@ pub async fn rename_item(
     state: State<'_, AppState>,
 ) -> Result<RenameResult, String> {
     println!("🔄 重命名请求: {} -> {}", old_relative_path, new_name);
+	let old_relative_path = old_relative_path.replace('\\', "/");
     
     let base_path = Path::new(&root_path);
     let old_abs_path = to_absolute_path(base_path, Path::new(&old_relative_path));
@@ -441,16 +441,14 @@ pub async fn rename_item(
         .map_err(|e| format!("文件系统重命名失败: {}", e))?;
     
     println!("✅ 文件系统重命名成功");
+	
+	 // [修改] 计算新的相对路径并立即标准化
+    let new_relative_path = to_relative_path(base_path, &new_abs_path)
+        .ok_or_else(|| "无法生成新的相对路径".to_string())?;
 
-    // 计算新的相对路径
-    let mut new_relative_path = to_relative_path(base_path, &new_abs_path)
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-    new_relative_path = new_relative_path.replace('\\', "/");
-    
     println!("📍 旧路径: {}", old_relative_path);
     println!("📍 新路径: {}", new_relative_path);
+
 
     // 更新数据库
     let db_pool_lock = state.db_pool.lock().unwrap();
@@ -483,6 +481,8 @@ pub async fn rename_item(
         };
         
         for old_file_path in affected_files {
+			// 🔧 确保旧路径也使用正斜杠
+             let old_file_path = old_file_path.replace('\\', "/");
             // [关键修复] 只在路径开头替换，避免嵌套同名问题
             let new_file_path = if old_prefix.is_empty() {
                 // 根目录重命名的特殊情况
