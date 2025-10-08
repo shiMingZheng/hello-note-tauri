@@ -8,7 +8,7 @@ use serde::Serialize;
 use std::fs;
 use std::path::Path;
 use tauri::State;
-use crate::search_core::{delete_document, update_document_index};
+use crate::search_core::{delete_document, update_document_index,update_document_index_for_rename};
 
 #[derive(Debug, Serialize)]
 pub struct FileNode {
@@ -344,6 +344,7 @@ pub async fn rename_item(
     
     let base_path = Path::new(&root_path);
     let old_abs_path = to_absolute_path(base_path, Path::new(&old_relative_path));
+	let old_value = old_relative_path.clone();
     
     if !old_abs_path.exists() {
         return Err(format!("目标不存在: {}", old_abs_path.display()));
@@ -439,10 +440,12 @@ pub async fn rename_item(
                 }
             } else {
                 let new_path = std::path::Path::new(&new_relative_path_clone);
-                if let Err(e) = update_document_index(
+				
+                if let Err(e) = update_document_index_for_rename(
                     &index_clone, 
                     &pool_clone, 
                     &base_path_owned, 
+					Path::new(&old_value.clone()),
                     new_path
                 ) {
                     eprintln!("🔍 [后台] ⚠️ 更新索引失败: {}", e);
