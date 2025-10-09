@@ -24,6 +24,7 @@ class MilkdownEditorManager {
         this.hasUnsavedChanges = false;
         this.onContentChange = null;
         this.isLoading = false; // 防止循环更新
+        this.enableWikilinkJump = true; // ⭐ 控制 Wikilink 是否可跳转
     }
 
     /**
@@ -72,11 +73,166 @@ class MilkdownEditorManager {
             
             this.applyTheme(window.themeManager?.getCurrent() || 'light');
             
+            // ⭐ 初始化 Wikilink 点击处理
+            this.setupWikilinkHandler(containerSelector);
+            
             return this.editor;
         } catch (error) {
             console.error('❌ Milkdown 编辑器初始化失败:', error);
             throw error;
         }
+    }
+
+    /**
+     * ⭐ 设置 Wikilink 点击处理
+     */
+    setupWikilinkHandler(containerSelector) {
+        console.log('🔗 设置 Wikilink 处理器...');
+        
+        const container = document.querySelector(containerSelector);
+        if (!container) {
+            console.warn('⚠️ 未找到编辑器容器');
+            return;
+        }
+        
+        // 添加鼠标悬停提示
+        container.addEventListener('mouseover', (e) => {
+            let target = e.target;
+            
+            // 检查是否悬停在 wikilink 上
+            for (let i = 0; i < 3 && target; i++) {
+                const text = target.textContent || '';
+                
+                if (text.includes('[[') && text.includes(']]')) {
+                    const match = text.match(/\[\[([^\]]+)\]\]/);
+                    if (match) {
+                        // 显示提示
+                        target.style.cursor = 'pointer';
+                        target.title = `按住 Ctrl/Cmd 点击跳转到: ${match[1].trim()}`;
+                        return;
+                    }
+                }
+                
+                target = target.parentElement;
+            }
+        });
+        
+        // ⭐ 监听 DOM 变化，动态渲染 Wikilink 样式
+        const observer = new MutationObserver(() => {
+            this.renderWikilinks(container);
+        });
+        
+        observer.observe(container, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        });
+        
+        // 初始渲染
+        this.renderWikilinks(container);
+        
+        // 点击事件处理
+        container.addEventListener('click', async (e) => {
+            // 获取点击的元素
+            let target = e.target;
+            
+            // 检查是否点击了 wikilink 元素
+            if (target.classList && target.classList.contains('wikilink')) {
+                // ⭐ 必须按住 Ctrl/Cmd 才跳转
+                if (!e.ctrlKey && !e.metaKey) {
+                    console.log('💡 提示: 按住 Ctrl/Cmd 点击以跳转链接');
+                    return; // 普通点击，不跳转
+                }
+                
+                const linkTarget = target.dataset.target;
+                if (linkTarget) {
+                    console.log('🔗 Wikilink 跳转:', linkTarget);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    await this.handleWikilinkClick(linkTarget);
+                }
+            }
+        });
+        
+        console.log('✅ Wikilink 处理器已设置 (Ctrl/Cmd + 点击跳转)');
+    }
+
+    /**
+     * ⭐ 处理 Wikilink 点击
+     */
+    async handleWikilinkClick(linkTarget) {
+        console.log('🔗 处理 Wikilink 跳转:', linkTarget);
+        
+        if (!window.appState || !window.appState.rootPath) {
+            if (window.showError) {
+                window.showError('请先打开一个笔记仓库');
+            }
+            return;
+        }
+        
+        try {
+            // 查找目标文件
+            const filePath = await this.findFileByTitle(linkTarget);
+            
+            if (!filePath) {
+                console.warn('⚠️ 未找到目标文件:', linkTarget);
+                if (window.showError) {
+                    window.showError(`未找到笔记: ${linkTarget}`);
+                }
+                return;
+            }
+            
+            console.log('✅ 找到目标文件:', filePath);
+            
+            // 打开文件
+            if (window.tabManager) {
+                window.tabManager.openTab(filePath);
+            }
+        } catch (error) {
+            console.error('❌ 处理链接失败:', error);
+            if (window.showError) {
+                window.showError('打开链接失败: ' + error);
+            }
+        }
+    }
+
+    /**
+     * ⭐ 根据标题查找文件
+     */
+    async findFileByTitle(target) {
+        const appState = window.appState;
+        if (!appState) return null;
+        
+        // 尝试添加 .md 扩展名
+        const targetWithExt = target.endsWith('.md') ? target : `${target}.md`;
+        
+        // 递归搜索文件树
+        function searchNodes(nodes) {
+            if (!nodes) return null;
+            
+            for (const node of nodes) {
+                if (!node.is_dir) {
+                    const fileName = node.name.replace(/\.md$/i, '');
+                    const targetName = target.replace(/\.md$/i, '');
+                    
+                    if (fileName.toLowerCase() === targetName.toLowerCase()) {
+                        return node.path;
+                    }
+                }
+                
+                // 递归搜索子目录
+                if (node.is_dir && appState.fileTreeMap.has(node.path)) {
+                    const children = appState.fileTreeMap.get(node.path);
+                    const found = searchNodes(children);
+                    if (found) return found;
+                }
+            }
+            
+            return null;
+        }
+        
+        return searchNodes(appState.fileTreeRoot);
     }
 
     /**

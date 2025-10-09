@@ -34,6 +34,7 @@
     font-size: 14px;
     line-height: 1.8;
     word-wrap: break-word;
+    white-space: pre-wrap; /* ⭐ 修复 ProseMirror 警告 */
 }
 
 /* ========================================
@@ -305,6 +306,98 @@
 /* 任务列表 */
 #milkdown-editor.theme-dark input[type="checkbox"] {
     margin-right: 8px;
+}
+
+/* ========================================
+   Wikilink 双向链接样式
+   ======================================== */
+
+/* 浅色主题 Wikilink */
+#milkdown-editor.theme-light .ProseMirror a.internal-link,
+#milkdown-editor.theme-light a.internal-link {
+    color: #4a90e2;
+    text-decoration: none;
+    background-color: rgba(74, 144, 226, 0.1);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+    cursor: text; /* ⭐ 默认为文本光标，表示可编辑 */
+    transition: all 0.2s;
+    position: relative;
+}
+
+#milkdown-editor.theme-light .ProseMirror a.internal-link:hover,
+#milkdown-editor.theme-light a.internal-link:hover {
+    background-color: rgba(74, 144, 226, 0.2);
+    cursor: pointer; /* ⭐ 悬停时变为指针，提示可点击 */
+}
+
+/* ⭐ 悬停时显示提示 */
+#milkdown-editor.theme-light .ProseMirror a.internal-link:hover::after,
+#milkdown-editor.theme-light a.internal-link:hover::after {
+    content: '按住 Ctrl/Cmd 点击跳转';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1000;
+    margin-bottom: 4px;
+}
+
+/* 深色主题 Wikilink */
+#milkdown-editor.theme-dark .ProseMirror a.internal-link,
+#milkdown-editor.theme-dark a.internal-link {
+    color: #6ba8ff;
+    text-decoration: none;
+    background-color: rgba(107, 168, 255, 0.15);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+    cursor: text; /* ⭐ 默认为文本光标 */
+    transition: all 0.2s;
+    position: relative;
+}
+
+#milkdown-editor.theme-dark .ProseMirror a.internal-link:hover,
+#milkdown-editor.theme-dark a.internal-link:hover {
+    background-color: rgba(107, 168, 255, 0.25);
+    cursor: pointer; /* ⭐ 悬停时变为指针 */
+}
+
+/* ⭐ 深色主题悬停提示 */
+#milkdown-editor.theme-dark .ProseMirror a.internal-link:hover::after,
+#milkdown-editor.theme-dark a.internal-link:hover::after {
+    content: '按住 Ctrl/Cmd 点击跳转';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.9);
+    color: #2b2622;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1000;
+    margin-bottom: 4px;
+}
+
+/* 损坏的链接样式 */
+#milkdown-editor .internal-link-broken {
+    color: var(--danger-color);
+    text-decoration: line-through;
+    background-color: rgba(231, 76, 60, 0.1);
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: not-allowed;
 }
 
 /* ========================================
