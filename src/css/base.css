@@ -1,25 +1,390 @@
 /* src/css/base.css */
 
-/* CSS 变量定义 */
-:root {
+/* ========================================
+   主题系统 - 浅色主题（默认）
+   ======================================== */
+:root,
+:root[data-theme="light"] {
     --primary-color: #4a90e2;
     --secondary-color: #f39c12;
     --danger-color: #e74c3c;
     --success-color: #27ae60;
+    
     --bg-primary: #ffffff;
     --bg-secondary: #f8f9fa;
     --bg-sidebar: #F5F5F5;
+    
     --text-primary: #2c3e50;
     --text-secondary: #7f8c8d;
     --text-light: #ecf0f1;
+    
     --border-color: #dee2e6;
+    
     --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
     --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
+    
     --transition-speed: 0.3s;
+    
+    --hover-bg: rgba(0, 0, 0, 0.05);
+    --active-bg: #e0eaf6;
+    --input-bg: #ffffff;
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: #cbd5e0;
+    --scrollbar-thumb-hover: #a0aec0;
 }
 
-/* 基础样式重置 */
+/* ========================================
+   主题系统 - 深色主题（黑夜模式 - 温暖棕色调）
+   ======================================== */
+:root[data-theme="dark"] {
+    --primary-color: #6ba8ff;
+    --secondary-color: #ffb74d;
+    --danger-color: #ef5350;
+    --success-color: #66bb6a;
+    
+    /* 温暖的棕灰色背景 */
+    --bg-primary: #2b2622;      /* 主背景：深棕灰 */
+    --bg-secondary: #34302b;    /* 次背景：稍浅的棕灰 */
+    --bg-sidebar: #2f2a25;      /* 侧边栏：中等棕灰 */
+    
+    /* 高对比度文字 */
+    --text-primary: #e8e6e3;    /* 主文字：暖白色 */
+    --text-secondary: #b8b5b0;  /* 次文字：暖灰色 */
+    --text-light: #ffffff;
+    
+    --border-color: #4a443d;    /* 边框：棕色调 */
+    
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+    
+    --transition-speed: 0.3s;
+    
+    --hover-bg: rgba(255, 248, 240, 0.08);  /* 悬停：暖色调 */
+    --active-bg: #3d4a5c;                   /* 激活：蓝棕混合 */
+    --input-bg: #36312b;                    /* 输入框：深棕 */
+    --scrollbar-track: rgba(255, 248, 240, 0.05);
+    --scrollbar-thumb: rgba(255, 248, 240, 0.2);
+    --scrollbar-thumb-hover: rgba(255, 248, 240, 0.35);
+}
+
+/* ========================================
+   平滑过渡效果
+   ======================================== */
+body,
+.sidebar,
+.main-content,
+.file-list li,
+.btn-primary,
+.btn-secondary,
+.editor-container,
+.context-menu,
+.custom-dialog,
+.tag-modal,
+.icon-btn,
+.tab-btn {
+    transition: background-color var(--transition-speed), 
+                color var(--transition-speed),
+                border-color var(--transition-speed);
+}
+
+/* ========================================
+   深色主题特殊样式调整
+   ======================================== */
+
+/* 搜索框 */
+:root[data-theme="dark"] .search-input-wrapper {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] #search-input {
+    color: var(--text-primary);
+    caret-color: var(--text-primary);
+}
+
+:root[data-theme="dark"] #search-input::placeholder {
+    color: var(--text-secondary);
+}
+
+/* 文件列表 */
+:root[data-theme="dark"] .file-list li:hover {
+    background-color: var(--hover-bg);
+}
+
+:root[data-theme="dark"] .file-list li.active {
+    background-color: var(--active-bg);
+    color: var(--primary-color);
+}
+
+/* 编辑器 */
+:root[data-theme="dark"] .markdown-editor,
+:root[data-theme="dark"] .html-preview {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* 按钮 */
+:root[data-theme="dark"] .btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .btn-secondary:hover {
+    background: #3f3a33;
+    color: var(--text-light);
+}
+
+:root[data-theme="dark"] .icon-btn:hover {
+    background-color: var(--hover-bg);
+}
+
+/* [新增] 增强模式按钮和保存按钮的可读性 */
+:root[data-theme="dark"] .mode-btn,
+:root[data-theme="dark"] .save-btn {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+    font-weight: 500;
+}
+
+:root[data-theme="dark"] .mode-btn:hover,
+:root[data-theme="dark"] .save-btn:hover {
+    background: var(--primary-color);
+    color: var(--bg-primary);
+    border-color: var(--primary-color);
+}
+
+:root[data-theme="dark"] .mode-btn.active {
+    background: var(--primary-color);
+    color: var(--bg-primary);
+    border-color: var(--primary-color);
+}
+
+/* 菜单和对话框 */
+:root[data-theme="dark"] .context-menu {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .context-menu ul li:hover {
+    background: var(--hover-bg);
+}
+
+:root[data-theme="dark"] .custom-dialog,
+:root[data-theme="dark"] .tag-modal {
+    background: var(--bg-secondary);
+}
+
+:root[data-theme="dark"] .dialog-header,
+:root[data-theme="dark"] .tag-modal-header {
+    border-bottom-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .dialog-actions,
+:root[data-theme="dark"] .tag-modal-footer {
+    border-top-color: var(--border-color);
+}
+
+/* 代码块 */
+:root[data-theme="dark"] .html-preview code,
+:root[data-theme="dark"] .html-preview pre {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+/* 标签 */
+:root[data-theme="dark"] .tag-pill,
+:root[data-theme="dark"] .tag-pill-display {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .tag-pill.selected {
+    background-color: var(--primary-color);
+    color: var(--bg-primary);
+    border-color: var(--primary-color);
+}
+
+/* 链接 */
+:root[data-theme="dark"] a.internal-link {
+    background-color: rgba(91, 163, 255, 0.15);
+    color: var(--primary-color);
+}
+
+:root[data-theme="dark"] a.internal-link:hover {
+    background-color: rgba(91, 163, 255, 0.25);
+}
+
+/* 输入框 */
+:root[data-theme="dark"] input[type="text"],
+:root[data-theme="dark"] textarea {
+    background: var(--input-bg);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] #tag-modal-search-input {
+    background: var(--input-bg);
+    color: var(--text-primary);
+}
+
+/* 图表 */
+:root[data-theme="dark"] .graph-overlay {
+    background-color: rgba(10, 10, 10, 0.95);
+}
+
+/* 历史记录 */
+:root[data-theme="dark"] .history-item {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .history-item:hover {
+    border-color: var(--primary-color);
+    background-color: #3a352e;
+}
+
+:root[data-theme="dark"] .file-title {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+:root[data-theme="dark"] .time {
+    color: var(--text-secondary);
+}
+
+:root[data-theme="dark"] .event-icon {
+    opacity: 0.9;
+}
+
+/* 置顶笔记 */
+:root[data-theme="dark"] .pinned-note-card {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .pinned-note-card:hover {
+    border-color: var(--primary-color);
+}
+
+:root[data-theme="dark"] .pinned-note-card h4 {
+    color: var(--text-primary);
+}
+
+/* 首页功能卡片 */
+:root[data-theme="dark"] .feature-item,
+:root[data-theme="dark"] .quick-start {
+    background: var(--bg-secondary);
+}
+
+:root[data-theme="dark"] .feature-item h3 {
+    color: var(--primary-color);
+}
+
+:root[data-theme="dark"] .feature-item p,
+:root[data-theme="dark"] .quick-start li {
+    color: var(--text-secondary);
+}
+
+/* 搜索结果 */
+:root[data-theme="dark"] .search-results {
+    background-color: var(--bg-sidebar);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .search-results li {
+    border-bottom-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .search-results li:hover {
+    background-color: var(--hover-bg);
+}
+
+:root[data-theme="dark"] .search-result-title {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+:root[data-theme="dark"] .search-result-snippet {
+    color: var(--text-secondary);
+}
+
+:root[data-theme="dark"] .search-result-snippet mark {
+    background-color: rgba(107, 168, 255, 0.3);
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+/* 标签弹窗 */
+:root[data-theme="dark"] .tags-popover {
+    background-color: var(--bg-sidebar);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .tag-sidebar-item {
+    color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .tag-sidebar-item:hover,
+:root[data-theme="dark"] .tag-sidebar-item.active {
+    background-color: var(--hover-bg);
+}
+
+/* 标签区域 */
+:root[data-theme="dark"] .sidebar-section-header h3 {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+:root[data-theme="dark"] .no-tags-info {
+    color: var(--text-secondary);
+}
+
+/* [新增] 首页区域标题 */
+:root[data-theme="dark"] .homepage-section h3 {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+:root[data-theme="dark"] .welcome-section h1 {
+    color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .welcome-section > p {
+    color: var(--text-secondary);
+}
+
+/* 页签 */
+:root[data-theme="dark"] .tab-btn {
+    color: var(--text-secondary);
+}
+
+:root[data-theme="dark"] .tab-btn.active {
+    color: var(--primary-color);
+    background-color: var(--bg-primary);
+}
+
+:root[data-theme="dark"] .tab-btn:hover {
+    background-color: var(--hover-bg);
+}
+
+:root[data-theme="dark"] .main-header {
+    background-color: var(--bg-secondary);
+    border-bottom-color: var(--border-color);
+}
+
+/* 分割线 */
+:root[data-theme="dark"] .section-divider {
+    border-top-color: var(--border-color);
+}
+
+/* ========================================
+   基础样式重置
+   ======================================== */
 * {
     margin: 0;
     padding: 0;
@@ -59,14 +424,14 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: transparent;
+    background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #cbd5e0;
+    background: var(--scrollbar-thumb);
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #a0aec0;
+    background: var(--scrollbar-thumb-hover);
 }

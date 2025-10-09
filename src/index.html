@@ -8,6 +8,7 @@
 	<script type="text/javascript" src="vendor/vis/vis-network.min.js"></script>
     <link href="vendor/vis/vis-network.min.css" rel="stylesheet" type="text/css" />
     <link href="vendor/vis/vis-network.min.css" rel="stylesheet" type="text/css" />
+	<link rel="stylesheet" href="css/themes.css">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/utils.css">
@@ -27,7 +28,8 @@
 					<button id="new-note-root-btn" class="icon-btn" title="新建笔记 (Ctrl+N)">📄</button>
 					<button id="new-folder-root-btn" class="icon-btn" title="新建文件夹 (Ctrl+Shift+N)">📁</button>
                      
-            
+                      <!-- [新增] 主题切换按钮 -->
+                    <button id="theme-toggle-btn" class="icon-btn" title="切换主题">🌙</button>
                     <button id="toggle-tags-btn" class="icon-btn">🏷️</button> 
                     <button id="search-toggle-btn" class="icon-btn">🔍</button>
                     <button id="graph-view-btn" class="icon-btn">🌐</button>
@@ -171,6 +173,7 @@
 	
 
     <script src="js/ui-utils.js"></script>
+	<script src="js/theme.js"></script> <!-- [新增] 主题系统 -->
     <script src="js/virtual-scroll.js"></script>
     <script src="js/links.js"></script> 
     <script src="js/tab_manager.js"></script>

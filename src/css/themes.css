@@ -1,0 +1,223 @@
+/* src/css/themes.css - 主题系统 */
+
+/* ========================================
+   浅色主题（默认）
+   ======================================== */
+:root[data-theme="light"] {
+    --primary-color: #4a90e2;
+    --secondary-color: #f39c12;
+    --danger-color: #e74c3c;
+    --success-color: #27ae60;
+    
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-sidebar: #F5F5F5;
+    
+    --text-primary: #2c3e50;
+    --text-secondary: #7f8c8d;
+    --text-light: #ecf0f1;
+    
+    --border-color: #dee2e6;
+    
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
+    
+    --transition-speed: 0.3s;
+    
+    /* 额外的浅色主题特定颜色 */
+    --hover-bg: rgba(0, 0, 0, 0.05);
+    --active-bg: #e0eaf6;
+    --input-bg: #ffffff;
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: #cbd5e0;
+    --scrollbar-thumb-hover: #a0aec0;
+}
+
+/* ========================================
+   深色主题（黑夜模式）
+   ======================================== */
+:root[data-theme="dark"] {
+    --primary-color: #5ba3ff;
+    --secondary-color: #ffa726;
+    --danger-color: #ef5350;
+    --success-color: #66bb6a;
+    
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #242424;
+    --bg-sidebar: #1e1e1e;
+    
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --text-light: #ffffff;
+    
+    --border-color: #3a3a3a;
+    
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+    
+    --transition-speed: 0.3s;
+    
+    /* 深色主题特定颜色 */
+    --hover-bg: rgba(255, 255, 255, 0.08);
+    --active-bg: #2a3f5f;
+    --input-bg: #2a2a2a;
+    --scrollbar-track: rgba(255, 255, 255, 0.05);
+    --scrollbar-thumb: rgba(255, 255, 255, 0.2);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+}
+
+/* ========================================
+   平滑过渡效果
+   ======================================== */
+body,
+.sidebar,
+.main-content,
+.file-list li,
+.btn-primary,
+.btn-secondary,
+.editor-container,
+.context-menu,
+.custom-dialog,
+.tag-modal {
+    transition: background-color var(--transition-speed), 
+                color var(--transition-speed),
+                border-color var(--transition-speed);
+}
+
+/* ========================================
+   深色主题特殊样式调整
+   ======================================== */
+
+/* 搜索框在深色主题下的样式 */
+:root[data-theme="dark"] .search-input-wrapper {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] #search-input {
+    color: var(--text-primary);
+    caret-color: var(--text-primary);
+}
+
+:root[data-theme="dark"] #search-input::placeholder {
+    color: var(--text-secondary);
+}
+
+/* 文件列表悬停效果 */
+:root[data-theme="dark"] .file-list li:hover {
+    background-color: var(--hover-bg);
+}
+
+/* 激活文件样式 */
+:root[data-theme="dark"] .file-list li.active {
+    background-color: var(--active-bg);
+    color: var(--primary-color);
+}
+
+/* 编辑器文本颜色 */
+:root[data-theme="dark"] .markdown-editor,
+:root[data-theme="dark"] .html-preview {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* 按钮样式调整 */
+:root[data-theme="dark"] .btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .btn-secondary:hover {
+    background: #2f2f2f;
+}
+
+/* 上下文菜单 */
+:root[data-theme="dark"] .context-menu {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+/* 对话框 */
+:root[data-theme="dark"] .custom-dialog,
+:root[data-theme="dark"] .tag-modal {
+    background: var(--bg-secondary);
+}
+
+/* 代码块在深色主题下的样式 */
+:root[data-theme="dark"] .html-preview code,
+:root[data-theme="dark"] .html-preview pre {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* 标签样式 */
+:root[data-theme="dark"] .tag-pill {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .tag-pill.selected {
+    background-color: var(--primary-color);
+    color: var(--bg-primary);
+}
+
+/* 内部链接样式 */
+:root[data-theme="dark"] a.internal-link {
+    background-color: rgba(91, 163, 255, 0.15);
+}
+
+:root[data-theme="dark"] a.internal-link:hover {
+    background-color: rgba(91, 163, 255, 0.25);
+}
+
+/* 输入框样式 */
+:root[data-theme="dark"] input[type="text"],
+:root[data-theme="dark"] textarea {
+    background: var(--input-bg);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+/* 图表背景（关系图谱） */
+:root[data-theme="dark"] .graph-overlay {
+    background-color: rgba(10, 10, 10, 0.95);
+}
+
+/* 历史记录卡片 */
+:root[data-theme="dark"] .history-item {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .history-item:hover {
+    border-color: var(--primary-color);
+}
+
+/* 置顶笔记卡片 */
+:root[data-theme="dark"] .pinned-note-card {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .pinned-note-card:hover {
+    border-color: var(--primary-color);
+}
+
+/* 功能卡片 */
+:root[data-theme="dark"] .feature-item,
+:root[data-theme="dark"] .quick-start {
+    background: var(--bg-secondary);
+}
+
+/* 搜索结果 */
+:root[data-theme="dark"] .search-results {
+    background-color: var(--bg-sidebar);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .search-results li:hover {
+    background-color: var(--hover-bg);
+}
