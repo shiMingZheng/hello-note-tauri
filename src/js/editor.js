@@ -1,13 +1,11 @@
 // src/js/editor.js
-// CheetahNote - 编辑器与搜索逻辑 (Milkdown 版本)
+// CheetahNote - 编辑器与搜索逻辑 (Milkdown 版本 - 修复)
 
 'use strict';
 console.log('📜 editor.js 开始加载...');
 
-let htmlPreview; // 保留用于兼容性
-
 // ========================================
-// 搜索相关函数（保持不变）
+// 搜索相关函数
 // ========================================
 function resetSearchInactivityTimer() {
     if (appState.searchInactivityTimer) {
@@ -66,7 +64,7 @@ function clearSearch() {
 }
 
 // ========================================
-// 编辑器相关函数（重写以使用 Milkdown）
+// 编辑器相关函数（Milkdown）
 // ========================================
 
 /**
@@ -82,9 +80,26 @@ async function loadFileToEditor(relativePath) {
             relativePath: relativePath
         });
         
+        console.log('📝 文件内容长度:', content.length);
+        
         // 2. 加载到 Milkdown 编辑器
         if (window.milkdownEditor && window.milkdownEditor.editor) {
             await window.milkdownEditor.loadContent(content);
+        } else {
+            console.warn('⚠️ Milkdown 编辑器未初始化，等待初始化...');
+            
+            // 等待编辑器初始化
+            let attempts = 0;
+            while ((!window.milkdownEditor || !window.milkdownEditor.editor) && attempts < 10) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                attempts++;
+            }
+            
+            if (window.milkdownEditor && window.milkdownEditor.editor) {
+                await window.milkdownEditor.loadContent(content);
+            } else {
+                throw new Error('编辑器初始化超时');
+            }
         }
         
         // 3. 更新应用状态
@@ -95,12 +110,16 @@ async function loadFileToEditor(relativePath) {
     } catch (error) {
         console.error('❌ 加载文件失败:', error);
         showError('加载文件失败: ' + error);
-        tabManager.closeTab(relativePath);
+        
+        // 如果加载失败，尝试关闭标签
+        if (window.tabManager) {
+            tabManager.closeTab(relativePath);
+        }
     }
 }
 
 /**
- * 保存文件（从 Milkdown 导出）
+ * 保存文件
  */
 async function handleSaveFile() {
     const relativePath = appState.activeFilePath;
@@ -113,7 +132,13 @@ async function handleSaveFile() {
     
     try {
         // 1. 从 Milkdown 编辑器导出 Markdown
-        const content = window.milkdownEditor.getMarkdown();
+        const content = window.milkdownEditor?.getMarkdown() || '';
+        
+        if (!content && appState.hasUnsavedChanges) {
+            console.warn('⚠️ 内容为空但有未保存变更');
+        }
+        
+        console.log('📝 保存内容长度:', content.length);
         
         // 2. 调用 Rust 后端保存
         await invoke('save_file', {
@@ -124,7 +149,9 @@ async function handleSaveFile() {
         
         // 3. 更新状态
         appState.hasUnsavedChanges = false;
-        window.milkdownEditor.hasUnsavedChanges = false;
+        if (window.milkdownEditor) {
+            window.milkdownEditor.hasUnsavedChanges = false;
+        }
         
         showSuccessMessage('保存成功');
         saveLastFile(relativePath);
@@ -137,94 +164,27 @@ async function handleSaveFile() {
 }
 
 /**
- * 切换视图模式（编辑/预览）
- * 注意：Milkdown 本身就是所见即所得，这个功能可以保留用于切换到纯预览模式
+ * 切换视图模式
  */
 function toggleViewMode() {
+    // Milkdown 本身就是所见即所得，这里可以保留用于只读模式
     const newMode = appState.currentViewMode === 'edit' ? 'preview' : 'edit';
     appState.currentViewMode = newMode;
     
     if (newMode === 'edit') {
-        // 编辑模式：显示 Milkdown 编辑器
-        document.getElementById('milkdown-editor').style.display = 'block';
-        if (htmlPreview) htmlPreview.style.display = 'none';
         viewToggleBtn.innerHTML = '👁️ 预览';
-        
-        // 设置编辑器为可编辑
-        if (window.milkdownEditor) {
-            window.milkdownEditor.setReadonly(false);
-        }
     } else {
-        // 预览模式：显示只读的 Milkdown 或传统预览
         viewToggleBtn.innerHTML = '📝 编辑';
-        
-        // 设置编辑器为只读
-        if (window.milkdownEditor) {
-            window.milkdownEditor.setReadonly(true);
-        }
     }
-}
-
-/**
- * 传统预览功能（可选保留）
- */
-async function updatePreview() {
-    if (!htmlPreview) return;
     
-    const content = window.milkdownEditor ? 
-                    window.milkdownEditor.getMarkdown() : '';
-    
-    try {
-        const html = await invoke('parse_markdown', { content });
-        htmlPreview.innerHTML = html;
-        
-        // 处理内部链接
-        htmlPreview.querySelectorAll('a.internal-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const targetPath = link.getAttribute('data-path');
-                if (targetPath) {
-                    tabManager.openTab(targetPath);
-                }
-            });
-        });
-    } catch (error) {
-        htmlPreview.innerHTML = '<p style="color: red;">Markdown 解析失败</p>';
-    }
+    console.log(`🔄 切换视图模式: ${newMode}`);
 }
 
 // ========================================
-// 初始化编辑器
+// 初始化
 // ========================================
-async function initializeEditor() {
-    console.log('🎯 初始化 Milkdown 编辑器...');
-    
-    htmlPreview = document.getElementById('html-preview');
-    
-    try {
-        // 初始化 Milkdown
-        await window.milkdownEditor.init('#milkdown-editor', (markdown) => {
-            // 内容变更回调
-            appState.hasUnsavedChanges = true;
-            console.log('📝 编辑器内容已变更');
-        });
-        
-        console.log('✅ Milkdown 编辑器初始化完成');
-    } catch (error) {
-        console.error('❌ Milkdown 编辑器初始化失败:', error);
-        showError('编辑器初始化失败: ' + error);
-    }
-}
-
-// 在 DOM 加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
-    // 等待 Milkdown 模块加载
-    if (window.milkdownEditor) {
-        initializeEditor();
-    } else {
-        // 如果模块还未加载，等待一下
-        setTimeout(initializeEditor, 500);
-    }
+    console.log('📄 editor.js DOM 已加载');
 });
 
 // 导出函数到全局

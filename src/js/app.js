@@ -59,11 +59,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         initializeHomepage();
 
-        // ⭐ 初始化 Milkdown 编辑器
-        await initializeMilkdownEditor();
 
         // 启动工作区
         setTimeout(async () => {
+			// ⭐ 初始化 Milkdown 编辑器
+			await initializeMilkdownEditor();
             await startupWithWorkspace();
         }, 100);
 

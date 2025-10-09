@@ -11,7 +11,7 @@ import { history } from '@milkdown/plugin-history';
 import { clipboard } from '@milkdown/plugin-clipboard';
 import { cursor } from '@milkdown/plugin-cursor';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
-import { getMarkdown } from '@milkdown/utils';
+import { nord } from '@milkdown/theme-nord';
 
 /**
  * Milkdown 编辑器管理器
@@ -21,13 +21,11 @@ class MilkdownEditorManager {
         this.editor = null;
         this.currentContent = '';
         this.hasUnsavedChanges = false;
-        this.onContentChange = null; // 回调函数
+        this.onContentChange = null;
     }
 
     /**
      * 初始化编辑器
-     * @param {string} containerSelector - 容器选择器
-     * @param {Function} onContentChangeCallback - 内容变更回调
      */
     async init(containerSelector, onContentChangeCallback) {
         console.log('🎨 初始化 Milkdown 编辑器...');
@@ -37,36 +35,31 @@ class MilkdownEditorManager {
         try {
             this.editor = await Editor.make()
                 .config((ctx) => {
-                    // 设置根容器
                     ctx.set(rootCtx, document.querySelector(containerSelector));
+                    ctx.set(defaultValueCtx, '');
                     
-                    // 设置初始内容
-                    ctx.set(defaultValueCtx, '# 欢迎使用 CheetahNote\n\n开始编写您的笔记...');
-                    
-                    // 配置监听器
                     ctx.get(listenerCtx).markdownUpdated((ctx, markdown, prevMarkdown) => {
                         if (markdown !== prevMarkdown) {
                             this.currentContent = markdown;
                             this.hasUnsavedChanges = true;
                             
-                            // 触发内容变更回调
                             if (this.onContentChange) {
                                 this.onContentChange(markdown);
                             }
                         }
                     });
                 })
-                .use(commonmark) // 基础 Markdown 语法
-                .use(gfm) // GitHub Flavored Markdown（表格、任务列表等）
-                .use(history) // 撤销/重做
-                .use(clipboard) // 剪贴板支持
-                .use(cursor) // 光标增强
-                .use(listener) // 事件监听
+                .use(nord)
+                .use(commonmark)
+                .use(gfm)
+                .use(history)
+                .use(clipboard)
+                .use(cursor)
+                .use(listener)
                 .create();
             
             console.log('✅ Milkdown 编辑器初始化成功');
             
-            // 应用当前主题
             this.applyTheme(window.themeManager?.getCurrent() || 'light');
             
             return this.editor;
@@ -77,8 +70,7 @@ class MilkdownEditorManager {
     }
 
     /**
-     * 加载笔记内容到编辑器
-     * @param {string} markdown - Markdown 内容
+     * 加载内容
      */
     async loadContent(markdown) {
         if (!this.editor) {
@@ -89,16 +81,18 @@ class MilkdownEditorManager {
         console.log('📝 加载笔记内容到编辑器');
         
         try {
-            // 使用 action 更新编辑器内容
-            await this.editor.action((ctx) => {
-                const view = ctx.get(editorViewCtx);
+            this.editor.action((ctx) => {
+                const view = ctx.get(rootCtx);
                 const parser = ctx.get(parserCtx);
-                const doc = parser(markdown);
                 
-                if (doc) {
-                    const state = view.state;
-                    const tr = state.tr.replaceWith(0, state.doc.content.size, doc.content);
-                    view.dispatch(tr);
+                // 简单方式：销毁并重建
+                if (view && view.editor) {
+                    const doc = parser(markdown);
+                    if (doc) {
+                        const state = view.editor.state;
+                        const tr = state.tr.replaceWith(0, state.doc.content.size, doc.content);
+                        view.editor.view.dispatch(tr);
+                    }
                 }
             });
             
@@ -108,13 +102,27 @@ class MilkdownEditorManager {
             console.log('✅ 内容加载成功');
         } catch (error) {
             console.error('❌ 加载内容失败:', error);
-            throw error;
+            
+            // 备用方案：重建编辑器
+            try {
+                await this.destroy();
+                await this.init('#milkdown-editor', this.onContentChange);
+                
+                this.editor.action((ctx) => {
+                    ctx.set(defaultValueCtx, markdown);
+                });
+                
+                this.currentContent = markdown;
+                this.hasUnsavedChanges = false;
+            } catch (retryError) {
+                console.error('❌ 重试加载失败:', retryError);
+                throw retryError;
+            }
         }
     }
 
     /**
-     * 从编辑器导出 Markdown
-     * @returns {string} - Markdown 文本
+     * 获取 Markdown
      */
     getMarkdown() {
         if (!this.editor) {
@@ -123,7 +131,7 @@ class MilkdownEditorManager {
         }
 
         try {
-            return this.editor.action(getMarkdown());
+            return this.currentContent || '';
         } catch (error) {
             console.error('❌ 导出 Markdown 失败:', error);
             return this.currentContent;
@@ -131,7 +139,7 @@ class MilkdownEditorManager {
     }
 
     /**
-     * 清空编辑器内容
+     * 清空编辑器
      */
     clear() {
         if (!this.editor) return;
@@ -146,7 +154,6 @@ class MilkdownEditorManager {
 
     /**
      * 应用主题
-     * @param {string} themeName - 'light' | 'dark'
      */
     applyTheme(themeName) {
         console.log(`🎨 应用编辑器主题: ${themeName}`);
@@ -154,37 +161,21 @@ class MilkdownEditorManager {
         const editorContainer = document.querySelector('#milkdown-editor');
         if (!editorContainer) return;
         
-        // 移除旧主题类
         editorContainer.classList.remove('theme-light', 'theme-dark');
-        
-        // 添加新主题类
         editorContainer.classList.add(`theme-${themeName}`);
-    }
-
-    /**
-     * 设置只读模式
-     * @param {boolean} readonly - 是否只读
-     */
-    setReadonly(readonly) {
-        if (!this.editor) return;
-        
-        try {
-            this.editor.action((ctx) => {
-                const view = ctx.get(editorViewCtx);
-                view.setProps({ editable: () => !readonly });
-            });
-        } catch (error) {
-            console.error('❌ 设置只读模式失败:', error);
-        }
     }
 
     /**
      * 销毁编辑器
      */
-    destroy() {
+    async destroy() {
         if (this.editor) {
             console.log('🗑️ 销毁 Milkdown 编辑器');
-            this.editor.destroy();
+            try {
+                await this.editor.destroy();
+            } catch (error) {
+                console.warn('销毁编辑器时出错:', error);
+            }
             this.editor = null;
         }
     }
