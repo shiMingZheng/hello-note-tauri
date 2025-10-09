@@ -13,6 +13,8 @@ import { cursor } from '@milkdown/plugin-cursor';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { nord } from '@milkdown/theme-nord';
 import { replaceAll, getMarkdown } from '@milkdown/utils';
+// ⭐ 导入 Wikilink 插件
+import { createWikilinkPlugin } from './milkdown-wikilink-plugin.js';
 
 /**
  * Milkdown 编辑器管理器
@@ -37,44 +39,47 @@ class MilkdownEditorManager {
         
         try {
             this.editor = await Editor.make()
-                .config((ctx) => {
-                    ctx.set(rootCtx, document.querySelector(containerSelector));
-                    ctx.set(defaultValueCtx, '# 欢迎使用 CheetahNote\n\n开始编写您的笔记...');
-                    
-                    // 监听内容变化
-                    ctx.get(listenerCtx).markdownUpdated((ctx, markdown, prevMarkdown) => {
-                        // 避免在加载时触发变更
-                        if (this.isLoading) {
-                            console.log('📝 [跳过] 正在加载内容，忽略变更');
-                            return;
-                        }
-                        
-                        if (markdown !== prevMarkdown && markdown !== this.currentContent) {
-                            console.log('📝 [触发] 内容已变更');
-                            this.currentContent = markdown;
-                            this.hasUnsavedChanges = true;
-                            
-                            if (this.onContentChange) {
-                                this.onContentChange(markdown);
-                            }
-                        }
-                    });
-                })
-                .use(nord)
-                .use(commonmark)
-                .use(gfm)
-                .use(history)
-                .use(clipboard)
-                .use(cursor)
-                .use(listener)
-                .create();
+				.config((ctx) => {
+					ctx.set(rootCtx, document.querySelector(containerSelector));
+					ctx.set(defaultValueCtx, '# 欢迎使用 CheetahNote\n\n开始编写您的笔记...');
+					
+					// 监听内容变化
+					ctx.get(listenerCtx).markdownUpdated((ctx, markdown, prevMarkdown) => {
+						if (this.isLoading) {
+							console.log('📝 [跳过] 正在加载内容，忽略变更');
+							return;
+						}
+						
+						if (markdown !== prevMarkdown && markdown !== this.currentContent) {
+							console.log('📝 [触发] 内容已变更');
+							this.currentContent = markdown;
+							this.hasUnsavedChanges = true;
+							
+							if (this.onContentChange) {
+								this.onContentChange(markdown);
+							}
+						}
+					});
+				})
+				.use(nord)
+				.use(commonmark)
+				.use(gfm)
+				.use(history)
+				.use(clipboard)
+				.use(cursor)
+				.use(listener)
+				// ⭐ 使用 Wikilink 插件
+				.use(createWikilinkPlugin((target) => {
+					this.handleWikilinkClick(target);
+				}))
+				.create();
             
             console.log('✅ Milkdown 编辑器初始化成功');
             
             this.applyTheme(window.themeManager?.getCurrent() || 'light');
             
             // ⭐ 初始化 Wikilink 点击处理
-            this.setupWikilinkHandler(containerSelector);
+            //this.setupWikilinkHandler(containerSelector);
             
             return this.editor;
         } catch (error) {
@@ -117,43 +122,71 @@ class MilkdownEditorManager {
             }
         });
         
-        // ⭐ 监听 DOM 变化，动态渲染 Wikilink 样式
-        const observer = new MutationObserver(() => {
-            this.renderWikilinks(container);
-        });
-        
-        observer.observe(container, {
-            childList: true,
-            subtree: true,
-            characterData: true
-        });
-        
-        // 初始渲染
-        this.renderWikilinks(container);
         
         // 点击事件处理
-        container.addEventListener('click', async (e) => {
-            // 获取点击的元素
-            let target = e.target;
-            
-            // 检查是否点击了 wikilink 元素
-            if (target.classList && target.classList.contains('wikilink')) {
-                // ⭐ 必须按住 Ctrl/Cmd 才跳转
-                if (!e.ctrlKey && !e.metaKey) {
-                    console.log('💡 提示: 按住 Ctrl/Cmd 点击以跳转链接');
-                    return; // 普通点击，不跳转
-                }
-                
-                const linkTarget = target.dataset.target;
-                if (linkTarget) {
-                    console.log('🔗 Wikilink 跳转:', linkTarget);
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    await this.handleWikilinkClick(linkTarget);
-                }
-            }
-        });
+        // 点击事件处理
+		container.addEventListener('mousedown', async (e) => {
+			console.log('🖱️ 点击事件触发');
+			console.log('📍 点击目标:', e.target);
+			console.log('📝 标签名:', e.target.tagName);
+			console.log('🎨 类名:', e.target.className);
+			
+			// ⭐ 关键：向上遍历 DOM 树查找链接
+			let target = e.target;
+			let depth = 0;
+			
+			while (target && target !== container && depth < 5) {
+				console.log(`🔍 [深度${depth}] 标签:`, target.tagName, '类名:', target.className, '文本:', target.textContent?.substring(0, 30));
+				
+				// 检查是否是 <a> 标签
+				if (target.tagName === 'A') {
+					console.log('✅ 找到 <a> 标签!');
+					console.log('   href:', target.getAttribute('href'));
+					console.log('   data-*:', Array.from(target.attributes).filter(a => a.name.startsWith('data-')));
+					console.log('   文本:', target.textContent);
+					
+					// 如果按住了 Ctrl/Cmd
+					if (e.ctrlKey || e.metaKey) {
+						e.preventDefault();
+						e.stopPropagation();
+						
+						// 尝试从 href 或 textContent 获取目标
+						const linkTarget = target.textContent || target.getAttribute('href')?.replace('#', '');
+						if (linkTarget) {
+							console.log('🔗 跳转目标:', linkTarget);
+							await this.handleWikilinkClick(linkTarget);
+						}
+					} else {
+						console.log('💡 提示: 按住 Ctrl/Cmd 点击以跳转');
+					}
+					return;
+				}
+				
+				// 检查是否有 wikilink 类
+				if (target.classList && target.classList.contains('wikilink')) {
+					console.log('✅ 找到 .wikilink 元素!');
+					if (e.ctrlKey || e.metaKey) {
+						e.preventDefault();
+						e.stopPropagation();
+						const linkTarget = target.dataset.target || target.textContent;
+						if (linkTarget) {
+							console.log('🔗 跳转目标:', linkTarget);
+							await this.handleWikilinkClick(linkTarget);
+						}
+					} else {
+						console.log('💡 提示: 按住 Ctrl/Cmd 点击以跳转');
+					}
+					return;
+				}
+				
+				target = target.parentElement;
+				depth++;
+			}
+			
+			console.log('❌ 未找到可点击的链接元素');
+		}, true);//true为捕获阶段
+		
+		
         
         console.log('✅ Wikilink 处理器已设置 (Ctrl/Cmd + 点击跳转)');
     }
