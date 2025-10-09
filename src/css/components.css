@@ -347,142 +347,6 @@
     margin-bottom: 10px;
 }
 
-
-/* ========================================
-   编辑器组件
-   ======================================== */
-#editor-wrapper {
-    /* 这个元素现在由 .tab-content 控制显示 */
-}
-
-.editor-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-}
-
-#file-title {
-    color: var(--text-primary);
-    font-size: 18px;
-    font-weight: 500;
-}
-
-.editor-actions {
-    display: flex;
-    gap: 10px;
-}
-
-.mode-btn,
-.save-btn {
-    padding: 6px 12px;
-    border: 1px solid var(--border-color);
-    background: white;
-    color: var(--text-primary);
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all var(--transition-speed);
-}
-
-.mode-btn:hover,
-.save-btn:hover {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-.mode-btn.active {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-.editor-container {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-}
-
-.markdown-editor {
-    display: block;
-}
-
-
-/* [核心修改] 使用 CSS 类来控制显示和隐藏 */
-/* 默认状态（编辑模式），预览区隐藏 */
-.html-preview {
-    display: none;
-}
-
-/* 当容器有 .preview-mode 类时，反转显示状态 */
-.editor-container.preview-mode .html-preview {
-    display: block;
-}
-.editor-container.preview-mode .markdown-editor {
-    display: none;
-}
-
-/* 预览区 Markdown 样式 */
-.html-preview h1 {
-    font-size: 28px;
-    margin-bottom: 16px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid var(--border-color);
-}
-
-.html-preview h2 {
-    font-size: 24px;
-    margin-bottom: 14px;
-    margin-top: 20px;
-}
-
-.html-preview h3 {
-    font-size: 20px;
-    margin-bottom: 12px;
-    margin-top: 16px;
-}
-
-.html-preview p {
-    margin-bottom: 16px;
-    line-height: 1.8;
-}
-
-.html-preview code {
-    background: var(--bg-secondary);
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 90%;
-}
-
-.html-preview pre {
-    background: var(--bg-secondary);
-    padding: 16px;
-    border-radius: 6px;
-    overflow-x: auto;
-    margin-bottom: 16px;
-}
-
-.html-preview blockquote {
-    border-left: 4px solid var(--primary-color);
-    padding-left: 16px;
-    color: var(--text-secondary);
-    margin-bottom: 16px;
-}
-
-.html-preview ul,
-.html-preview ol {
-    margin-bottom: 16px;
-    padding-left: 24px;
-}
-
-.html-preview li {
-    margin-bottom: 8px;
-}
-
-
 /* ========================================
    右键菜单组件
    ======================================== */
@@ -985,15 +849,7 @@
     display: flex;
 }
 
-/* 移除旧的 editor-wrapper 样式 */
-#editor-wrapper {
-   display: none; /* 由 JS 切换为 flex */
-    flex-grow: 1;
 
-
-    /* 移除 display: none !important; 等规则 */
-    /* 现在它由 JS 控制显示 */
-}
 /* [核心修复] 修改 main-content 的布局 */
 .main-content {
     flex: 1;
@@ -1116,28 +972,6 @@
 }
 
 
-/* [核心修改] 将编辑器和预览区都设为绝对定位，并撑满容器 */
-.markdown-editor,
-.html-preview {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-
-    /* 外观和内边距样式 */
-    padding: 20px;
-    box-sizing: border-box;
-    border: none;
-    outline: none;
-    resize: none;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 14px;
-    line-height: 1.8;
-    background: white;
-    color: var(--text-primary);
-    overflow-y: auto;
-}
 
 
 /* [新增] 添加 spacer 样式 */
@@ -1413,4 +1247,164 @@ a.internal-link:hover {
 
 .icon-btn:active {
     transform: scale(0.95);
+}
+
+/* ========================================
+   编辑器组件（Milkdown 版本）
+   ======================================== */
+#editor-wrapper {
+    display: none; /* 由 JS 控制显示 */
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+#file-title {
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.editor-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.mode-btn,
+.save-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    background: white;
+    color: var(--text-primary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+}
+
+.mode-btn:hover,
+.save-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.mode-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* ⭐ Milkdown 编辑器容器 */
+.milkdown-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+/* 移除旧的 textarea 和预览区样式 */
+.markdown-editor {
+    display: none; /* 不再使用 */
+}
+
+.html-preview {
+    display: none; /* 保留用于兼容性 */
+    width: 100%;
+    height: 100%;
+    padding: 20px;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+/* 预览区 Markdown 样式（保留用于传统预览模式） */
+.html-preview h1 {
+    font-size: 28px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.html-preview h2 {
+    font-size: 24px;
+    margin-bottom: 14px;
+    margin-top: 20px;
+}
+
+.html-preview h3 {
+    font-size: 20px;
+    margin-bottom: 12px;
+    margin-top: 16px;
+}
+
+.html-preview p {
+    margin-bottom: 16px;
+    line-height: 1.8;
+}
+
+.html-preview code {
+    background: var(--bg-secondary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 90%;
+}
+
+.html-preview pre {
+    background: var(--bg-secondary);
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+}
+
+.html-preview blockquote {
+    border-left: 4px solid var(--primary-color);
+    padding-left: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.html-preview ul,
+.html-preview ol {
+    margin-bottom: 16px;
+    padding-left: 24px;
+}
+
+.html-preview li {
+    margin-bottom: 8px;
+}
+
+/* ========================================
+   编辑器全屏布局
+   ======================================== */
+#editor-wrapper.tab-content.active {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 确保编辑器容器占满空间 */
+.milkdown-container {
+    flex: 1;
+    min-height: 0; /* 重要：允许 flex 子元素缩小 */
+}
+
+/* ========================================
+   响应式调整
+   ======================================== */
+@media (max-width: 768px) {
+    .milkdown-container {
+        padding: 10px;
+    }
+    
+    #milkdown-editor {
+        padding: 15px;
+    }
 }

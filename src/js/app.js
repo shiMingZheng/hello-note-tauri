@@ -37,10 +37,12 @@ const appState = {
 };
 
 var openFolderBtn, searchBox, searchInput, clearSearchBtn, fileListContainer, fileListElement,
-    fileListSpacer, searchResultsList, markdownEditor, htmlPreview,
+    fileListSpacer, searchResultsList, 
     saveBtn, contextMenu, newNoteBtn, newFolderBtn,
     deleteFileBtn, customConfirmDialog, viewToggleBtn, pinNoteBtn, unpinNoteBtn, editorContainer, renameItemBtn,
-	newNoteRootBtn, newFolderRootBtn;
+    newNoteRootBtn, newFolderRootBtn;
+
+// ⚠️ 移除 htmlPreview 的声明，它已经在 editor.js 中声明
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -57,11 +59,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         initializeHomepage();
 
-        // [核心修改] 新的启动流程
+        // ⭐ 初始化 Milkdown 编辑器
+        await initializeMilkdownEditor();
+
+        // 启动工作区
         setTimeout(async () => {
             await startupWithWorkspace();
         }, 100);
-		
 
     } catch (error) {
         console.error('❌ 应用初始化失败:', error);
@@ -69,23 +73,144 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-
+/**
+ * ⭐ 初始化 Milkdown 编辑器
+ */
+async function initializeMilkdownEditor() {
+    console.log('🎯 准备初始化 Milkdown 编辑器...');
+    
+    // 检查 Milkdown 模块是否已加载
+    if (!window.milkdownEditor) {
+        console.warn('⚠️ Milkdown 模块未加载，等待...');
+        
+        // 等待模块加载（最多等待 3 秒）
+        let attempts = 0;
+        while (!window.milkdownEditor && attempts < 30) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
+        if (!window.milkdownEditor) {
+            throw new Error('Milkdown 模块加载超时');
+        }
+    }
+    
+    try {
+        // 初始化编辑器
+        await window.milkdownEditor.init('#milkdown-editor', (markdown) => {
+            // 内容变更回调
+            if (appState.activeFilePath && !appState.activeFilePath.startsWith('untitled-')) {
+                appState.hasUnsavedChanges = true;
+                console.log('📝 编辑器内容已变更');
+            }
+        });
+        
+        // 应用当前主题
+        const currentTheme = window.themeManager?.getCurrent() || 'light';
+        window.milkdownEditor.applyTheme(currentTheme);
+        
+        console.log('✅ Milkdown 编辑器初始化成功');
+    } catch (error) {
+        console.error('❌ Milkdown 编辑器初始化失败:', error);
+        
+        // 显示友好的错误提示
+        showError('编辑器初始化失败，请刷新应用重试');
+        
+        // 回退到传统模式（可选）
+        console.warn('⚠️ 将使用传统 textarea 编辑器作为备用');
+        enableFallbackEditor();
+    }
+}
 
 /**
- * 显示欢迎界面
+ * 启用备用编辑器（传统 textarea）
  */
+function enableFallbackEditor() {
+    const editorContainer = document.getElementById('milkdown-editor');
+    if (!editorContainer) return;
+    
+    console.log('🔄 启用备用编辑器模式');
+    
+    // 隐藏 Milkdown 容器
+    editorContainer.style.display = 'none';
+    
+    // 创建传统 textarea
+    const textarea = document.createElement('textarea');
+    textarea.id = 'markdown-editor-fallback';
+    textarea.className = 'markdown-editor';
+    textarea.style.cssText = `
+        width: 100%;
+        height: 100%;
+        padding: 20px;
+        border: none;
+        outline: none;
+        resize: none;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 14px;
+        line-height: 1.8;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    `;
+    
+    editorContainer.parentElement.appendChild(textarea);
+    
+    // 更新全局引用
+    window.markdownEditor = textarea;
+    
+    // 重写加载和保存函数
+    window.loadFileToEditor = async function(relativePath) {
+        try {
+            const content = await invoke('read_file_content', { 
+                rootPath: appState.rootPath,
+                relativePath: relativePath
+            });
+            textarea.value = content;
+            appState.activeFilePath = relativePath;
+            appState.hasUnsavedChanges = false;
+        } catch (error) {
+            showError('加载文件失败: ' + error);
+        }
+    };
+    
+    window.handleSaveFile = async function() {
+        const relativePath = appState.activeFilePath;
+        if (!relativePath) { 
+            showError('没有打开的文件'); 
+            return; 
+        }
+        
+        try {
+            const content = textarea.value;
+            await invoke('save_file', {
+                rootPath: appState.rootPath,
+                relativePath: relativePath,
+                content
+            });
+            appState.hasUnsavedChanges = false;
+            showSuccessMessage('保存成功');
+            saveLastFile(relativePath);
+        } catch (error) {
+            showError('保存文件失败: ' + error);
+        }
+    };
+    
+    // 监听输入
+    textarea.addEventListener('input', () => {
+        appState.hasUnsavedChanges = true;
+    });
+    
+    console.log('✅ 备用编辑器已启用');
+}
+
 function showWelcomeScreen() {
-    // 显示首页
     if (window.tabManager && tabManager.switchToTab) {
         tabManager.switchToTab('home');
     }
     
-    // 清空文件列表
     if (fileListElement) {
         fileListElement.innerHTML = '';
     }
     
-    // 隐藏搜索框
     if (searchBox) {
         searchBox.style.display = 'none';
     }
@@ -109,8 +234,9 @@ function initDOMElements() {
 
         fileListElement = getElement('file-list');
         searchResultsList = getElement('search-results-list');
-        markdownEditor = getElement('markdown-editor');
-        htmlPreview = getElement('html-preview');
+        
+        // ⚠️ 不再初始化 markdownEditor 和 htmlPreview，由 editor.js 处理
+        
         saveBtn = getElement('save-btn');
         contextMenu = getElement('context-menu');
         newNoteBtn = getElement('new-note-btn');
@@ -122,8 +248,8 @@ function initDOMElements() {
         unpinNoteBtn = getElement('unpin-note-btn');
         editorContainer = getElement('editor-container');
         renameItemBtn = getElement('rename-item-btn');
-		newNoteRootBtn = getElement('new-note-root-btn'); // [新增]
-		newFolderRootBtn = getElement('new-folder-root-btn'); // [新增]
+        newNoteRootBtn = getElement('new-note-root-btn');
+        newFolderRootBtn = getElement('new-folder-root-btn');
 
     } catch (error) {
         throw error;
@@ -134,7 +260,6 @@ function initDOMElements() {
 function bindEvents() {
     console.log('🔗 开始绑定事件...');
     
-    // [修改] 打开文件夹现在使用工作区管理器
     openFolderBtn.addEventListener('click', handleOpenWorkspace);
     
     searchInput.addEventListener('input', debounce(handleSearch, 300));
@@ -147,28 +272,20 @@ function bindEvents() {
     deleteFileBtn.addEventListener('click', handleDeleteFile);
     document.addEventListener('click', () => hideContextMenu());
     renameItemBtn.addEventListener('click', handleRenameItem);
-	// [新增] 绑定根目录新建按钮事件
     newNoteRootBtn.addEventListener('click', handleCreateNoteInRoot);
     newFolderRootBtn.addEventListener('click', handleCreateFolderInRoot);
     
-    markdownEditor.addEventListener('input', () => {
-        appState.hasUnsavedChanges = true;
-    });
-    
     document.addEventListener('keydown', (e) => {
-		 // Ctrl+N 新建笔记
         if (e.ctrlKey && e.key === 'n' && !e.shiftKey) {
             e.preventDefault();
             handleCreateNoteInRoot();
         }
         
-        // Ctrl+Shift+N 新建文件夹
         if (e.ctrlKey && e.shiftKey && e.key === 'N') {
             e.preventDefault();
             handleCreateFolderInRoot();
         }
         
-        // Ctrl+S 保存
         if (e.ctrlKey && e.key === 's') {
             e.preventDefault();
             handleSaveFile();
@@ -184,27 +301,21 @@ function bindEvents() {
     console.log('✅ 事件绑定完成');
 }
 
-/**
- * [新增] 处理打开工作区
- */
 async function handleOpenWorkspace() {
     const workspacePath = await workspaceManager.selectWorkspace();
     
     if (workspacePath) {
-        // 设置 rootPath
         appState.rootPath = workspacePath;
         appState.fileTreeRoot = [];
         appState.fileTreeMap.clear();
         appState.activeTagFilter = null;
         
         try {
-            // 数据库迁移（如果需要）
             await invoke('migrate_paths_to_relative', { rootPath: workspacePath });
         } catch (e) {
             console.error("数据库迁移失败:", e);
         }
         
-        // 刷新文件树
         await refreshFileTree("");
         searchBox.style.display = 'block';
         
@@ -214,30 +325,19 @@ async function handleOpenWorkspace() {
     }
 }
 
-
-
-// 在 app.js 的 startupWithWorkspace 函数中添加清理逻辑
-
-/**
- * [新增] 支持工作区的启动流程 (带清理)
- */
 async function startupWithWorkspace() {
     console.log('🏁 开始启动流程...');
 
-    // 尝试恢复上次的工作区
     const restored = await workspaceManager.restoreLastWorkspace();
 
     if (restored) {
         console.log('✅ 成功恢复上次的工作区');
         
-        // 获取当前工作区路径
         const currentWorkspace = await invoke('get_current_workspace');
         
         if (currentWorkspace) {
-            // 设置 rootPath
             appState.rootPath = currentWorkspace;
             
-            // [新增] 清理无效的历史记录和置顶
             try {
                 console.log('🧹 清理无效的历史记录...');
                 const cleanupCount = await invoke('cleanup_invalid_history', { 
@@ -251,7 +351,6 @@ async function startupWithWorkspace() {
                 console.warn('清理历史记录失败:', error);
             }
             
-            // 刷新文件树
             await refreshFileTree("");
             searchBox.style.display = 'block';
             
@@ -259,7 +358,6 @@ async function startupWithWorkspace() {
                 await refreshAllTagsList();
             }
             
-            // 恢复上次打开的文件
             await restoreLastFileInWorkspace();
         }
     } else {
@@ -270,9 +368,6 @@ async function startupWithWorkspace() {
     console.log('✅ 应用启动完成');
 }
 
-/**
- * [新增] 在工作区内恢复上次打开的文件 (带验证)
- */
 async function restoreLastFileInWorkspace() {
     try {
         const lastFile = localStorage.getItem('cheetah_last_file');
@@ -287,18 +382,15 @@ async function restoreLastFileInWorkspace() {
             }
         }
         
-        // [修复] 验证文件是否存在再打开
         if (lastFile) {
             try {
                 await invoke('read_file_content', {
                     rootPath: appState.rootPath,
                     relativePath: lastFile
                 });
-                // 文件存在，打开它
                 tabManager.openTab(lastFile);
             } catch (error) {
                 console.warn('上次打开的文件不存在:', lastFile);
-                // 清除无效的记录
                 localStorage.removeItem('cheetah_last_file');
             }
         }
@@ -307,11 +399,11 @@ async function restoreLastFileInWorkspace() {
     }
 }
 
-
-
 // 导出必要的函数和变量
 window.appState = appState;
 window.showWelcomeScreen = showWelcomeScreen;
 window.handleOpenWorkspace = handleOpenWorkspace;
+window.initializeMilkdownEditor = initializeMilkdownEditor;
+window.enableFallbackEditor = enableFallbackEditor;
 
 console.log('✅ app.js 加载完成');

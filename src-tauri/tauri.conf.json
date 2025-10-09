@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "identifier": "com.cheetahnote.desktop",
   "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
     "devUrl": "http://localhost:1420",
-    "frontendDist": "../src"
+    "frontendDist": "../dist"
   },
   "app": {
     "withGlobalTauri": true,
@@ -14,7 +16,7 @@
         "script-src": "'self' 'unsafe-inline'",
         "style-src": "'self' 'unsafe-inline'"
       },
-	    "capabilities": ["default"]   
+      "capabilities": ["default"]   
     },
     "windows": [
       {
@@ -31,8 +33,7 @@
         "decorations": true,
         "alwaysOnTop": false,
         "fullscreen": false,
-        "skipTaskbar": false,
-        "additionalBrowserArgs": "--disable-gpu --disable-gpu-sandbox --disable-software-rasterizer --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=TranslateUI --disable-ipc-flooding-protection --disable-dev-shm-usage --disable-extensions --disable-plugins --disable-background-networking --disable-sync"
+        "skipTaskbar": false
       }
     ]
   }

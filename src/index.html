@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/utils.css">
+	    <!-- ⭐ Milkdown 编辑器样式 -->
+    <link rel="stylesheet" href="css/milkdown-theme.css">
 </head>
 
 <body>
@@ -115,10 +117,12 @@
                 </div>
                 
                 <div id="editor-wrapper" class="tab-content">
-                    <div id="editor-container" class="editor-container">
-                        <textarea id="markdown-editor" class="markdown-editor" placeholder="在这里编写 Markdown..."></textarea>
-                        <div id="html-preview" class="html-preview"></div>
-                    </div>
+				     <div id="editor-container" class="editor-container">
+						  <!-- 移除旧的 textarea 和 预览区 -->
+						<!-- 替换为 Milkdown 容器 -->
+						<div id="milkdown-editor" class="milkdown-container"></div>
+					</div>
+                                      
                 </div>
             </div>
         </main>
@@ -171,7 +175,7 @@
         </div>
     </div>
 	
-
+    <script type="module" src="js/milkdown-editor.js"></script>
     <script src="js/ui-utils.js"></script>
 	<script src="js/theme.js"></script> <!-- [新增] 主题系统 -->
     <script src="js/virtual-scroll.js"></script>

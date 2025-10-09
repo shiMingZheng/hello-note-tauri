@@ -2,59 +2,30 @@
   "name": "cheetah-note",
   "private": true,
   "version": "0.1.0",
-  "description": "高性能 Markdown 笔记软件 - 追求极致的性能和用户体验",
+  "type": "module",
   "scripts": {
-    "dev": "cargo tauri dev",
-    "build": "cargo tauri build",
-    "preview": "cargo tauri build --debug",
-    "check": "cargo tauri info",
-    "lint": "echo 'Running code quality checks...' && npm run lint:js && npm run lint:css",
-    "lint:js": "echo 'Checking JavaScript...'",
-    "lint:css": "echo 'Checking CSS...'",
-    "format": "echo 'Formatting code...'",
-    "clean": "cargo clean && echo 'Build cache cleaned'",
-    "start:dev-server": "node dev-server.js",
-    "setup": "echo 'Setting up CheetahNote development environment...'",
-    "health-check": "cargo tauri info && echo 'Environment check complete'"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
-  "keywords": [
-    "markdown",
-    "notes",
-    "tauri",
-    "rust",
-    "performance",
-    "desktop-app",
-    "local-first"
-  ],
-  "author": {
-    "name": "CheetahNote Team",
-    "email": "team@cheetahnote.com",
-    "url": "https://github.com/your-username/cheetah-note"
+  "dependencies": {
+    "@milkdown/core": "^7.3.6",
+    "@milkdown/prose": "^7.3.6",
+    "@milkdown/ctx": "^7.3.6",
+    "@milkdown/transformer": "^7.3.6",
+    "@milkdown/preset-commonmark": "^7.3.6",
+    "@milkdown/preset-gfm": "^7.3.6",
+    "@milkdown/plugin-listener": "^7.3.6",
+    "@milkdown/plugin-history": "^7.3.6",
+    "@milkdown/plugin-clipboard": "^7.3.6",
+    "@milkdown/plugin-cursor": "^7.3.6",
+    "@milkdown/utils": "^7.3.6",
+    "@milkdown/theme-nord": "^7.3.6"
   },
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/your-username/cheetah-note.git"
-  },
-  "bugs": {
-    "url": "https://github.com/your-username/cheetah-note/issues"
-  },
-  "homepage": "https://github.com/your-username/cheetah-note#readme",
   "devDependencies": {
-    "@tauri-apps/cli": "^2.8.0"
-  },
-  "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
-  },
-  "browserslist": [
-    "last 2 versions",
-    "not dead",
-    "not ie 11"
-  ],
-  "config": {
-    "tauri": {
-      "version": "2.8.5"
-    }
+    "@tauri-apps/cli": "^2.8.0",
+    "vite": "^5.0.0"
   }
 }

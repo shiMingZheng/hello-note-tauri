@@ -1,0 +1,367 @@
+/* src/css/milkdown-theme.css */
+/* CheetahNote - Milkdown 编辑器主题样式 */
+
+/* ========================================
+   编辑器容器基础样式
+   ======================================== */
+#milkdown-editor {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+/* Milkdown 编辑器核心元素 */
+#milkdown-editor .milkdown {
+    width: 100%;
+    height: 100%;
+    outline: none;
+}
+
+#milkdown-editor .editor {
+    width: 100%;
+    height: 100%;
+}
+
+/* ProseMirror 编辑器容器 */
+#milkdown-editor .ProseMirror {
+    width: 100%;
+    min-height: 100%;
+    outline: none;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 
+                 'Microsoft YaHei', sans-serif;
+    font-size: 14px;
+    line-height: 1.8;
+    word-wrap: break-word;
+}
+
+/* ========================================
+   浅色主题样式
+   ======================================== */
+#milkdown-editor.theme-light {
+    background-color: #ffffff;
+    color: #2c3e50;
+}
+
+#milkdown-editor.theme-light .ProseMirror {
+    color: #2c3e50;
+}
+
+/* 标题 */
+#milkdown-editor.theme-light h1 {
+    font-size: 28px;
+    font-weight: 600;
+    margin: 24px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #dee2e6;
+    color: #2c3e50;
+}
+
+#milkdown-editor.theme-light h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 20px 0 14px;
+    color: #2c3e50;
+}
+
+#milkdown-editor.theme-light h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 16px 0 12px;
+    color: #2c3e50;
+}
+
+#milkdown-editor.theme-light h4,
+#milkdown-editor.theme-light h5,
+#milkdown-editor.theme-light h6 {
+    font-weight: 600;
+    margin: 12px 0 10px;
+    color: #2c3e50;
+}
+
+/* 段落 */
+#milkdown-editor.theme-light p {
+    margin: 0 0 16px;
+    line-height: 1.8;
+}
+
+/* 代码 */
+#milkdown-editor.theme-light code {
+    background-color: #f8f9fa;
+    color: #e74c3c;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 90%;
+}
+
+#milkdown-editor.theme-light pre {
+    background-color: #f8f9fa;
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 16px 0;
+}
+
+#milkdown-editor.theme-light pre code {
+    background: none;
+    padding: 0;
+    color: #2c3e50;
+}
+
+/* 引用 */
+#milkdown-editor.theme-light blockquote {
+    border-left: 4px solid #4a90e2;
+    padding-left: 16px;
+    color: #7f8c8d;
+    margin: 16px 0;
+    font-style: italic;
+}
+
+/* 列表 */
+#milkdown-editor.theme-light ul,
+#milkdown-editor.theme-light ol {
+    margin: 16px 0;
+    padding-left: 24px;
+}
+
+#milkdown-editor.theme-light li {
+    margin-bottom: 8px;
+}
+
+/* 表格 */
+#milkdown-editor.theme-light table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+}
+
+#milkdown-editor.theme-light th,
+#milkdown-editor.theme-light td {
+    border: 1px solid #dee2e6;
+    padding: 8px 12px;
+    text-align: left;
+}
+
+#milkdown-editor.theme-light th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+/* 链接 */
+#milkdown-editor.theme-light a {
+    color: #4a90e2;
+    text-decoration: none;
+}
+
+#milkdown-editor.theme-light a:hover {
+    text-decoration: underline;
+}
+
+/* 分割线 */
+#milkdown-editor.theme-light hr {
+    border: none;
+    border-top: 2px solid #dee2e6;
+    margin: 24px 0;
+}
+
+/* 任务列表 */
+#milkdown-editor.theme-light input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+/* ========================================
+   深色主题样式（温暖棕色调）
+   ======================================== */
+#milkdown-editor.theme-dark {
+    background-color: #2b2622;
+    color: #e8e6e3;
+}
+
+#milkdown-editor.theme-dark .ProseMirror {
+    color: #e8e6e3;
+}
+
+/* 标题 */
+#milkdown-editor.theme-dark h1 {
+    font-size: 28px;
+    font-weight: 600;
+    margin: 24px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #4a443d;
+    color: #e8e6e3;
+}
+
+#milkdown-editor.theme-dark h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 20px 0 14px;
+    color: #e8e6e3;
+}
+
+#milkdown-editor.theme-dark h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 16px 0 12px;
+    color: #e8e6e3;
+}
+
+#milkdown-editor.theme-dark h4,
+#milkdown-editor.theme-dark h5,
+#milkdown-editor.theme-dark h6 {
+    font-weight: 600;
+    margin: 12px 0 10px;
+    color: #e8e6e3;
+}
+
+/* 段落 */
+#milkdown-editor.theme-dark p {
+    margin: 0 0 16px;
+    line-height: 1.8;
+}
+
+/* 代码 */
+#milkdown-editor.theme-dark code {
+    background-color: #34302b;
+    color: #ef5350;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 90%;
+}
+
+#milkdown-editor.theme-dark pre {
+    background-color: #34302b;
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 16px 0;
+    border: 1px solid #4a443d;
+}
+
+#milkdown-editor.theme-dark pre code {
+    background: none;
+    padding: 0;
+    color: #e8e6e3;
+}
+
+/* 引用 */
+#milkdown-editor.theme-dark blockquote {
+    border-left: 4px solid #6ba8ff;
+    padding-left: 16px;
+    color: #b8b5b0;
+    margin: 16px 0;
+    font-style: italic;
+}
+
+/* 列表 */
+#milkdown-editor.theme-dark ul,
+#milkdown-editor.theme-dark ol {
+    margin: 16px 0;
+    padding-left: 24px;
+}
+
+#milkdown-editor.theme-dark li {
+    margin-bottom: 8px;
+}
+
+/* 表格 */
+#milkdown-editor.theme-dark table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+}
+
+#milkdown-editor.theme-dark th,
+#milkdown-editor.theme-dark td {
+    border: 1px solid #4a443d;
+    padding: 8px 12px;
+    text-align: left;
+}
+
+#milkdown-editor.theme-dark th {
+    background-color: #34302b;
+    font-weight: 600;
+}
+
+/* 链接 */
+#milkdown-editor.theme-dark a {
+    color: #6ba8ff;
+    text-decoration: none;
+}
+
+#milkdown-editor.theme-dark a:hover {
+    text-decoration: underline;
+}
+
+/* 分割线 */
+#milkdown-editor.theme-dark hr {
+    border: none;
+    border-top: 2px solid #4a443d;
+    margin: 24px 0;
+}
+
+/* 任务列表 */
+#milkdown-editor.theme-dark input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+/* ========================================
+   光标和选择样式
+   ======================================== */
+#milkdown-editor .ProseMirror-focused {
+    outline: none;
+}
+
+#milkdown-editor ::selection {
+    background-color: rgba(74, 144, 226, 0.3);
+}
+
+/* ========================================
+   占位符样式
+   ======================================== */
+#milkdown-editor .ProseMirror p.is-empty:first-child::before {
+    content: '开始编写您的笔记...';
+    color: #999;
+    pointer-events: none;
+    position: absolute;
+    height: 0;
+}
+
+#milkdown-editor.theme-dark .ProseMirror p.is-empty:first-child::before {
+    color: #666;
+}
+
+/* ========================================
+   滚动条样式
+   ======================================== */
+#milkdown-editor::-webkit-scrollbar {
+    width: 8px;
+}
+
+#milkdown-editor.theme-light::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#milkdown-editor.theme-light::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 4px;
+}
+
+#milkdown-editor.theme-light::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+}
+
+#milkdown-editor.theme-dark::-webkit-scrollbar-track {
+    background: rgba(255, 248, 240, 0.05);
+}
+
+#milkdown-editor.theme-dark::-webkit-scrollbar-thumb {
+    background: rgba(255, 248, 240, 0.2);
+    border-radius: 4px;
+}
+
+#milkdown-editor.theme-dark::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 248, 240, 0.35);
+}
