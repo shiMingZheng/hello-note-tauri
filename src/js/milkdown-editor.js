@@ -1,10 +1,10 @@
 // src/js/milkdown-editor.js
-// CheetahNote - Milkdown 所见即所得编辑器模块
+// CheetahNote - Milkdown 编辑器（完全修复版）
 
 'use strict';
 console.log('📜 milkdown-editor.js 开始加载...');
 
-import { Editor, rootCtx, defaultValueCtx } from '@milkdown/core';
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx } from '@milkdown/core';
 import { commonmark } from '@milkdown/preset-commonmark';
 import { gfm } from '@milkdown/preset-gfm';
 import { history } from '@milkdown/plugin-history';
@@ -12,6 +12,7 @@ import { clipboard } from '@milkdown/plugin-clipboard';
 import { cursor } from '@milkdown/plugin-cursor';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { nord } from '@milkdown/theme-nord';
+import { replaceAll, getMarkdown } from '@milkdown/utils';
 
 /**
  * Milkdown 编辑器管理器
@@ -22,6 +23,7 @@ class MilkdownEditorManager {
         this.currentContent = '';
         this.hasUnsavedChanges = false;
         this.onContentChange = null;
+        this.isLoading = false; // 防止循环更新
     }
 
     /**
@@ -36,10 +38,18 @@ class MilkdownEditorManager {
             this.editor = await Editor.make()
                 .config((ctx) => {
                     ctx.set(rootCtx, document.querySelector(containerSelector));
-                    ctx.set(defaultValueCtx, '');
+                    ctx.set(defaultValueCtx, '# 欢迎使用 CheetahNote\n\n开始编写您的笔记...');
                     
+                    // 监听内容变化
                     ctx.get(listenerCtx).markdownUpdated((ctx, markdown, prevMarkdown) => {
-                        if (markdown !== prevMarkdown) {
+                        // 避免在加载时触发变更
+                        if (this.isLoading) {
+                            console.log('📝 [跳过] 正在加载内容，忽略变更');
+                            return;
+                        }
+                        
+                        if (markdown !== prevMarkdown && markdown !== this.currentContent) {
+                            console.log('📝 [触发] 内容已变更');
                             this.currentContent = markdown;
                             this.hasUnsavedChanges = true;
                             
@@ -70,7 +80,8 @@ class MilkdownEditorManager {
     }
 
     /**
-     * 加载内容
+     * 加载内容到编辑器
+     * @param {string} markdown - Markdown 内容
      */
     async loadContent(markdown) {
         if (!this.editor) {
@@ -78,23 +89,14 @@ class MilkdownEditorManager {
             return;
         }
 
-        console.log('📝 加载笔记内容到编辑器');
+        console.log('📝 加载内容，长度:', markdown.length);
+        
+        // 设置加载标志，防止触发 onContentChange
+        this.isLoading = true;
         
         try {
-            this.editor.action((ctx) => {
-                const view = ctx.get(rootCtx);
-                const parser = ctx.get(parserCtx);
-                
-                // 简单方式：销毁并重建
-                if (view && view.editor) {
-                    const doc = parser(markdown);
-                    if (doc) {
-                        const state = view.editor.state;
-                        const tr = state.tr.replaceWith(0, state.doc.content.size, doc.content);
-                        view.editor.view.dispatch(tr);
-                    }
-                }
-            });
+            // 使用 replaceAll action 更新内容
+            await this.editor.action(replaceAll(markdown));
             
             this.currentContent = markdown;
             this.hasUnsavedChanges = false;
@@ -102,50 +104,45 @@ class MilkdownEditorManager {
             console.log('✅ 内容加载成功');
         } catch (error) {
             console.error('❌ 加载内容失败:', error);
-            
-            // 备用方案：重建编辑器
-            try {
-                await this.destroy();
-                await this.init('#milkdown-editor', this.onContentChange);
-                
-                this.editor.action((ctx) => {
-                    ctx.set(defaultValueCtx, markdown);
-                });
-                
-                this.currentContent = markdown;
-                this.hasUnsavedChanges = false;
-            } catch (retryError) {
-                console.error('❌ 重试加载失败:', retryError);
-                throw retryError;
-            }
+            throw error;
+        } finally {
+            // 延迟重置加载标志，确保 markdownUpdated 不会立即触发
+            setTimeout(() => {
+                this.isLoading = false;
+                console.log('🔓 加载标志已重置');
+            }, 100);
         }
     }
 
     /**
-     * 获取 Markdown
+     * 获取当前 Markdown 内容
+     * @returns {string} Markdown 文本
      */
     getMarkdown() {
         if (!this.editor) {
             console.warn('⚠️ 编辑器未初始化');
-            return '';
+            return this.currentContent || '';
         }
 
         try {
-            return this.currentContent || '';
+            // 使用 action 获取最新内容
+            const markdown = this.editor.action(getMarkdown());
+            this.currentContent = markdown;
+            return markdown;
         } catch (error) {
             console.error('❌ 导出 Markdown 失败:', error);
-            return this.currentContent;
+            return this.currentContent || '';
         }
     }
 
     /**
      * 清空编辑器
      */
-    clear() {
+    async clear() {
         if (!this.editor) return;
         
         try {
-            this.loadContent('');
+            await this.loadContent('');
             this.hasUnsavedChanges = false;
         } catch (error) {
             console.error('❌ 清空编辑器失败:', error);
@@ -154,6 +151,7 @@ class MilkdownEditorManager {
 
     /**
      * 应用主题
+     * @param {string} themeName - 'light' | 'dark'
      */
     applyTheme(themeName) {
         console.log(`🎨 应用编辑器主题: ${themeName}`);
@@ -166,6 +164,25 @@ class MilkdownEditorManager {
     }
 
     /**
+     * 设置只读模式
+     * @param {boolean} readonly - 是否只读
+     */
+    setReadonly(readonly) {
+        if (!this.editor) return;
+        
+        try {
+            this.editor.action((ctx) => {
+                const view = ctx.get(editorViewCtx);
+                if (view && view.setProps) {
+                    view.setProps({ editable: () => !readonly });
+                }
+            });
+        } catch (error) {
+            console.error('❌ 设置只读模式失败:', error);
+        }
+    }
+
+    /**
      * 销毁编辑器
      */
     async destroy() {
@@ -174,9 +191,11 @@ class MilkdownEditorManager {
             try {
                 await this.editor.destroy();
             } catch (error) {
-                console.warn('销毁编辑器时出错:', error);
+                console.warn('⚠️ 销毁编辑器时出错:', error);
             }
             this.editor = null;
+            this.currentContent = '';
+            this.hasUnsavedChanges = false;
         }
     }
 }
@@ -184,7 +203,15 @@ class MilkdownEditorManager {
 // 创建全局编辑器实例
 const milkdownEditor = new MilkdownEditorManager();
 
-// 导出到全局
+// 导出到全局（兼容旧代码）
 window.milkdownEditor = milkdownEditor;
+window.markdownEditor = {
+    get value() {
+        return milkdownEditor.getMarkdown();
+    },
+    set value(content) {
+        milkdownEditor.loadContent(content);
+    }
+};
 
 console.log('✅ milkdown-editor.js 加载完成');

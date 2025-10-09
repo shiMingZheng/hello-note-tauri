@@ -77,13 +77,11 @@ document.addEventListener('DOMContentLoaded', async () => {
  * ⭐ 初始化 Milkdown 编辑器
  */
 async function initializeMilkdownEditor() {
-    console.log('🎯 准备初始化 Milkdown 编辑器...');
+    console.log('🎯 [initializeMilkdownEditor] 准备初始化...');
     
-    // 检查 Milkdown 模块是否已加载
     if (!window.milkdownEditor) {
-        console.warn('⚠️ Milkdown 模块未加载，等待...');
+        console.warn('⚠️ [initializeMilkdownEditor] 等待模块加载...');
         
-        // 等待模块加载（最多等待 3 秒）
         let attempts = 0;
         while (!window.milkdownEditor && attempts < 30) {
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -96,29 +94,21 @@ async function initializeMilkdownEditor() {
     }
     
     try {
-        // 初始化编辑器
         await window.milkdownEditor.init('#milkdown-editor', (markdown) => {
-            // 内容变更回调
             if (appState.activeFilePath && !appState.activeFilePath.startsWith('untitled-')) {
                 appState.hasUnsavedChanges = true;
-                console.log('📝 编辑器内容已变更');
+                console.log('📝 [回调] 编辑器内容已变更');
             }
         });
         
-        // 应用当前主题
         const currentTheme = window.themeManager?.getCurrent() || 'light';
         window.milkdownEditor.applyTheme(currentTheme);
         
-        console.log('✅ Milkdown 编辑器初始化成功');
+        console.log('✅ [initializeMilkdownEditor] 编辑器初始化成功');
     } catch (error) {
-        console.error('❌ Milkdown 编辑器初始化失败:', error);
-        
-        // 显示友好的错误提示
-        showError('编辑器初始化失败，请刷新应用重试');
-        
-        // 回退到传统模式（可选）
-        console.warn('⚠️ 将使用传统 textarea 编辑器作为备用');
-        enableFallbackEditor();
+        console.error('❌ [initializeMilkdownEditor] 初始化失败:', error);
+        showError('编辑器初始化失败: ' + error.message);
+        throw error;
     }
 }
 
