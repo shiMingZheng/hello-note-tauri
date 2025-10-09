@@ -138,6 +138,21 @@
 /* ... .file-list-container 样式之后 ... */
 
 /* [新增] “我的标签”列表样式 */
+.sidebar-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-section-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
 .current-file-tags-list {
     padding: 0 15px 10px;
     list-style: none;
