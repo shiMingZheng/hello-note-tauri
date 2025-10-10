@@ -1,0 +1,41 @@
+/* src/css/plugin-ui.css */
+/* CheetahNote 插件 UI 样式 */
+
+/* ========================================
+   插件菜单按钮样式
+   ======================================== */
+.plugin-menu-item {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 6px 8px;
+    transition: all 0.2s;
+}
+
+.plugin-menu-item:hover {
+    background: var(--hover-bg);
+    border-color: var(--primary-color);
+}
+
+/* ========================================
+   插件模态窗口样式
+   ======================================== */
+.plugin-modal-overlay {
+    animation: fadeIn 0.2s ease;
+}
+
+.plugin-modal-overlay iframe {
+    animation: slideUp 0.3s ease;
+}
+
+/* ========================================
+   响应式调整
+   ======================================== */
+@media (max-width: 768px) {
+    .plugin-modal-overlay iframe {
+        width: 95% !important;
+        height: 95% !important;
+    }
+}

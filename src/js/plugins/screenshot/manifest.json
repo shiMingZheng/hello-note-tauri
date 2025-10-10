@@ -1,0 +1,13 @@
+{
+  "id": "screenshot",
+  "name": "截图标注插件",
+  "version": "1.0.0",
+  "description": "支持全屏截图、区域截图、标注和插入到笔记",
+  "author": "CheetahNote",
+  "permissions": [
+    "screen_capture",
+    "file_write",
+    "window_create"
+  ],
+  "entry": "index.js"
+}

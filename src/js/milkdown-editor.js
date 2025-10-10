@@ -308,22 +308,27 @@ class MilkdownEditorManager {
      * @returns {string} Markdown 文本
      */
     getMarkdown() {
-        if (!this.editor) {
-            console.warn('⚠️ 编辑器未初始化');
-            return this.currentContent || '';
-        }
-
-        try {
-            // 使用 action 获取最新内容
-            const markdown = this.editor.action(getMarkdown());
-            this.currentContent = markdown;
-            return markdown;
-        } catch (error) {
-            console.error('❌ 导出 Markdown 失败:', error);
-            return this.currentContent || '';
-        }
-    }
-
+		if (!this.editor) {
+			console.warn('⚠️ 编辑器未初始化');
+			return this.currentContent || '';
+		}
+	
+		try {
+			// 使用 action 获取最新内容
+			let markdown = this.editor.action(getMarkdown());
+			
+			// ⭐ 修复：去除 Wikilink 的转义反斜杠
+			// 将 \[\[ 替换回 [[，将 \]\] 替换回 ]]
+			markdown = markdown.replace(/\\\[\\\[/g, '[[').replace(/\\\]\\\]/g, ']]');
+			
+			this.currentContent = markdown;
+			return markdown;
+		} catch (error) {
+			console.error('❌ 导出 Markdown 失败:', error);
+			return this.currentContent || '';
+		}
+	}
+	
     /**
      * 清空编辑器
      */

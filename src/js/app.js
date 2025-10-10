@@ -1,8 +1,12 @@
 // src/js/app.js
 // CheetahNote - 应用入口、状态管理与初始化 (支持工作区版本)
+// 在现有 import 语句后添加：
+// 注意：由于 plugin-manager.js 和 plugin-context.js 不是模块，
+// 它们通过 <script> 标签加载，所以不需要 import
 
 'use strict';
 console.log('📜 app.js 开始加载...');
+
 
 const { invoke } = window.__TAURI__.core;
 const { open } = window.__TAURI__.dialog;
@@ -59,7 +63,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         initializeHomepage();
 
-
+		// ⭐【新增】初始化插件系统
+        if (window.pluginManager && window.pluginContext) {
+            await window.pluginManager.init(window.pluginContext);
+        }
         // 启动工作区
         setTimeout(async () => {
 			// ⭐ 初始化 Milkdown 编辑器
