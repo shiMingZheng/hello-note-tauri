@@ -186,17 +186,10 @@ const workspaceManager = {
      */
     async closeWorkspace() {
         console.log('🔒 关闭工作区');
-		  // 【新增】先清理前端资源
-		if (window.globalCleanup) {
-		swindow.globalCleanup();
-		}
 
         try {
             await invoke('close_workspace');
             this.currentWorkspace = null;
-			 // 【新增】等待一小段时间确保 Worker 完全退出
-        await new Promise(resolve => setTimeout(resolve, 200));
-
             
             // 清理应用状态
             appState.rootPath = null;

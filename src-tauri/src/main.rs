@@ -69,10 +69,6 @@ pub fn run() {
 			commands::screenshot::capture_screen,
 			commands::screenshot::save_image,
 			commands::screenshot::create_floating_window,
-			
-			 // 【新增】资源管理命令
-			commands::resource_manager::minimize_resources,
-			commands::resource_manager::restore_resources,
             
             // 其他命令
             commands::pins::pin_note,
@@ -127,17 +123,6 @@ pub fn run() {
                         }
                     }
                 }
-				// 【新增】强制清理 WebView2 资源
-			#[cfg(target_os = "windows")]
-			{
-				use std::thread;
-				use std::time::Duration;
-				
-				// 等待 100ms 让 WebView2 清理
-				thread::sleep(Duration::from_millis(100));
-			}
-        
-       
                 
                 println!("👋 CheetahNote 已关闭");
             }

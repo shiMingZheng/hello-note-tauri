@@ -11,4 +11,3 @@ pub mod path_utils; // [新增]
 pub mod workspace;
 pub mod sync; // 
 pub mod screenshot;  // ⭐【新增】截图模块
-pub mod resource_manager; // 【新增】

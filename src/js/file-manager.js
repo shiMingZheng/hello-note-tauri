@@ -25,7 +25,6 @@ function saveExpandedFolders() {
 /**
  * [保留] 刷新文件树
  */
-// 位置：file-manager.js refreshFileTree 函数
 async function refreshFileTree(relativePath = "") {
     if (!appState.rootPath) {
         console.warn('⚠️ rootPath 未设置，无法刷新文件树');
@@ -33,16 +32,6 @@ async function refreshFileTree(relativePath = "") {
     }
 
     console.log(`🔄 刷新文件树: ${relativePath || '(根目录)'}`);
-    
-    // 【新增】确保 fileTreeCache 已初始化
-    if (!appState.fileTreeCache) {
-        console.warn('⚠️ fileTreeCache 未初始化，正在创建...');
-        if (window.LRUCache) {
-            appState.fileTreeCache = new window.LRUCache(500);
-        } else {
-            throw new Error('LRUCache 未加载');
-        }
-    }
     
     try {
         const nodes = await invoke('list_dir_lazy', { 
@@ -55,10 +44,10 @@ async function refreshFileTree(relativePath = "") {
         if (relativePath === "") {
             console.log('  📂 更新根目录');
             appState.fileTreeRoot = nodes;
-            appState.fileTreeCache.clear();
+            appState.fileTreeMap.clear();
         } else {
             console.log(`  📁 更新子目录: ${relativePath}`);
-            appState.fileTreeCache.set(relativePath, nodes);
+            appState.fileTreeMap.set(relativePath, nodes);
             
             if (!appState.expandedFolders.has(relativePath)) {
                 appState.expandedFolders.add(relativePath);
@@ -127,14 +116,13 @@ async function toggleFolderLazy(folderPath) {
         appState.expandedFolders.delete(folderPath);
     } else {
         appState.expandedFolders.add(folderPath);
-        if (!appState.fileTreeCache.has(folderPath)) {
+        if (!appState.fileTreeMap.has(folderPath)) {
             try {
                 const children = await invoke('list_dir_lazy', { rootPath: appState.rootPath, relativePath: folderPath });
-                appState.fileTreeCache.set(folderPath, children);
+                appState.fileTreeMap.set(folderPath, children);
             } catch (error) {
                 showError(`获取子目录失败: ${error}`);
                 appState.expandedFolders.delete(folderPath);
-				appState.fileTreeCache.set(folderPath, null); // 标记为已移除
             }
         }
     }
@@ -158,7 +146,7 @@ async function handleCreateNote() {
         
         appState.expandedFolders.add(relativeDirPath);
         const children = await invoke('list_dir_lazy', { rootPath: appState.rootPath, relativePath: relativeDirPath });
-        appState.fileTreeCache.set(relativeDirPath, children);
+        appState.fileTreeMap.set(relativeDirPath, children);
         
         saveExpandedFolders();
         updateVirtualScrollData();
@@ -187,7 +175,7 @@ async function handleCreateFolder() {
         
         appState.expandedFolders.add(relativeParentPath);
         const children = await invoke('list_dir_lazy', { rootPath: appState.rootPath, relativePath: relativeParentPath });
-        appState.fileTreeCache.set(relativeParentPath, children);
+        appState.fileTreeMap.set(relativeParentPath, children);
         
         saveExpandedFolders();
         updateVirtualScrollData();
@@ -297,7 +285,7 @@ function handleRenameItem() {
                     tabManager.updatePathsForRenamedFolder(oldPrefix, newPrefix);
                 }
 
-                appState.fileTreeCache.delete(oldPrefix);
+                appState.fileTreeMap.delete(oldPrefix);
                 
                 if (appState.expandedFolders.has(oldPrefix)) {
                     appState.expandedFolders.delete(oldPrefix);

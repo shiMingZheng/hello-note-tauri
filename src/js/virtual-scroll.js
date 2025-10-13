@@ -4,10 +4,6 @@
 'use strict';
 console.log('📜 virtual-scroll.js 开始加载...');
 
-// 【新增】检查 LRUCache 是否已加载
-if (!window.LRUCache) {
-    console.error('❌ LRUCache 未定义，请确保 lru-cache.js 已加载');
-}
 /**
  * 设置虚拟滚动
  */
@@ -116,27 +112,20 @@ function renderVisibleItems(startIndex, endIndex) {
     fileListElement.appendChild(fragment);
 }
 
-// 改造点：移除递归，改为只展开已缓存的节点
-
-// 位置：virtual-scroll.js buildVisibleList 函数
+/**
+ * [新函数] 递归地从 Map 构建扁平化的可见列表
+ */
 function buildVisibleList(nodes, level, result) {
     if (!nodes) return;
-    
-    // 【新增】确保 fileTreeCache 存在
-    if (!appState.fileTreeCache) {
-        console.warn('⚠️ fileTreeCache 未初始化');
-        return;
-    }
     
     for (const node of nodes) {
         const item = { ...node, level };
         result.push(item);
 
-        if (node.is_dir && appState.expandedFolders && appState.expandedFolders.has(node.path)) {
-            const children = appState.fileTreeCache.get(node.path);
-            if (children) {
-                buildVisibleList(children, level + 1, result);
-            }
+        // 如果目录是展开的，并且我们已经加载了它的子节点，则递归添加
+        if (node.is_dir && appState.expandedFolders.has(node.path)) {
+            const children = appState.fileTreeMap.get(node.path);
+            buildVisibleList(children, level + 1, result);
         }
     }
 }
@@ -146,25 +135,33 @@ function buildVisibleList(nodes, level, result) {
  * [修改] `updateVirtualScrollData` 现在可以接收一个可选的文件路径数组
  * @param {string[]} [filteredPaths=null] - 如果提供，则只显示这些路径的文件
  */
-// 【完整改造】updateVirtualScrollData 函数
-
 function updateVirtualScrollData(filteredPaths = null) {
     let visibleItems = [];
 
     if (filteredPaths) {
-        // 【改造】filteredPaths 现在可能是路径数组或节点数组
-        if (filteredPaths.length > 0 && typeof filteredPaths[0] === 'string') {
-            // 如果是路径数组，需要转换为节点数组
-            const filteredNodes = [];
-            for (const path of filteredPaths) {
-                const node = findNodeInTree(appState.fileTreeRoot, path);
-                if (node) filteredNodes.push(node);
+        // 如果有筛选路径，我们只从 fileTreeMap 中构建这些文件的视图
+        const filteredNodes = [];
+        const pathSet = new Set(filteredPaths);
+
+        function findNodesByPaths(nodes) {
+            if (!nodes) return;
+            for (const node of nodes) {
+                if (pathSet.has(node.path)) {
+                    filteredNodes.push(node);
+                }
+                // 即便父目录不在Set中，也要继续查找其子目录
+                if (node.is_dir) {
+                    const children = appState.fileTreeMap.get(node.path);
+                    findNodesByPaths(children);
+                }
             }
-            buildVisibleList(filteredNodes, 0, visibleItems);
-        } else {
-            // 如果已经是节点数组，直接使用
-            buildVisibleList(filteredPaths, 0, visibleItems);
         }
+        findNodesByPaths(appState.fileTreeRoot);
+        // 注意：这里的实现很简单，只会显示一个扁平的筛选后列表。
+        // 一个更复杂的实现会保留原始的目录结构。
+        // 为了简单起见，我们暂时将筛选结果扁平化显示。
+        buildVisibleList(filteredNodes, 0, visibleItems);
+
     } else {
         // 无筛选，构建完整的文件树视图
         buildVisibleList(appState.fileTreeRoot, 0, visibleItems);
@@ -178,28 +175,6 @@ function updateVirtualScrollData(filteredPaths = null) {
     handleVirtualScroll();
     
     console.log(`📊 虚拟滚动数据已更新: ${visibleItems.length} 项`);
-}
-
-// 【新增】在文件树中递归查找节点
-function findNodeInTree(nodes, targetPath) {
-    if (!nodes) return null;
-    
-    for (const node of nodes) {
-        if (node.path === targetPath) {
-            return node;
-        }
-        
-        if (node.is_dir) {
-            // 【关键】只在已展开的文件夹中查找
-            if (appState.expandedFolders.has(node.path)) {
-                const children = appState.fileTreeCache.get(node.path);
-                const found = findNodeInTree(children, targetPath);
-                if (found) return found;
-            }
-        }
-    }
-    
-    return null;
 }
 
 console.log('✅ virtual-scroll.js 加载完成');
