@@ -65,11 +65,40 @@ async function handleTagFilterClick(tagName) {
         const filePaths = await invoke('get_files_by_tag', { tagName });
         appState.activeTagFilter = tagName;
         clearFilterBtnElement.style.display = 'block';
-        updateVirtualScrollData(filePaths);
+        
+		   // 【关键】筛选后的文件需要从后端重新加载节点数据
+        // 因为 LRU 缓存可能不包含这些文件的父节点信息
+        const filteredNodes = await loadFilteredNodes(filePaths);
+        updateVirtualScrollData(filteredNodes);
+
         refreshAllTagsList();
     } catch (error) {
         showError(`筛选文件失败: ${error}`);
     }
+}
+// 【新增】加载筛选后的节点数据
+async function loadFilteredNodes(filePaths) {
+    const nodes = [];
+    for (const path of filePaths) {
+        // 这里需要从后端获取文件的元数据
+        // 或者从 fileTreeRoot 中查找匹配的节点
+        const node = findNodeByPath(appState.fileTreeRoot, path);
+        if (node) nodes.push(node);
+    }
+    return nodes;
+}
+
+function findNodeByPath(nodes, targetPath) {
+    if (!nodes) return null;
+    for (const node of nodes) {
+        if (node.path === targetPath) return node;
+        if (node.is_dir) {
+            const children = appState.fileTreeCache.get(node.path);
+            const found = findNodeByPath(children, targetPath);
+            if (found) return found;
+        }
+    }
+    return null;
 }
 
 function handleClearTagFilter() {

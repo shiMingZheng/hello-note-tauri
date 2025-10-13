@@ -598,9 +598,14 @@
    新首页样式 (已更新)
    ======================================== */
 #homepage {
+	 display: flex; /* 默认显示 */
     overflow-y: auto;
     /* 移除父容器的内边距，交由子容器控制，以确保对齐 */
     padding: 0; 
+	flex-direction: column;
+}
+#homepage.tab-content.active {
+    display: flex;
 }
 
 /* 为首页的每个区域（置顶、最近）提供统一的内边距 */
@@ -971,6 +976,16 @@
     height: 100%;
 }
 
+/* 编辑器容器 */
+.editor-container,
+#editor-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    flex: 1; /* 占满剩余空间 */
+    min-height: 0; /* 重要：允许 flex 子元素缩小 */
+}
+
 
 
 
@@ -1256,6 +1271,7 @@ a.internal-link:hover {
     display: none; /* 由 JS 控制显示 */
     flex-grow: 1;
     overflow: hidden;
+	 flex-direction: column; /* 确保子元素垂直排列 */
 }
 
 .editor-header {
@@ -1388,6 +1404,16 @@ a.internal-link:hover {
 #editor-wrapper.tab-content.active {
     display: flex;
     flex-direction: column;
+}
+
+/* Milkdown 编辑器 */
+.milkdown-container,
+#milkdown-editor {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 /* 确保编辑器容器占满空间 */

@@ -252,6 +252,8 @@ pub fn search(index: &Index, query: &str) -> Result<Vec<SearchResult>> {
             snippet: snippet_html,
         });
     }
+	drop(searcher);
+    drop(reader);
     Ok(results)
 }
 
