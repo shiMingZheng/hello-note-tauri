@@ -3,30 +3,15 @@
 'use strict';
 console.log('📜 ui_actions.js 开始加载...');
 
-let searchToggleBtn;
-let searchBoxElement;
 let fileViewContainer;
 
 function initializeUiActions() {
-    searchToggleBtn = document.getElementById('search-toggle-btn');
-    searchBoxElement = document.getElementById('search-box');
     fileViewContainer = document.getElementById('file-view-container');
-
-    searchToggleBtn.addEventListener('click', handleSearchToggle);
-    fileViewContainer.addEventListener('click', handleReturnToFileView);
-}
-
-/**
- * 切换搜索框的显示和隐藏
- */
-function handleSearchToggle() {
-    const isVisible = searchBoxElement.style.display === 'block';
-    if (isVisible) {
-        searchBoxElement.style.display = 'none';
+    
+    if (fileViewContainer) {
+        fileViewContainer.addEventListener('click', handleReturnToFileView);
     } else {
-        searchBoxElement.style.display = 'block';
-        // 可选：当搜索框出现时，自动聚焦
-        document.getElementById('search-input').focus();
+        console.warn('⚠️ 未找到 file-view-container 元素');
     }
 }
 
@@ -45,5 +30,4 @@ function handleReturnToFileView() {
 document.addEventListener('DOMContentLoaded', initializeUiActions);
 
 // 将函数暴露到全局
-window.handleSearchToggle = handleSearchToggle;
 window.handleReturnToFileView = handleReturnToFileView;

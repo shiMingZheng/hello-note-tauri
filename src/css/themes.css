@@ -221,3 +221,13 @@ body,
 :root[data-theme="dark"] .search-results li:hover {
     background-color: var(--hover-bg);
 }
+
+/* 工具栏深色主题 */
+:root[data-theme="dark"] .app-toolbar {
+    background: var(--bg-sidebar);
+    border-right-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .toolbar-icon-btn:hover {
+    background-color: var(--hover-bg);
+}

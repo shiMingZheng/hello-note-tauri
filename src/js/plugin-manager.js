@@ -38,7 +38,7 @@ class PluginManager {
      */
     async loadBuiltInPlugins() {
         const builtInPlugins = [
-            'screenshot'  // 截图插件
+           // 'screenshot'  // 截图插件
         ];
         
         for (const pluginId of builtInPlugins) {
@@ -256,7 +256,7 @@ class PluginManager {
                 console.log('🔄 恢复插件启用状态:', enabledArray);
             } else {
                 // 默认启用所有内置插件
-                this.enabled.add('screenshot');
+               // this.enabled.add('screenshot');
             }
         } catch (error) {
             console.warn('⚠️ 恢复插件状态失败:', error);

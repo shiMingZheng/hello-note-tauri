@@ -53,6 +53,20 @@ function setupVirtualScroll() {
     
     console.log('✅ 虚拟滚动已设置');
 }
+// ✅ 新增：监听窗口大小变化
+window.addEventListener('resize', debounce(() => {
+    if (window.updateVirtualScrollData) {
+        console.log('🔄 窗口大小改变，重新计算虚拟滚动...');
+        window.updateVirtualScrollData();
+    }
+}, 200));
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
 
 /**
  * 处理虚拟滚动

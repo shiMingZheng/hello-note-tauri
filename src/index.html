@@ -20,34 +20,34 @@
 
 <body>
     <div class="container">
+	    <!-- 🆕 新增：最左侧工具栏 -->
+        <div class="app-toolbar">
+		     <button id="sidebar-collapse-btn" class="toolbar-collapse-btn" title="折叠/展开侧边栏">◀</button>
+            <button id="open-folder-btn" class="toolbar-icon-btn" title="打开文件夹">📂</button>
+            <button id="sync-workspace-btn" class="toolbar-icon-btn" title="同步文件系统">🔄</button>
+            <button id="theme-toggle-btn" class="toolbar-icon-btn" title="切换主题">🌙</button>
+            <button id="graph-view-btn" class="toolbar-icon-btn" title="关系图谱">🌐</button>
+        </div>
+        <!-- ✏️ 修改：原侧边栏 -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <button id="open-folder-btn" class="btn-primary small-btn">
-                    📂 打开
-                </button>
+      
                 <div class="sidebar-header-actions">
-				     <button id="sync-workspace-btn" class="icon-btn" title="同步文件系统">🔄</button>
-				      <!-- [新增] 新建笔记和文件夹按钮 -->
-					   <!-- [新增] 新建按钮 -->
-					<button id="new-note-root-btn" class="icon-btn" title="新建笔记 (Ctrl+N)">📄</button>
-					<button id="new-folder-root-btn" class="icon-btn" title="新建文件夹 (Ctrl+Shift+N)">📁</button>
-                     
-                      <!-- [新增] 主题切换按钮 -->
-                    <button id="theme-toggle-btn" class="icon-btn" title="切换主题">🌙</button>
-                    <button id="toggle-tags-btn" class="icon-btn">🏷️</button> 
-                    <button id="search-toggle-btn" class="icon-btn">🔍</button>
-                    <button id="graph-view-btn" class="icon-btn">🌐</button>
-                    <button id="outline-btn" class="icon-btn">☰</button>
+                    <button id="new-note-root-btn" class="icon-btn" title="新建笔记 (Ctrl+N)">📄</button>
+                    <button id="new-folder-root-btn" class="icon-btn" title="新建文件夹 (Ctrl+Shift+N)">📁</button>
+                    <button id="toggle-tags-btn" class="icon-btn" title="所有标签">🏷️</button>
+                    <button id="outline-btn" class="icon-btn" title="大纲">☰</button>
                 </div>
             </div>
             
-            <div class="search-box" id="search-box" style="display: none;">
-                <div class="search-input-wrapper">
-                    <span class="search-icon">🔍</span>
-                    <input type="text" id="search-input" placeholder="搜索笔记..." />
-                    <button id="clear-search-btn" class="clear-search-btn" style="display: none;">✕</button>
-                </div>
-            </div>
+			<!-- ✏️ 搜索框始终显示，移除 style="display: none;" -->
+			<div class="search-box" id="search-box">
+				<div class="search-input-wrapper">
+					<span class="search-icon">🔍</span>
+					<input type="text" id="search-input" placeholder="搜索全部笔记" />
+					<button id="clear-search-btn" class="clear-search-btn" style="display: none;">✕</button>
+				</div>
+			</div>
 
             <div id="tags-popover" class="tags-popover" style="display: none;">
                 <div class="sidebar-section-header">
@@ -60,8 +60,7 @@
             <div id="file-view-container" class="file-list-container">
                 <ul id="file-list" class="file-list"></ul>
             </div>
-			 <ul id="search-results-list" class="file-list search-results" style="display: none;"></ul>
-     
+            <ul id="search-results-list" class="file-list search-results" style="display: none;"></ul>
             
             <div class="sidebar-section">
                 <div class="sidebar-section-header">
@@ -72,7 +71,7 @@
             <div class="sidebar-section">
                 <div class="sidebar-section-header">
                     <h3>我的标签</h3>
-					<button id="manage-tags-btn" class="icon-btn" title="管理标签">🏷️</button>
+                    <button id="manage-tags-btn" class="icon-btn" title="管理标签">🏷️</button>
                 </div>
                 <ul id="current-file-tags-list" class="current-file-tags-list">
                     <li class="no-tags-info">未打开文件</li>
@@ -177,6 +176,8 @@
         </div>
     </div>
 	
+	<!-- ✅ 新增：侧边栏控制 -->
+	<script src="js/sidebar-control.js"></script>
     <script type="module" src="js/milkdown-editor.js"></script>
     <script src="js/ui-utils.js"></script>
 	<script src="js/theme.js"></script> <!-- [新增] 主题系统 -->

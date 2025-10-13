@@ -79,8 +79,10 @@ const tabManager = {
         if (window.updateVirtualScrollData) {
             updateVirtualScrollData();
         }
-    },
+		   // ✅ 新增：更新窗口标题
+		this.updateWindowTitle();
 
+    },
     closeTab(filePath) {
         const index = this.openTabs.findIndex(tab => tab.path === filePath);
         if (index > -1) {
@@ -108,6 +110,7 @@ const tabManager = {
             appState.activeFilePath = newPath;
         }
         this.render();
+		this.updateWindowTitle(); // ✅ 重命名后也更新标题
     },
 
     /**
@@ -151,6 +154,7 @@ const tabManager = {
 
         console.log(`✅ 共更新 ${updatedCount} 个标签页`);
         this.render();
+		this.updateWindowTitle(); // ✅ 文件夹重命名后也更新标题
     },
 
     render() {
@@ -181,7 +185,46 @@ const tabManager = {
         const newTitle = `空白页签`;
         this.openTabs.push({ path: newTabId, title: newTitle, isNew: true });
         this.switchToTab(newTabId);
-    }
+    },
+	// ✅ 新增方法：更新窗口标题
+    // ✅ 完整替换 updateWindowTitle 方法
+	async updateWindowTitle() {
+		const baseTitle = 'CheetahNote - 极速笔记';
+		let newTitle = baseTitle;
+		
+		if (this.activeTab === 'home') {
+			newTitle = baseTitle;
+		} else {
+			const tabData = this.findTabByPath(this.activeTab);
+			
+			// 如果是新建的空白页签，不显示路径
+			if (tabData && tabData.isNew) {
+				newTitle = baseTitle;
+			} else if (appState.rootPath && this.activeTab) {
+				// 显示完整绝对路径
+				const rootPath = appState.rootPath.replace(/\\/g, '/');
+				const relativePath = this.activeTab.replace(/\\/g, '/');
+				const absolutePath = `${rootPath}/${relativePath}`;
+				
+				newTitle = `${baseTitle} - ${absolutePath}`;
+			}
+		}
+		
+		// 1. 更新网页标题
+		document.title = newTitle;
+		
+		// 2. 更新 Tauri 窗口标题
+		try {
+			if (window.__TAURI__) {
+				const appWindow = window.__TAURI__.window.getCurrentWindow();
+				await appWindow.setTitle(newTitle);
+				console.log('✅ 标题已更新:', newTitle);
+			}
+		} catch (error) {
+			console.warn('⚠️ 更新 Tauri 窗口标题失败:', error);
+		}
+	}
+	
 };
 
 document.addEventListener('DOMContentLoaded', () => tabManager.init());

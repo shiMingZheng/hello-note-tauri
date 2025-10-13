@@ -65,10 +65,6 @@ pub fn run() {
             
             commands::utils::check_indexing_status,
             commands::sync::sync_workspace, 
-			// ⭐【新增】截图相关命令
-			commands::screenshot::capture_screen,
-			commands::screenshot::save_image,
-			commands::screenshot::create_floating_window,
             
             // 其他命令
             commands::pins::pin_note,

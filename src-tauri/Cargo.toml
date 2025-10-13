@@ -37,8 +37,8 @@ walkdir = "2"
 crossbeam-channel = "0.5"
 
 # ⭐【新增】截图相关依赖
-screenshots = "0.8"           # 跨平台截图库
-base64 = "0.22"               # Base64 编码
+#screenshots = "0.8"           # 跨平台截图库
+#base64 = "0.22"               # Base64 编码
 
 [profile.dev]
 # 开发模式：快速编译

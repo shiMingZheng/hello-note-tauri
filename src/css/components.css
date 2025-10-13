@@ -5,19 +5,92 @@
    ======================================== */
 .sidebar {
     width: 260px;
+    min-width: 200px;
+    max-width: 500px;
     background: var(--bg-sidebar);
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--border-color);
-	position: relative; 
+    position: relative;
+    transition: width 0.3s ease, opacity 0.3s ease; /* ✅ 添加过渡动画 */
+}
+
+/* ✅ 侧边栏折叠状态 */
+.sidebar.collapsed {
+    width: 0 !important;
+    min-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    border-right: none;
+    pointer-events: none; /* 折叠时禁用点击 */
+}
+/* 侧边栏拖动手柄 */
+.sidebar-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4px;
+    height: 100%;
+    cursor: ew-resize;
+    background: transparent;
+    z-index: 10;
+    transition: background-color 0.2s;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle.dragging {
+    background-color: var(--primary-color);
+}
+
+/* 拖动时的辅助图标 */
+.sidebar-resize-handle::before {
+    content: '⋮';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 16px;
+    color: var(--text-secondary);
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+
+.sidebar-resize-handle:hover::before {
+    opacity: 1;
 }
 
 .sidebar-header {
-    padding: 10px 15px; /* 减小内边距 */
+    padding: 10px 15px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 10px; /* 新增间距 */
+}
+
+.sidebar-collapse-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-primary);
+}
+/* 侧边栏折叠状态 */
+.sidebar.collapsed {
+    width: 0 !important;
+    min-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    border-right: none;
+}
+
+.sidebar.collapsed > * {
+    display: none;
+}
+
+.sidebar-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
 }
 
 .sidebar-actions {
@@ -29,11 +102,14 @@
    搜索框组件
    ======================================== */
 /* 修改搜索框样式 */
+/* 搜索框组件 - 始终显示 */
 .search-box {
-    padding: 10px 15px; /* 调整内边距 */
+    padding: 10px 15px;
     border-bottom: 1px solid var(--border-color);
-    /* display: none; 由 style 内联控制 */
+    display: block; /* 明确设置为 block */
 }
+
+/* 删除 .search-box.active 样式 */
 
 .search-box.active {
     display: block;
@@ -548,11 +624,6 @@
     background-color: #e0e0e0;
 }
 
-/* 新增小按钮样式 */
-.small-btn {
-    width: auto; /* 取消 100% 宽度 */
-    padding: 6px 12px; /* 调整内边距 */
-}
 
 /* src/css/components.css - 在文件末尾添加 */
 
@@ -1407,4 +1478,107 @@ a.internal-link:hover {
     #milkdown-editor {
         padding: 15px;
     }
+}
+
+/* ========================================
+   最左侧工具栏
+   ======================================== */
+.app-toolbar {
+    width: 50px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.toolbar-icon-btn {
+    width: 26px;
+    height: 26px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: background-color var(--transition-speed);
+}
+
+.toolbar-icon-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* 深色主题适配 */
+:root[data-theme="dark"] .toolbar-icon-btn:hover {
+    background-color: var(--hover-bg);
+}
+/* ========================================
+   最左侧工具栏
+   ======================================== */
+.app-toolbar {
+    width: 50px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* ✅ 工具栏折叠按钮 - 始终可见 */
+.toolbar-collapse-btn {
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all var(--transition-speed);
+    margin-bottom: 8px; /* 与其他按钮分隔 */
+}
+
+.toolbar-collapse-btn:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--primary-color);
+}
+
+.toolbar-icon-btn {
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: background-color var(--transition-speed);
+}
+
+.toolbar-icon-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* 深色主题适配 */
+:root[data-theme="dark"] .toolbar-icon-btn:hover,
+:root[data-theme="dark"] .toolbar-collapse-btn:hover {
+    background-color: var(--hover-bg);
+}
+
+:root[data-theme="dark"] .toolbar-collapse-btn {
+    border-color: var(--border-color);
+    color: var(--text-primary);
 }

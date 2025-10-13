@@ -10,4 +10,3 @@ pub mod links;
 pub mod path_utils; // [新增]
 pub mod workspace;
 pub mod sync; // 
-pub mod screenshot;  // ⭐【新增】截图模块

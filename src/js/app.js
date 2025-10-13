@@ -208,9 +208,6 @@ function showWelcomeScreen() {
         fileListElement.innerHTML = '';
     }
     
-    if (searchBox) {
-        searchBox.style.display = 'none';
-    }
 }
 
 function initDOMElements() {
