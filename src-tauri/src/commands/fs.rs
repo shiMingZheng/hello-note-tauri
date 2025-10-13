@@ -284,11 +284,14 @@ pub async fn delete_item(
     }
 
     // 4. 删除文件系统对象
-    if absolute_path.is_file() {
-        fs::remove_file(&absolute_path).map_err(|e| format!("删除文件失败: {}", e))?;
-    } else {
-        fs::remove_dir_all(&absolute_path).map_err(|e| format!("删除文件夹失败: {}", e))?;
-    }
+    //if absolute_path.is_file() {
+      //  fs::remove_file(&absolute_path).map_err(|e| format!("删除文件失败: {}", e))?;
+   // } else {
+     //   fs::remove_dir_all(&absolute_path).map_err(|e| format!("删除文件夹失败: {}", e))?;
+    //}
+	// 4. 移动到回收站(而不是永久删除)
+	trash::delete(&absolute_path).map_err(|e| format!("移动到回收站失败: {}", e))?;
+	println!("🗑️ 已移动到回收站: {}", absolute_path.display());
 
     println!("✅ 删除操作完成");
     Ok(())
