@@ -177,7 +177,7 @@ class WindowManager {
 	}
 
 	/**
-	* 恢复资源1
+	* 恢复资源12
 	*/
 	async restoreResources() {
     if (!this.resourcesReleased) {
