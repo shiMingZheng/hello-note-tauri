@@ -1582,3 +1582,26 @@ a.internal-link:hover {
     border-color: var(--border-color);
     color: var(--text-primary);
 }
+
+
+/* ========================================
+   文件夹展开指示器
+   ======================================== */
+.folder-arrow {
+    display: inline-block;
+    width: 14px;
+    margin-right: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    transition: color 0.2s ease;
+    user-select: none;
+}
+
+.item-name:hover .folder-arrow {
+    color: var(--primary-color);
+}
+
+/* 文件项左侧对齐(为没有箭头的文件添加占位) */
+#file-list li.file .item-name {
+    padding-left: 20px; /* 14px(箭头) + 6px(间距) */
+}

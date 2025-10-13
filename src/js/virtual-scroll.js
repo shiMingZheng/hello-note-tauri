@@ -126,20 +126,77 @@ function renderVisibleItems(startIndex, endIndex) {
     fileListElement.appendChild(fragment);
 }
 
+//新函数
+function createFileTreeItem(item) {
+    const li = document.createElement('li');
+    
+    // ✅ 实时检查展开状态,不要缓存
+    const isExpanded = appState.expandedFolders.has(item.path);
+    
+    // 根据实际展开状态选择图标和箭头
+    let icon = item.is_dir ? (isExpanded ? '📂' : '📁') : '📄';
+    const name = item.name.replace(/\\/g, '/').split('/').pop();
+    
+    const textSpan = document.createElement('span');
+    textSpan.className = 'item-name';
+
+    if (item.is_dir) {
+        const arrow = isExpanded ? '▼' : '▶';
+        textSpan.innerHTML = `<span class="folder-arrow">${arrow}</span>${icon} ${name}`;
+    } else {
+        textSpan.textContent = `${icon} ${name}`;
+    }
+
+    li.appendChild(textSpan);
+    li.className = item.is_dir ? 'folder' : 'file';
+    
+    li.dataset.path = item.path;
+    li.dataset.isDir = item.is_dir;
+    li.dataset.name = item.name;
+    li.style.height = `${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px`;
+    li.style.lineHeight = `${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px`;
+    li.style.paddingLeft = `${item.level * 20 + 12}px`;
+    
+    if (appState.activeFilePath === item.path) {
+        li.classList.add('active');
+    }
+    
+    if (window.makeDraggable) {
+        makeDraggable(li, item);
+    }
+    
+    return li;
+}
+
 /**
  * [新函数] 递归地从 Map 构建扁平化的可见列表
  */
+
 function buildVisibleList(nodes, level, result) {
     if (!nodes) return;
+    
+    // ✅ 调试:显示当前展开的文件夹
+    if (level === 0) {
+        console.log('🔍 [buildVisibleList] 当前展开的文件夹:', Array.from(appState.expandedFolders));
+    }
     
     for (const node of nodes) {
         const item = { ...node, level };
         result.push(item);
 
-        // 如果目录是展开的，并且我们已经加载了它的子节点，则递归添加
-        if (node.is_dir && appState.expandedFolders.has(node.path)) {
-            const children = appState.fileTreeMap.get(node.path);
-            buildVisibleList(children, level + 1, result);
+        // ✅ 关键修改:每次都重新检查展开状态
+        if (node.is_dir) {
+            const isExpanded = appState.expandedFolders.has(node.path);
+            
+            // ✅ 调试:显示每个文件夹的展开状态
+            console.log(`📁 [buildVisibleList] 文件夹: ${node.name}, 路径: ${node.path}, 是否展开: ${isExpanded}, fileTreeMap中有子节点: ${appState.fileTreeMap.has(node.path)}`);
+            
+            // 只有在展开状态下才递归添加子节点
+            if (isExpanded && appState.fileTreeMap.has(node.path)) {
+                const children = appState.fileTreeMap.get(node.path);
+                console.log(`  └─ 递归加载 ${children.length} 个子节点`);
+                buildVisibleList(children, level + 1, result);
+            }
         }
     }
 }

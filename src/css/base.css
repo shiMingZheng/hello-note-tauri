@@ -437,3 +437,12 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--scrollbar-thumb-hover);
 }
+
+/*如果需要深色主题下的箭头颜色适配,在深色主题样式区域添加:*/
+:root[data-theme="dark"] .folder-arrow {
+    color: var(--text-secondary);
+}
+
+:root[data-theme="dark"] .folder-arrow:hover {
+    color: var(--primary-color);
+}

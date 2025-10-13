@@ -304,18 +304,25 @@ async function handleOpenWorkspace() {
         appState.fileTreeMap.clear();
         appState.activeTagFilter = null;
         
+        // ✅ 第一步:恢复展开状态
+        await restoreLastFileInWorkspace();
+        
         try {
             await invoke('migrate_paths_to_relative', { rootPath: workspacePath });
         } catch (e) {
             console.error("数据库迁移失败:", e);
         }
         
+        // ✅ 第二步:刷新文件树
         await refreshFileTree("");
         searchBox.style.display = 'block';
         
         if (window.refreshAllTagsList) {
             await refreshAllTagsList();
         }
+        
+        // ✅ 第三步:打开上次的文件
+        await openLastFile();
     }
 }
 
@@ -332,6 +339,9 @@ async function startupWithWorkspace() {
         if (currentWorkspace) {
             appState.rootPath = currentWorkspace;
             
+            // ✅ 第一步:只恢复展开状态,不打开文件
+            await restoreLastFileInWorkspace();
+            
             try {
                 console.log('🧹 清理无效的历史记录...');
                 const cleanupCount = await invoke('cleanup_invalid_history', { 
@@ -345,6 +355,7 @@ async function startupWithWorkspace() {
                 console.warn('清理历史记录失败:', error);
             }
             
+            // ✅ 第二步:刷新文件树(此时展开状态已恢复)
             await refreshFileTree("");
             searchBox.style.display = 'block';
             
@@ -352,7 +363,8 @@ async function startupWithWorkspace() {
                 await refreshAllTagsList();
             }
             
-            await restoreLastFileInWorkspace();
+            // ✅ 第三步:文件树加载完成后,再打开上次的文件
+            await openLastFile();
         }
     } else {
         console.log('📝 显示欢迎界面');
@@ -364,32 +376,54 @@ async function startupWithWorkspace() {
 
 async function restoreLastFileInWorkspace() {
     try {
-        const lastFile = localStorage.getItem('cheetah_last_file');
+        // ✅ 第一步:先恢复展开状态
         const expandedStr = localStorage.getItem('cheetah_expanded_folders');
-        
         if (expandedStr) {
             try {
                 const expanded = JSON.parse(expandedStr);
                 appState.expandedFolders = new Set(expanded);
+				console.log('✅ 恢复展开状态:', expanded.length, '个文件夹');
+                // ✅ 调试:显示具体路径
+                console.log('📋 展开的文件夹路径列表:', expanded);
             } catch (e) {
-                console.warn('恢复展开状态失败:', e);
+                console.warn('⚠️ 恢复展开状态失败:', e);
+                appState.expandedFolders = new Set();
             }
         }
         
+        // ✅ 第二步:恢复上次打开的文件
+        // ⚠️ 注意:不要在这里打开文件,因为文件树还没加载
+        // 我们只是验证文件存在,但不打开标签页
+        const lastFile = localStorage.getItem('cheetah_last_file');
         if (lastFile) {
             try {
                 await invoke('read_file_content', {
                     rootPath: appState.rootPath,
                     relativePath: lastFile
                 });
-                tabManager.openTab(lastFile);
+                // ✅ 只是标记,不立即打开
+                console.log('✅ 上次打开的文件存在:', lastFile);
             } catch (error) {
-                console.warn('上次打开的文件不存在:', lastFile);
+                console.warn('⚠️ 上次打开的文件不存在:', lastFile);
                 localStorage.removeItem('cheetah_last_file');
             }
         }
     } catch (error) {
-        console.warn('恢复文件会话失败:', error);
+        console.warn('⚠️ 恢复文件会话失败:', error);
+    }
+}
+/**
+ * 打开上次的文件(在文件树加载完成后调用)
+ */
+async function openLastFile() {
+    try {
+        const lastFile = localStorage.getItem('cheetah_last_file');
+        if (lastFile) {
+            tabManager.openTab(lastFile);
+            console.log('✅ 已打开上次的文件:', lastFile);
+        }
+    } catch (error) {
+        console.warn('⚠️ 打开文件失败:', error);
     }
 }
 

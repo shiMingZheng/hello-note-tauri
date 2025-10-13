@@ -45,6 +45,20 @@ async function refreshFileTree(relativePath = "") {
             console.log('  📂 更新根目录');
             appState.fileTreeRoot = nodes;
             appState.fileTreeMap.clear();
+            
+            // ✅ 调试:显示根目录的节点(可选,完成后删除)
+            console.log('📋 根目录节点列表:');
+            nodes.forEach(node => {
+                console.log(`  - ${node.is_dir ? '📁' : '📄'} ${node.name} (${node.path})`);
+            });
+            
+            // ✅ 关键修改:自动加载所有展开文件夹的子节点
+            for (const node of nodes) {
+                if (node.is_dir && appState.expandedFolders.has(node.path)) {
+                    console.log(`  🔄 自动加载展开的文件夹: ${node.name}`);
+                    await loadFolderChildren(node.path);
+                }
+            }
         } else {
             console.log(`  📁 更新子目录: ${relativePath}`);
             appState.fileTreeMap.set(relativePath, nodes);
@@ -55,6 +69,8 @@ async function refreshFileTree(relativePath = "") {
             }
         }
 
+        console.log('🔍 当前展开的文件夹:', Array.from(appState.expandedFolders));
+        
         console.log('  🔄 更新虚拟滚动数据');
         if (window.updateVirtualScrollData) {
             updateVirtualScrollData();
@@ -68,24 +84,70 @@ async function refreshFileTree(relativePath = "") {
     }
 }
 
+/**
+ * 加载文件夹的子节点(不触发虚拟滚动更新)
+ * @param {string} folderPath - 文件夹相对路径
+ */
+async function loadFolderChildren(folderPath) {
+    try {
+        const children = await invoke('list_dir_lazy', { 
+            rootPath: appState.rootPath, 
+            relativePath: folderPath 
+        });
+        
+        appState.fileTreeMap.set(folderPath, children);
+        console.log(`    ✅ 加载了 ${children.length} 个子节点: ${folderPath}`);
+        
+        // 递归加载嵌套展开的文件夹
+        for (const child of children) {
+            if (child.is_dir && appState.expandedFolders.has(child.path)) {
+                console.log(`    🔄 递归加载: ${child.name}`);
+                await loadFolderChildren(child.path);
+            }
+        }
+    } catch (error) {
+        console.error(`❌ 加载文件夹失败: ${folderPath}`, error);
+    }
+}
+
 function createFileTreeItem(item) {
     const li = document.createElement('li');
-    let icon = item.is_dir ? (appState.expandedFolders.has(item.path) ? '📂' : '📁') : '📄';
+    const isExpanded = appState.expandedFolders.has(item.path);
+    
+    // 根据文件夹展开状态选择图标
+    let icon = item.is_dir ? (isExpanded ? '📂' : '📁') : '📄';
     const name = item.name.replace(/\\/g, '/').split('/').pop();
     
     const textSpan = document.createElement('span');
     textSpan.className = 'item-name';
-    textSpan.textContent = `${icon} ${name}`;
+
+    if (item.is_dir) {
+        // 🔧 关键修改:使用 innerHTML 而不是 appendChild
+        const arrow = isExpanded ? '▼' : '▶';
+        textSpan.innerHTML = `<span class="folder-arrow">${arrow}</span>${icon} ${name}`;
+    } else {
+        textSpan.textContent = `${icon} ${name}`;
+    }
 
     li.appendChild(textSpan);
     li.className = item.is_dir ? 'folder' : 'file';
-    li.style.cssText = `height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px; line-height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px; padding-left: ${12 + item.level * 20}px;`;
+    
+    // 其余代码保持不变...
     li.dataset.path = item.path;
     li.dataset.isDir = item.is_dir;
-    li.dataset.name = name;
-    if (!item.is_dir && item.path === appState.activeFilePath) {
+    li.dataset.name = item.name;
+    li.style.height = `${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px`;
+    li.style.lineHeight = `${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px`;
+    li.style.paddingLeft = `${item.level * 20 + 12}px`;
+    
+    if (appState.activeFilePath === item.path) {
         li.classList.add('active');
     }
+    
+    if (window.makeDraggable) {
+        makeDraggable(li, item);
+    }
+    
     return li;
 }
 
