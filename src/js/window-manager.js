@@ -96,20 +96,10 @@ class WindowManager {
 		}
 	
 		try {
-			// 2. 保存并清空编辑器内容（不销毁编辑器实例）
-			if (window.milkdownEditor) {
-				try {
-					// 保存当前内容
-					if (window.appState?.activeFilePath && !window.appState.activeFilePath.startsWith('untitled-')) {
-						this.savedState.editorContent = window.milkdownEditor.getMarkdown();
-					}
-					
-					// 清空编辑器显示为空内容
-					await window.milkdownEditor.loadContent('');
-					console.log('  ✅ 编辑器内容已清空');
-				} catch (error) {
-					console.warn('清空编辑器失败:', error);
-				}
+			// 2. 销毁 Milkdown 编辑器
+			if (window.milkdownEditor && typeof window.milkdownEditor.destroy === 'function') {
+				await window.milkdownEditor.destroy();
+				console.log('  ✅ 编辑器已销毁');
 			}
 	
 			// 3. 关闭图谱
@@ -177,18 +167,15 @@ class WindowManager {
 	}
 
 	/**
-	* 恢复资源1
+	* 恢复资源
 	*/
 	async restoreResources() {
     if (!this.resourcesReleased) {
         console.log('⚠️ 资源未释放，无需恢复');
         return;
     }
-    
-    console.log('🔄 开始恢复资源...');
-	    // 【新增】导入必要的 Milkdown 类型
-    const { editorViewCtx } = await import('../js/milkdown-editor.js').catch(() => ({}));
 
+    console.log('🔄 开始恢复资源...');
 
     try {
         // 1. 初始化编辑器
@@ -247,84 +234,47 @@ class WindowManager {
             console.warn('Rust 资源恢复失败:', error);
         }
 
-		// 4. 恢复文件（关键修复）
-		const hasActiveFile = this.savedState?.activeFilePath && 
-							!this.savedState.activeFilePath.startsWith('untitled-');
-		
-		if (hasActiveFile && window.tabManager) {
-			console.log('  📄 恢复文件:', this.savedState.activeFilePath);
-			
-			// 先强制重置编辑器滚动
-			const editorContainer = document.getElementById('milkdown-editor');
-			if (editorContainer) {
-				editorContainer.scrollTop = 0;
-				
-				// 重置 ProseMirror 内部滚动
-				const proseMirrorView = editorContainer.querySelector('.ProseMirror');
-				if (proseMirrorView) {
-					proseMirrorView.scrollTop = 0;
-				}
-			}
-			
-			// 等待 DOM 稳定
-			await new Promise(resolve => setTimeout(resolve, 50));
-			
-			// 打开文件（会自动加载内容）
-			window.tabManager.openTab(this.savedState.activeFilePath);
-			
-			// 等待内容加载完成
-			await new Promise(resolve => setTimeout(resolve, 300));
-			
-			// 【关键】多次强制重置滚动位置
-			if (editorContainer) {
-				// 立即重置
-				editorContainer.scrollTop = 0;
-				
-				// 在下一帧重置
-				requestAnimationFrame(() => {
-					editorContainer.scrollTop = 0;
-					
-					const proseMirrorView = editorContainer.querySelector('.ProseMirror');
-					if (proseMirrorView) {
-						proseMirrorView.scrollTop = 0;
-						
-						// 强制 ProseMirror 重新计算视图
-						if (window.milkdownEditor?.editor) {
-							window.milkdownEditor.editor.action((ctx) => {
-								const view = ctx.get(editorViewCtx);
-								if (view) {
-									// 触发 ProseMirror 的滚动更新
-									view.dispatch(view.state.tr.scrollIntoView());
-								}
-							});
-						}
-					}
-				});
-				
-				// 延迟再次重置（保险）
-				setTimeout(() => {
-					editorContainer.scrollTop = 0;
-					const proseMirrorView = editorContainer.querySelector('.ProseMirror');
-					if (proseMirrorView) {
-						proseMirrorView.scrollTop = 0;
-					}
-				}, 100);
-			}
-			
-			// 最后触发 resize
-			window.dispatchEvent(new Event('resize'));
-			
-			console.log('  ✅ 文件已恢复并重置滚动');
-		}
-	
-			this.resourcesReleased = false;
-			console.log('✅ 资源恢复完成');
-	
-		} catch (error) {
-			console.error('❌ 恢复失败:', error);
-			window.location?.reload();
-		}
-	}
+        // 4. 恢复文件
+        const hasActiveFile = this.savedState?.activeFilePath && 
+                             !this.savedState.activeFilePath.startsWith('untitled-');
+        
+        if (hasActiveFile && window.tabManager) {
+            console.log('  📄 恢复文件:', this.savedState.activeFilePath);
+            
+            // 打开文件
+            window.tabManager.openTab(this.savedState.activeFilePath);
+            
+            // 等待文件加载
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // 【关键】强制刷新编辑器视图和布局
+            const editorContainer = document.getElementById('milkdown-editor');
+            if (editorContainer) {
+                // 强制重新计算布局
+                editorContainer.style.display = 'none';
+                await new Promise(resolve => setTimeout(resolve, 10));
+                editorContainer.style.display = 'block';
+            }
+            
+            // 触发 resize 事件
+            window.dispatchEvent(new Event('resize'));
+            
+            // 滚动到顶部
+            if (editorContainer) {
+                editorContainer.scrollTop = 0;
+            }
+            
+            console.log('  ✅ 编辑器已刷新');
+        }
+
+        this.resourcesReleased = false;
+        console.log('✅ 资源恢复完成');
+
+    } catch (error) {
+        console.error('❌ 恢复失败:', error);
+        window.location?.reload();
+    }
+}
 
     /**
      * 手动触发资源释放（用于测试）

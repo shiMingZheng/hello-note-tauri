@@ -17,13 +17,13 @@ pub async fn minimize_resources(state: State<'_, AppState>) -> Result<(), String
     }
     
     // 2. 缩减数据库连接池（保留 1 个连接）
-    // {
-    //     let db_pool_lock = state.db_pool.lock().unwrap();
-    //     if let Some(pool) = db_pool_lock.as_ref() {
-    //         // r2d2 连接池会自动管理，这里只是记录
-    //         println!("  ℹ️ 数据库连接池保持最小配置");
-    //     }
-    // }
+    {
+        let db_pool_lock = state.db_pool.lock().unwrap();
+        if let Some(pool) = db_pool_lock.as_ref() {
+            // r2d2 连接池会自动管理，这里只是记录
+            println!("  ℹ️ 数据库连接池保持最小配置");
+        }
+    }
     
     // 3. 【可选】手动触发垃圾回收（如果可用）
     // Rust 的垃圾回收是自动的，这里仅作记录

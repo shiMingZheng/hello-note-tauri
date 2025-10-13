@@ -33,7 +33,7 @@ class MilkdownEditorManager {
             this.editor = await Editor.make()
                 .config((ctx) => {
                     ctx.set(rootCtx, document.querySelector(containerSelector));
-                    ctx.set(defaultValueCtx, '');
+                    ctx.set(defaultValueCtx, '# 欢迎使用 CheetahNote\n\n开始编写您的笔记...');
                     
                     ctx.get(listenerCtx).markdownUpdated((ctx, markdown, prevMarkdown) => {
                         if (this.isLoading) {
@@ -106,20 +106,6 @@ class MilkdownEditorManager {
             
             this.currentContent = markdown;
             this.hasUnsavedChanges = false;
-			
-			// 【新增】确保滚动到顶部
-			const editorContainer = document.getElementById('milkdown-editor');
-			if (editorContainer) {
-				setTimeout(() => {
-					editorContainer.scrollTop = 0;
-					
-					// 同时重置 ProseMirror 内部视图
-					const proseMirrorView = editorContainer.querySelector('.ProseMirror');
-					if (proseMirrorView) {
-						proseMirrorView.scrollTop = 0;
-					}
-				}, 50);
-			}
             
             console.log('✅ 内容加载成功');
         } catch (error) {
