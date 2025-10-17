@@ -6,6 +6,7 @@
 use tauri::{Builder, Manager}; 
 use std::sync::{Arc, Mutex};
 
+mod file_watcher;
 mod search_core;
 mod commands;
 mod database;

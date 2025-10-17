@@ -63,8 +63,8 @@ pub fn build_schema() -> (Schema, SchemaFields) {
     (schema, fields)
 }
 
-pub fn initialize_index(base_path: &Path) -> Result<Arc<Index>> {
-    let index_path = base_path.join(".cheetah_index");
+pub fn initialize_index(meta_dir: &Path) -> Result<Arc<Index>> {
+    let index_path = meta_dir.join(".cheetah_index");
     if !index_path.exists() {
         fs::create_dir_all(&index_path)?;
     }

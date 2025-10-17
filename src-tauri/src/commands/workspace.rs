@@ -86,6 +86,8 @@ pub async fn initialize_workspace(
     *state.current_path.lock().unwrap() = Some(workspace_path.clone());
     *state.worker_handle.lock().unwrap() = Some(worker_handle); // [新增]
     
+	// ✅ 关键: 等待 Worker 处理完遗留任务后再返回
+	std::thread::sleep(std::time::Duration::from_millis(500));
     println!("✅ 工作区初始化完成");
     Ok(workspace_path)
 }
@@ -135,6 +137,13 @@ pub async fn load_workspace(
     *state.current_path.lock().unwrap() = Some(workspace_path.clone());
     *state.worker_handle.lock().unwrap() = Some(worker_handle); // [新增]
     
+	// ✅ 等待 Worker 启动
+	std::thread::sleep(std::time::Duration::from_millis(500));
+	
+	// ✅ 启动文件监听器
+	if let Err(e) = crate::file_watcher::start_file_watcher(workspace_path.clone()) {
+		eprintln!("⚠️ 启动文件监听失败: {}", e);
+	}
     println!("✅ 工作区加载完成");
     Ok(workspace_path)
 }

@@ -8,6 +8,8 @@ use serde::Serialize;
 use std::fs;
 use std::path::Path;
 use tauri::State;
+use std::time::UNIX_EPOCH;
+
 
 use crate::indexing_jobs;
 use walkdir::WalkDir;
@@ -128,8 +130,31 @@ pub async fn save_file(
     let base_path = Path::new(&root_path);
     let absolute_path = to_absolute_path(base_path, Path::new(&relative_path));
     fs::write(&absolute_path, &content).map_err(|e| format!("保存文件失败: {}", e))?;
-    let _ = record_file_event(root_path.clone(), relative_path.clone(), "edited".to_string(), state.clone()).await;
-   
+     
+	// ✅ 获取文件修改时间并更新数据库
+	// ✅ 更新数据库中的 indexed 和 last_modified 字段
+	// ✅ 使用独立作用域,确保锁在 await 之前释放
+	{
+		let db_pool_lock = state.db_pool.lock().unwrap();
+		if let Some(pool) = db_pool_lock.as_ref() {
+			let conn = pool.get().map_err(|e| format!("获取数据库连接失败: {}", e))?;
+			
+			if let Ok(meta) = fs::metadata(&absolute_path) {
+				if let Ok(modified) = meta.modified() {
+					if let Ok(duration) = modified.duration_since(UNIX_EPOCH) {
+						let mtime = duration.as_secs() as i64;
+						
+						conn.execute(
+							"UPDATE files SET indexed = 0, last_modified = ?1, updated_at = CURRENT_TIMESTAMP WHERE path = ?2",
+							params![mtime, relative_path],
+						).map_err(|e| format!("更新数据库失败: {}", e))?;
+					}
+				}
+			}
+		}
+	} // ✅ db_pool_lock 在这里被释放
+	
+
     // 异步更新索引
 	if let Err(e) = indexing_jobs::dispatch_update_job(
 		root_path.clone(),
@@ -137,6 +162,9 @@ pub async fn save_file(
 	) {
 		eprintln!("⚠️ 分发索引任务失败: {}", e);
 	}
+	
+	let _ = record_file_event(root_path.clone(), relative_path.clone(), "edited".to_string(), state.clone()).await;
+
 	
 	// 链接更新代码保持不变
 	let db_pool_lock = state.db_pool.lock().unwrap();

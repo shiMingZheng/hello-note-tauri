@@ -124,12 +124,20 @@ const workspaceManager = {
             await invoke('initialize_workspace', { workspacePath: path });
             console.log('✅ 工作区初始化成功');
             
-            // 步骤2: 同步文件系统
-            console.log('🔄 同步文件系统...');
-            const syncResult = await invoke('sync_workspace', { rootPath: path });
-            console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
+            // 步骤2: 后台同步文件系统
+			console.log('🔄 后台同步文件系统...');
+			try {
+				const syncResult = await invoke('sync_workspace', { rootPath: path });
+				console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
+			} catch (error) {
+				console.warn('⚠️ 后台同步失败:', error);
+				// 不影响初始化流程
+			}
             
-            // 步骤3: 刷新UI
+			// 步骤3: 给 Worker 一点时间处理索引任务
+			console.log('⏳ 等待索引任务处理...');
+			await new Promise(resolve => setTimeout(resolve, 1000));
+            // 步骤4: 刷新UI
             if (window.initializeHomepage) {
                 window.initializeHomepage();
             }
@@ -160,6 +168,10 @@ const workspaceManager = {
                 
                 if (syncResult.added > 0 || syncResult.removed > 0) {
                     console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
+					  // ✅ 如果有变更,给 Worker 时间处理
+					console.log('⏳ 等待索引任务处理...');
+					await new Promise(resolve => setTimeout(resolve, 1000));
+
                     showSuccessMessage(`已同步: 新增 ${syncResult.added}, 移除 ${syncResult.removed}`);
                 } else {
                     console.log('✅ 文件系统已同步，无变更');
@@ -175,6 +187,17 @@ const workspaceManager = {
             }
 
             showSuccessMessage('工作区加载完成');
+			
+			// 🆕 后台静默同步
+			setTimeout(async () => {
+				try {
+					console.log('🔄 执行后台文件同步...');
+					await invoke('sync_workspace');
+					console.log('✅ 后台同步完成');
+				} catch (error) {
+					console.warn('⚠️ 后台同步失败:', error);
+				}
+			}, 1000); // 延迟1秒执行,避免阻塞启动
         } catch (error) {
             console.error('加载工作区失败:', error);
             throw error;

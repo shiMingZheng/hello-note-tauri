@@ -11,6 +11,8 @@ use rusqlite::{params, OptionalExtension}; // [修复] 添加 OptionalExtension
 use anyhow::Result;
 use crate::database::DbPool;
 use std::sync::Mutex;
+use crate::commands::path_utils::to_absolute_path;
+
 
 
 // [新增] 全局数据库连接池引用
@@ -169,6 +171,28 @@ fn process_job(
                 Path::new(root_path),
                 Path::new(relative_path),
             )?;
+			
+			   // ✅ 索引成功后更新数据库
+			if let Ok(conn) = db_pool.get() {
+				let absolute_path = to_absolute_path(
+					Path::new(&root_path), 
+					Path::new(&relative_path)
+				);
+				
+				if let Ok(meta) = std::fs::metadata(&absolute_path) {
+					if let Ok(modified) = meta.modified() {
+						if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
+							let mtime = duration.as_secs() as i64;
+							
+							let _ = conn.execute(
+								"UPDATE files SET indexed = 1, last_modified = ?1 WHERE path = ?2",
+								params![mtime, relative_path],
+							);
+						}
+					}
+				}
+			}
+			
         }
         
         JobPayload::RenameOrMove { root_path, old_relative_path, new_relative_path } => {
@@ -184,6 +208,26 @@ fn process_job(
                 Path::new(old_relative_path),
                 Path::new(new_relative_path),
             )?;
+			// ✅ 索引成功后更新数据库
+			if let Ok(conn) = db_pool.get() {
+				let absolute_path = to_absolute_path(
+					Path::new(&root_path), 
+					Path::new(&new_relative_path)
+				);
+				
+				if let Ok(meta) = std::fs::metadata(&absolute_path) {
+					if let Ok(modified) = meta.modified() {
+						if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
+							let mtime = duration.as_secs() as i64;
+							
+							let _ = conn.execute(
+								"UPDATE files SET indexed = 1, last_modified = ?1 WHERE path = ?2",
+								params![mtime, new_relative_path],
+							);
+						}
+					}
+				}
+			}
         }
         
         JobPayload::Delete { relative_path } => {

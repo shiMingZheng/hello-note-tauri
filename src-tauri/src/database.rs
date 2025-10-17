@@ -41,6 +41,41 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         )?;
         println!("✅ 'is_dir' 字段添加完成！");
     }
+	
+	    // === 迁移 3: 为 files 表添加 last_modified 字段.文件修改时间戳(秒级Unix时间戳) ===
+    let mut stmt = conn.prepare("PRAGMA table_info(files)")?;
+    let column_exists = stmt.query_map([], |row| {
+        let column_name: String = row.get(1)?;
+        Ok(column_name)
+    })?.any(|col| col.as_deref() == Ok("last_modified"));
+
+    if !column_exists {
+        println!("🔀 迁移数据库：正在为 'files' 表添加 'last_modified' 字段...");
+        conn.execute(
+            "ALTER TABLE files ADD COLUMN last_modified INTEGER DEFAULT 0;",
+            [],
+        )?;
+        println!("✅ 'last_modified' 字段添加完成！");
+    }
+	
+		    // === 迁移 4: 为 files 表添加 last_modified 字段 ===
+    let mut stmt = conn.prepare("PRAGMA table_info(files)")?;
+    let column_exists = stmt.query_map([], |row| {
+        let column_name: String = row.get(1)?;
+        Ok(column_name)
+    })?.any(|col| col.as_deref() == Ok("indexed"));
+
+    if !column_exists {
+		//-- 字段2: 索引完成标记(0=未索引, 1=已索引)
+        println!("🔀 迁移数据库：正在为 'files' 表添加 'indexed' 字段...");
+        conn.execute(
+            "ALTER TABLE files ADD COLUMN indexed INTEGER DEFAULT 0;",
+            [],
+        )?;
+        println!("✅ 'indexed' 字段添加完成！");
+    }
+
+	
 
     Ok(())
 }
@@ -85,6 +120,7 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
         CREATE INDEX IF NOT EXISTS idx_files_path ON files (path);
         CREATE INDEX IF NOT EXISTS idx_files_pinned ON files (is_pinned);
         CREATE INDEX IF NOT EXISTS idx_files_is_dir ON files (is_dir);
+		CREATE INDEX IF NOT EXISTS idx_files_indexed ON files (indexed);
 
         CREATE TABLE IF NOT EXISTS tags (
             id      INTEGER PRIMARY KEY,
