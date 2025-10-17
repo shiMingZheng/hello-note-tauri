@@ -116,93 +116,80 @@ const workspaceManager = {
      * 初始化新工作区
      */
     async initializeWorkspace(path) {
-        console.log('🚀 初始化工作区:', path);
-        // [移除] showIndexingToast('正在初始化工作区...');
-
-        try {
-            // 步骤1: 初始化数据库和目录结构
-            await invoke('initialize_workspace', { workspacePath: path });
-            console.log('✅ 工作区初始化成功');
-            
-            // 步骤2: 后台同步文件系统
+		console.log('🚀 初始化工作区:', path);
+		
+		try {
+			// 步骤1: 初始化数据库和目录结构
+			await invoke('initialize_workspace', { workspacePath: path });
+			console.log('✅ 工作区初始化成功');
+			
+			// 步骤2: 后台同步文件系统
 			console.log('🔄 后台同步文件系统...');
 			try {
 				const syncResult = await invoke('sync_workspace', { rootPath: path });
 				console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
-			} catch (error) {
-				console.warn('⚠️ 后台同步失败:', error);
-				// 不影响初始化流程
+				
+				// ✅ 等待索引完成（初始化时通常会有很多文件需要索引）
+				if (syncResult.added > 0) {
+					console.log('⏳ 等待索引任务处理...');
+					await new Promise(resolve => setTimeout(resolve, 2000));
+				}
+			} catch (syncError) {
+				console.warn('⚠️ 后台同步失败:', syncError);
+				// 同步失败不阻止初始化
 			}
-            
-			// 步骤3: 给 Worker 一点时间处理索引任务
-			console.log('⏳ 等待索引任务处理...');
-			await new Promise(resolve => setTimeout(resolve, 1000));
-            // 步骤4: 刷新UI
-            if (window.initializeHomepage) {
-                window.initializeHomepage();
-            }
-            
-            showSuccessMessage('工作区初始化完成');
-        } catch (error) {
-            console.error('初始化工作区失败:', error);
-            throw error;
-        }
-    },
+			
+			// 步骤3: 刷新UI
+			if (window.initializeHomepage) {
+				window.initializeHomepage();
+			}
+			
+			showSuccessMessage('工作区初始化完成');
+			
+		} catch (error) {
+			console.error('初始化工作区失败:', error);
+			throw error;
+		}
+	},
 
     /**
      * 加载现有工作区
      */
     async loadWorkspace(path) {
-        console.log('📂 加载工作区:', path);
-        // [移除] showIndexingToast('正在加载工作区...');
-
-        try {
-            // 步骤1: 加载数据库和索引
-            await invoke('load_workspace', { workspacePath: path });
-            console.log('✅ 工作区加载成功');
-            
-            // 步骤2: 同步文件系统（检测外部变更）
-            console.log('🔄 同步文件系统...');
-            try {
-                const syncResult = await invoke('sync_workspace', { rootPath: path });
-                
-                if (syncResult.added > 0 || syncResult.removed > 0) {
-                    console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
-					  // ✅ 如果有变更,给 Worker 时间处理
-					console.log('⏳ 等待索引任务处理...');
-					await new Promise(resolve => setTimeout(resolve, 1000));
-
-                    showSuccessMessage(`已同步: 新增 ${syncResult.added}, 移除 ${syncResult.removed}`);
-                } else {
-                    console.log('✅ 文件系统已同步，无变更');
-                }
-            } catch (syncError) {
-                console.warn('⚠️ 文件系统同步失败:', syncError);
-                // 同步失败不阻止工作区加载
-            }
-            
-            // 步骤3: 刷新UI
-            if (window.initializeHomepage) {
-                window.initializeHomepage();
-            }
-
-            showSuccessMessage('工作区加载完成');
+		console.log('📂 加载工作区:', path);
+		
+		try {
+			// 步骤1: 加载数据库和索引
+			await invoke('load_workspace', { workspacePath: path });
+			console.log('✅ 工作区加载成功');
 			
-			// 🆕 后台静默同步
-			setTimeout(async () => {
-				try {
-					console.log('🔄 执行后台文件同步...');
-					await invoke('sync_workspace');
-					console.log('✅ 后台同步完成');
-				} catch (error) {
-					console.warn('⚠️ 后台同步失败:', error);
+			// 步骤2: 同步文件系统（检测外部变更）
+			console.log('🔄 后台同步文件系统...');
+			try {
+				const syncResult = await invoke('sync_workspace', { rootPath: path });
+				console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
+				
+				if (syncResult.added > 0 || syncResult.removed > 0) {
+					console.log('⏳ 等待索引任务处理...');
+					await new Promise(resolve => setTimeout(resolve, 2000));
+					showSuccessMessage(`已同步: 新增 ${syncResult.added}, 移除 ${syncResult.removed}`);
 				}
-			}, 1000); // 延迟1秒执行,避免阻塞启动
-        } catch (error) {
-            console.error('加载工作区失败:', error);
-            throw error;
-        }
-    },
+			} catch (syncError) {
+				console.warn('⚠️ 后台同步失败:', syncError);
+			}
+			
+			// 步骤3: 刷新UI
+			if (window.initializeHomepage) {
+				window.initializeHomepage();
+			}
+			
+			showSuccessMessage('工作区加载完成');
+			
+		} catch (error) {
+			console.error('加载工作区失败:', error);
+			throw error;
+		}
+	},
 
     /**
      * 关闭当前工作区

@@ -12,6 +12,8 @@ use anyhow::Result;
 use crate::database::DbPool;
 use std::sync::Mutex;
 use crate::commands::path_utils::to_absolute_path;
+use std::fs::metadata;
+use std::time::UNIX_EPOCH;
 
 
 
@@ -105,6 +107,7 @@ pub fn start_background_worker(
         loop {
             match receiver.recv() {
                 Ok(ControlSignal::Job(job)) => {
+					  println!("🔍 [索引Worker] 接收到任务: {:?}", job.payload); // ✅ 添加这行
                     // 处理任务
                     let result = process_job(&db_pool, &index, &job.payload);
 
@@ -160,78 +163,126 @@ fn process_job(
     payload: &JobPayload,
 ) -> Result<()> {
     use std::path::Path;
+    use std::fs::metadata;
+    use std::time::UNIX_EPOCH;
 
     match payload {
         JobPayload::UpdateOrSave { root_path, relative_path } => {
-            println!("🔍 [索引] 更新/保存: {}", relative_path);
-            
-            update_document_index(
-                index,
-                db_pool,
-                Path::new(root_path),
-                Path::new(relative_path),
-            )?;
+			println!("🔍 [索引] 更新/保存: {}", relative_path);
 			
-			   // ✅ 索引成功后更新数据库
-			if let Ok(conn) = db_pool.get() {
-				let absolute_path = to_absolute_path(
-					Path::new(&root_path), 
-					Path::new(&relative_path)
-				);
-				
-				if let Ok(meta) = std::fs::metadata(&absolute_path) {
-					if let Ok(modified) = meta.modified() {
-						if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
-							let mtime = duration.as_secs() as i64;
-							
-							let _ = conn.execute(
-								"UPDATE files SET indexed = 1, last_modified = ?1 WHERE path = ?2",
-								params![mtime, relative_path],
-							);
-						}
+			// 步骤1: 执行索引
+			update_document_index(
+				index,
+				db_pool,
+				Path::new(root_path),
+				Path::new(relative_path),
+			)?;
+			
+			// 步骤2: ✅ 更新 files 表的 indexed 和 last_modified
+			let conn = db_pool.get()?;
+			let absolute_path = crate::commands::path_utils::to_absolute_path(
+				Path::new(root_path),
+				Path::new(relative_path)
+			);
+			
+			// ✅ 获取 mtime，如果失败则使用当前时间戳
+			let mtime = if let Ok(meta) = metadata(&absolute_path) {
+				if let Ok(modified) = meta.modified() {
+					if let Ok(duration) = modified.duration_since(UNIX_EPOCH) {
+						duration.as_secs() as i64
+					} else {
+						// 如果时间早于 UNIX_EPOCH，使用当前时间
+						std::time::SystemTime::now()
+							.duration_since(UNIX_EPOCH)
+							.unwrap()
+							.as_secs() as i64
 					}
+				} else {
+					// 获取修改时间失败，使用当前时间
+					std::time::SystemTime::now()
+						.duration_since(UNIX_EPOCH)
+						.unwrap()
+						.as_secs() as i64
 				}
-			}
+			} else {
+				// 读取文件元数据失败，使用当前时间
+				eprintln!("⚠️ [索引] 无法获取文件元数据: {}", absolute_path.display());
+				std::time::SystemTime::now()
+					.duration_since(UNIX_EPOCH)
+					.unwrap()
+					.as_secs() as i64
+			};
 			
-        }
+			// ✅ 无论如何都要更新 indexed 状态
+			conn.execute(
+				"UPDATE files SET indexed = 1, last_modified = ?1 WHERE path = ?2",
+				params![mtime, relative_path],
+			)?;
+			
+			println!("✅ [索引] 已更新数据库状态: {} (mtime={})", relative_path, mtime);
+		}
         
         JobPayload::RenameOrMove { root_path, old_relative_path, new_relative_path } => {
-            println!(
-                "🔍 [索引] 重命名: {} -> {}",
-                old_relative_path, new_relative_path
-            );
-            
-            update_document_index_for_rename(
-                index,
-                db_pool,
-                Path::new(root_path),
-                Path::new(old_relative_path),
-                Path::new(new_relative_path),
-            )?;
-			// ✅ 索引成功后更新数据库
-			if let Ok(conn) = db_pool.get() {
-				let absolute_path = to_absolute_path(
-					Path::new(&root_path), 
-					Path::new(&new_relative_path)
-				);
-				
-				if let Ok(meta) = std::fs::metadata(&absolute_path) {
-					if let Ok(modified) = meta.modified() {
-						if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
-							let mtime = duration.as_secs() as i64;
-							
-							let _ = conn.execute(
-								"UPDATE files SET indexed = 1, last_modified = ?1 WHERE path = ?2",
-								params![mtime, new_relative_path],
-							);
-						}
+			println!(
+				"🔍 [索引] 重命名: {} -> {}",
+				old_relative_path, new_relative_path
+			);
+			
+			// 步骤1: 执行索引
+			update_document_index_for_rename(
+				index,
+				db_pool,
+				Path::new(root_path),
+				Path::new(old_relative_path),
+				Path::new(new_relative_path),
+			)?;
+			
+			// 步骤2: 更新数据库
+			let conn = db_pool.get()?;
+			let absolute_path = crate::commands::path_utils::to_absolute_path(
+				Path::new(root_path),
+				Path::new(new_relative_path)
+			);
+			
+			// ✅ 获取 mtime，如果失败则使用当前时间戳
+			let mtime = if let Ok(meta) = metadata(&absolute_path) {
+				if let Ok(modified) = meta.modified() {
+					if let Ok(duration) = modified.duration_since(UNIX_EPOCH) {
+						duration.as_secs() as i64
+					} else {
+						eprintln!("⚠️ [索引] 文件时间早于 UNIX_EPOCH: {}", absolute_path.display());
+						std::time::SystemTime::now()
+							.duration_since(UNIX_EPOCH)
+							.unwrap()
+							.as_secs() as i64
 					}
+				} else {
+					eprintln!("⚠️ [索引] 无法获取文件修改时间: {}", absolute_path.display());
+					std::time::SystemTime::now()
+						.duration_since(UNIX_EPOCH)
+						.unwrap()
+						.as_secs() as i64
 				}
-			}
-        }
+			} else {
+				eprintln!("⚠️ [索引] 无法获取文件元数据: {}", absolute_path.display());
+				std::time::SystemTime::now()
+					.duration_since(UNIX_EPOCH)
+					.unwrap()
+					.as_secs() as i64
+			};
+			
+			conn.execute(
+				"UPDATE files SET indexed = 1, last_modified = ?1 WHERE path = ?2",
+				params![mtime, new_relative_path],
+			)?;
+			
+			println!("✅ [索引] 已更新数据库状态: {} (mtime={})", new_relative_path, mtime);
+		}
         
         JobPayload::Delete { relative_path } => {
             println!("🔍 [索引] 删除: {}", relative_path);
+            
+            // 删除操作不需要更新 files 表,因为记录已经在 fs.rs 中被删除了
             delete_document(index, relative_path)?;
         }
     }
@@ -467,44 +518,4 @@ fn persist_job_to_db(payload: &JobPayload) -> Result<i64> {
     
     let job_id = conn.last_insert_rowid();
     Ok(job_id)
-}
-
-// src-tauri/src/indexing_jobs.rs
-
-/// 更新任务失败状态
-fn update_job_failure(
-    db_pool: &Pool<SqliteConnectionManager>,
-    job_id: i64,
-    error_msg: &str,
-) -> Result<()> {
-    let conn = db_pool.get()?;
-    
-    conn.execute(
-        "UPDATE indexing_jobs 
-         SET retry_count = retry_count + 1,
-             last_error = ?1,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?2",
-        params![error_msg, job_id],
-    )?;
-    
-    // 检查是否超过最大重试次数
-    let (retry_count, max_retries): (i32, i32) = conn.query_row(
-        "SELECT retry_count, max_retries FROM indexing_jobs WHERE id = ?1",
-        params![job_id],
-        |row| Ok((row.get(0)?, row.get(1)?)),
-    )?;
-    
-    if retry_count >= max_retries {
-        conn.execute(
-            "UPDATE indexing_jobs 
-             SET status = 'failed',
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?1",
-            params![job_id],
-        )?;
-        eprintln!("⚠️ [索引Worker] 任务 ID={} 已标记为失败", job_id);
-    }
-    
-    Ok(())
 }

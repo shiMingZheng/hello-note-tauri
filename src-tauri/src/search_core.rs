@@ -79,32 +79,6 @@ pub fn initialize_index(meta_dir: &Path) -> Result<Arc<Index>> {
     Ok(Arc::new(index))
 }
 
-fn scan_disk_files_recursive(
-    dir: &Path,
-    base_path: &Path,
-    files_on_disk: &mut HashSet<String>,
-) -> Result<()> {
-    if !dir.is_dir() {
-        return Ok(());
-    }
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let absolute_path = entry.path();
-        if let Some(name) = absolute_path.file_name().and_then(|s| s.to_str()) {
-            if name.starts_with('.') {
-                continue;
-            }
-        }
-        if absolute_path.is_dir() {
-            scan_disk_files_recursive(&absolute_path, base_path, files_on_disk)?;
-        } else if absolute_path.extension().and_then(|s| s.to_str()) == Some("md") {
-            if let Some(relative_path) = to_relative_path(base_path, &absolute_path) {
-                files_on_disk.insert(relative_path);
-            }
-        }
-    }
-    Ok(())
-}
 
 pub fn index_documents(
     index: &Index,
@@ -262,16 +236,6 @@ pub fn delete_document(index: &Index, relative_path: &str) -> Result<()> {
     writer.delete_term(path_term);
     writer.commit()?;
     Ok(())
-}
-
-fn extract_title_from_content(content: &str) -> Option<String> {
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("# ") {
-            return Some(trimmed[2..].trim().to_string());
-        }
-    }
-    None
 }
 
 // [修正] 重命名函数，并简化、修正其实现

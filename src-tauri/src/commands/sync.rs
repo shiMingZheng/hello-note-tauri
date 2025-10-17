@@ -130,13 +130,17 @@ pub async fn sync_workspace(
 			.collect();
 		
 		// 需要索引的文件(indexed=0 或 mtime变化)
+		// 需要索引的文件(indexed=0 或 mtime变化 或 新文件)
 		let files_to_index: Vec<String> = fs_files.iter()
 			.filter_map(|(path, disk_mtime)| {
 				if let Some((indexed, db_mtime)) = db_files.get(path) {
-					// 未索引 或 修改时间不一致
+					// 已存在的文件: 未索引 或 修改时间不一致
 					if *indexed == 0 || (*disk_mtime as i64) != *db_mtime {
 						return Some(path.clone());
 					}
+				} else {
+					// ✅ 新文件: 数据库中不存在,一定需要索引
+					return Some(path.clone());
 				}
 				None
 			})
@@ -203,20 +207,24 @@ pub async fn sync_workspace(
             }
             
             tx.commit().map_err(|e| e.to_string())?;
-					// 5. 为需要索引的文件分发任务
-			if !files_to_index.is_empty() {
-				println!("📤 分发 {} 个文件的索引任务", files_to_index.len());
-				
-				for file_path in files_to_index {
-					if let Err(e) = indexing_jobs::dispatch_update_job(
-						root_path.clone(),
-						file_path.clone()
-					) {
-						eprintln!("⚠️ 分发索引任务失败 ({}): {}", file_path, e);
-					}
+        }
+		
+		// 5. ✅ 为需要索引的文件分发任务 (移到 if 块外面)
+		if !files_to_index.is_empty() {
+			println!("📤 分发 {} 个文件的索引任务", files_to_index.len());
+			
+			for file_path in files_to_index {
+				if let Err(e) = indexing_jobs::dispatch_update_job(
+					root_path.clone(),
+					file_path.clone()
+				) {
+					eprintln!("⚠️ 分发索引任务失败 ({}): {}", file_path, e);
 				}
 			}
-        }
+			
+			println!("✅ 已分发所有索引任务");
+		}
+
 		
 
         
