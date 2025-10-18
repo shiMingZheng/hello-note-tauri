@@ -2,6 +2,7 @@
 'use strict';
 
 import { appState } from './core/AppState.js';
+import { eventBus } from './core/EventBus.js';
 
 console.log('📜 tab_manager.js 开始加载...');
 
@@ -30,6 +31,14 @@ export class TabManager {
         
         homeTabBtn.addEventListener('click', () => this.switchToTab('home'));
         addNewNoteTabBtn.addEventListener('click', () => this.handleAddNewNote());
+		
+		// 订阅打开标签页事件
+		eventBus.on('open-tab', (filePath) => {
+			console.log('📥 收到 open-tab 事件:', filePath);
+			this.openTab(filePath);
+		});
+		
+		console.log('✅ TabManager 已订阅 open-tab 事件');
         
         console.log('✅ TabManager 初始化完成');
     }

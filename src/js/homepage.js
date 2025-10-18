@@ -2,6 +2,7 @@
 
 'use strict';
 import { appState } from './core/AppState.js';
+import { eventBus } from './core/EventBus.js';
 
 const { invoke } = window.__TAURI__.core;
 console.log('📜 homepage.js 开始加载...');
@@ -87,7 +88,9 @@ function renderHistory(history) {
             if (path) {
                 // [修复] 验证文件是否存在
                 if (await isFileExists(path)) {
-                    tabManager.openTab(path);
+                   
+					// 修改这里 👇
+					eventBus.emit('open-tab', path);
                 } else {
                     showError(`文件不存在: ${path}`);
                     // 刷新历史记录
@@ -146,7 +149,8 @@ function renderPinnedNotes(notes) {
         card.addEventListener('click', async () => {
             // [修复] 验证文件是否存在
             if (await isFileExists(note.path)) {
-                tabManager.openTab(note.path);
+				// 修改这里 👇
+				eventBus.emit('open-tab', note.path);
             } else {
                 showError(`文件不存在: ${note.path}`);
                 // 取消置顶并刷新

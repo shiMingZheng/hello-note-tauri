@@ -13,6 +13,7 @@ import { replaceAll, getMarkdown } from '@milkdown/utils';
 import { createWikilinkPlugin } from './milkdown-wikilink-plugin.js';
 import { appState } from './core/AppState.js';
 import { showError } from './ui-utils.js';
+import { eventBus } from './core/EventBus.js';
 
 console.log('📜 milkdown-editor.js 开始加载...');
 
@@ -160,10 +161,9 @@ class MilkdownEditorManager {
             }
             
             console.log('✅ 找到目标文件:', filePath);
-            
-            if (window.tabManager) {
-                window.tabManager.openTab(filePath);
-            }
+			// 修改这里 👇
+			eventBus.emit('open-tab', filePath);
+
         } catch (error) {
             console.error('❌ 处理链接失败:', error);
             showError('打开链接失败: ' + error);

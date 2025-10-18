@@ -22,7 +22,7 @@ let fileListSpacer = null;
  */
 export function setupVirtualScroll() {
     console.log('🎯 设置虚拟滚动...');
-    
+
     fileListContainer = document.querySelector('.file-list-container');
     fileListElement = document.getElementById('file-list');
     
@@ -73,6 +73,56 @@ export function setupVirtualScroll() {
     appState.virtualScroll.containerHeight = fileListContainer.clientHeight;
     
     console.log('✅ 虚拟滚动已设置');
+	// 🆕 添加点击事件委托
+	fileListElement.addEventListener('click', (e) => {
+		const li = e.target.closest('li');
+		if (!li) return;
+		if (li.querySelector('.rename-input')) return;
+		
+		const path = li.dataset.path;
+		const isDir = li.dataset.isDir === 'true';
+		
+		console.log('🖱️ [虚拟滚动] 点击文件项:', path, isDir ? '(文件夹)' : '(文件)');
+		
+		if (isDir) {
+			// 切换文件夹展开/折叠
+			if (window.toggleFolderLazy) {
+				window.toggleFolderLazy(path);
+			} else {
+				console.error('❌ toggleFolderLazy 未定义');
+			}
+		} else {
+			// 发布打开文件事件
+			if (window.eventBus) {
+				window.eventBus.emit('open-tab', path);
+			} else {
+				console.error('❌ eventBus 未定义');
+			}
+		}
+	});
+	
+	// 🆕 添加右键菜单事件委托
+	fileListElement.addEventListener('contextmenu', (e) => {
+		e.preventDefault();
+		const li = e.target.closest('li');
+		if (!li) return;
+		
+		const item = {
+			path: li.dataset.path,
+			is_dir: li.dataset.isDir === 'true',
+			name: li.dataset.name
+		};
+		
+		console.log('🖱️ [虚拟滚动] 右键点击:', item);
+		
+		if (window.showContextMenu) {
+			window.showContextMenu(e, item);
+		} else {
+			console.error('❌ showContextMenu 未定义');
+		}
+	});
+	
+	console.log('✅ 虚拟滚动事件委托已绑定');
 }
 
 /**

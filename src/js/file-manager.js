@@ -8,6 +8,7 @@ import { updateVirtualScrollData } from './virtual-scroll.js';
 import { showError, showSuccessMessage } from './ui-utils.js';
 // 获取 invoke 方法
 import { TauriAPI, invoke } from './core/TauriAPI.js';
+import { eventBus } from './core/EventBus.js';
 
 
 console.log('📜 file-manager.js 开始加载...');
@@ -167,7 +168,7 @@ function handleFileListClick(e) {
     if (isDir) {
         toggleFolderLazy(path);
     } else {
-        tabManager.openTab(path);
+        eventBus.emit('open-tab', path)
     }
 }
 
@@ -221,7 +222,8 @@ async function handleCreateNote() {
         updateVirtualScrollData();
         
         if (newRelativePath) {
-            tabManager.openTab(newRelativePath);
+			 // 修改这里 👇
+			eventBus.emit('open-tab', newRelativePath);
         }
     } catch (error) {
         showError('创建笔记失败: ' + error);
@@ -622,8 +624,11 @@ export {
     handleDeleteFile,
     handlePinNote,
     handleUnpinNote,
-    handleRenameItem
+    handleRenameItem,
+    toggleFolderLazy  // 👈 确保有这一行
 };
+
+
 
 
 console.log('✅ file-manager.js 加载完成');

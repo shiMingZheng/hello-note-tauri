@@ -2,6 +2,7 @@
 'use strict';
 
 console.log('🚀 CheetahNote 主入口开始加载...');
+import { eventBus } from './core/EventBus.js';
 
 // 核心模块
 import { appState } from './core/AppState.js';
@@ -57,6 +58,9 @@ async function initApp() {
     console.log('🎯 初始化应用...');
     
     try {
+		// 导出事件总线到全局（供插件和调试使用）
+		window.eventBus = eventBus;
+		console.log('✅ EventBus 已导出到全局');
 		 // 1. 初始化 UI 组件（显式调用）
         sidebarControl.init();
         sidebar.init();
@@ -83,11 +87,14 @@ async function initApp() {
         // 5. 初始化插件系统
         await pluginManager.init(pluginContext);
         
-        // 6. 导出必要的函数到全局（用于向后兼容）
-        window.updateBacklinksUI = updateBacklinksUI;
-        window.initializeHomepage = initializeHomepage;
-        window.loadPinnedNotes = loadPinnedNotes;
-        window.loadHistory = loadHistory;
+        // 🆕 导出 editor.js 的函数到全局
+		window.loadFileToEditor = loadFileToEditor;
+		window.handleSearch = handleSearch;
+		window.clearSearch = clearSearch;
+		window.handleSaveFile = handleSaveFile;
+		window.toggleViewMode = toggleViewMode;
+		
+		console.log('✅ Editor 函数已导出到全局');
         
         // 导出 file-manager 函数到全局
         Object.assign(window, fileManager);
