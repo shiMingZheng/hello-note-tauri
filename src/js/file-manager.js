@@ -2,6 +2,7 @@
 // CheetahNote - 文件、文件夹管理 (工作区版本)
 
 'use strict';
+import { appState } from './core/AppState.js';
 console.log('📜 file-manager.js 开始加载...');
 
 // [保留] saveLastFile 用于在工作区内记忆上次打开的文件
@@ -600,24 +601,23 @@ async function handleCreateFolderInRoot() {
     });
 }
 
-// 在导出部分添加这两个函数
-window.handleCreateNoteInRoot = handleCreateNoteInRoot;
-window.handleCreateFolderInRoot = handleCreateFolderInRoot;
-
-window.saveLastFile = saveLastFile;
-window.saveExpandedFolders = saveExpandedFolders;
-window.refreshFileTree = refreshFileTree;
-window.createFileTreeItem = createFileTreeItem;
-
-// [修改] 移除 handleOpenFolder 的导出
-window.handleFileListClick = handleFileListClick;
-window.handleFileListContextMenu = handleFileListContextMenu;
-window.handleCreateNote = handleCreateNote;
-window.handleCreateFolder = handleCreateFolder;
-window.handleDeleteFile = handleDeleteFile;
-window.handlePinNote = handlePinNote;
-window.handleUnpinNote = handleUnpinNote;
-window.handleRenameItem = handleRenameItem;
+// ES Module 导出
+export {
+    handleCreateNoteInRoot,
+    handleCreateFolderInRoot,
+    saveLastFile,
+    saveExpandedFolders,
+    refreshFileTree,
+    createFileTreeItem,
+    handleFileListClick,
+    handleFileListContextMenu,
+    handleCreateNote,
+    handleCreateFolder,
+    handleDeleteFile,
+    handlePinNote,
+    handleUnpinNote,
+    handleRenameItem
+};
 
 
 console.log('✅ file-manager.js 加载完成');

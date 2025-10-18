@@ -1,14 +1,25 @@
-// src/js/tab_manager.js - 已包含 updatePathsForRenamedFolder 函数
-
+// src/js/tab_manager.js
 'use strict';
+
+import { appState } from './core/AppState.js';
+
 console.log('📜 tab_manager.js 开始加载...');
 
+// 模块私有变量
 let dynamicTabContainer, homeTabBtn, addNewNoteTabBtn, mainHeaderActions, editorWrapperEl, homepageEl;
 
-const tabManager = {
-    openTabs: [],
-    activeTab: 'home',
+/**
+ * 标签页管理器类
+ */
+export class TabManager {
+    constructor() {
+        this.openTabs = [];
+        this.activeTab = 'home';
+    }
 
+    /**
+     * 初始化标签页管理器
+     */
     init() {
         dynamicTabContainer = document.getElementById('dynamic-tab-container');
         homeTabBtn = document.getElementById('tab-home');
@@ -16,20 +27,28 @@ const tabManager = {
         mainHeaderActions = document.getElementById('main-header-actions');
         editorWrapperEl = document.getElementById('editor-wrapper');
         homepageEl = document.getElementById('homepage');
+        
         homeTabBtn.addEventListener('click', () => this.switchToTab('home'));
         addNewNoteTabBtn.addEventListener('click', () => this.handleAddNewNote());
-    },
+        
+        console.log('✅ TabManager 初始化完成');
+    }
 
+    /**
+     * 打开标签页
+     */
     openTab(filePath) {
         if (this.findTabByPath(filePath)) {
             this.switchToTab(filePath);
             return;
         }
+        
         const newTabData = {
             path: filePath,
             title: filePath.split(/[/\\]/).pop(),
             isNew: false
         };
+        
         if (this.activeTab === 'home') {
             this.openTabs.push(newTabData);
         } else {
@@ -40,49 +59,85 @@ const tabManager = {
                 this.openTabs.push(newTabData);
             }
         }
+        
         this.switchToTab(filePath);
-    },
+    }
 
+    /**
+     * 根据路径查找标签页
+     */
     findTabByPath(filePath) {
         return this.openTabs.find(tab => tab.path === filePath);
-    },
+    }
 
+    /**
+     * 切换到指定标签页
+     */
     switchToTab(tabId) {
         this.activeTab = tabId;
         appState.activeFilePath = (tabId === 'home') ? null : tabId;
         this.render();
+        
         if (tabId === 'home') {
             homepageEl.style.display = 'flex';
             editorWrapperEl.style.display = 'none';
             mainHeaderActions.style.display = 'none';
-            window.updateCurrentFileTagsUI(null);
-            window.updateBacklinksUI(null);
+            
+            if (window.updateCurrentFileTagsUI) {
+                window.updateCurrentFileTagsUI(null);
+            }
+            if (window.updateBacklinksUI) {
+                window.updateBacklinksUI(null);
+            }
         } else {
             homepageEl.style.display = 'none';
             editorWrapperEl.style.display = 'flex';
+            
             const tabData = this.findTabByPath(tabId);
             if (tabData && tabData.isNew) {
                 mainHeaderActions.style.display = 'none';
                 appState.activeFilePath = null;
-                markdownEditor.value = `# 空白页签\n\n您可以在左侧文件树中新建或打开一个笔记进行编辑。`;
-                markdownEditor.readOnly = true;
-                window.updateCurrentFileTagsUI(null);
-                window.updateBacklinksUI(null);
+                
+                if (window.markdownEditor) {
+                    window.markdownEditor.value = `# 空白页签\n\n您可以在左侧文件树中新建或打开一个笔记进行编辑。`;
+                    window.markdownEditor.readOnly = true;
+                }
+                
+                if (window.updateCurrentFileTagsUI) {
+                    window.updateCurrentFileTagsUI(null);
+                }
+                if (window.updateBacklinksUI) {
+                    window.updateBacklinksUI(null);
+                }
             } else {
                 mainHeaderActions.style.display = 'flex';
-                markdownEditor.readOnly = false;
-                loadFileToEditor(tabId);
-                window.updateCurrentFileTagsUI(tabId);
-                window.updateBacklinksUI(tabId);
+                
+                if (window.markdownEditor) {
+                    window.markdownEditor.readOnly = false;
+                }
+                
+                if (window.loadFileToEditor) {
+                    window.loadFileToEditor(tabId);
+                }
+                if (window.updateCurrentFileTagsUI) {
+                    window.updateCurrentFileTagsUI(tabId);
+                }
+                if (window.updateBacklinksUI) {
+                    window.updateBacklinksUI(tabId);
+                }
             }
         }
+        
         if (window.updateVirtualScrollData) {
-            updateVirtualScrollData();
+            window.updateVirtualScrollData();
         }
-		   // ✅ 新增：更新窗口标题
-		this.updateWindowTitle();
+        
+        this.updateWindowTitle();
+    }
 
-    },
+    /**
+     * 关闭标签页
+     */
     closeTab(filePath) {
         const index = this.openTabs.findIndex(tab => tab.path === filePath);
         if (index > -1) {
@@ -94,10 +149,10 @@ const tabManager = {
                 this.render();
             }
         }
-    },
+    }
 
     /**
-     * 更新单个标签页的路径（用于文件重命名）
+     * 更新单个标签页的路径(用于文件重命名)
      */
     updateTabId(oldPath, newPath) {
         const tabIndex = this.openTabs.findIndex(tab => tab.path === oldPath);
@@ -110,13 +165,11 @@ const tabManager = {
             appState.activeFilePath = newPath;
         }
         this.render();
-		this.updateWindowTitle(); // ✅ 重命名后也更新标题
-    },
+        this.updateWindowTitle();
+    }
 
     /**
-     * [关键函数] 批量更新文件夹重命名后的所有子文件标签页路径
-     * @param {string} oldPrefix - 旧的文件夹路径前缀
-     * @param {string} newPrefix - 新的文件夹路径前缀
+     * 批量更新文件夹重命名后的所有子文件标签页路径
      */
     updatePathsForRenamedFolder(oldPrefix, newPrefix) {
         console.log(`🔄 批量更新标签页路径: ${oldPrefix} -> ${newPrefix}`);
@@ -124,11 +177,8 @@ const tabManager = {
         let activeTabUpdated = false;
         let updatedCount = 0;
 
-        // 遍历所有打开的标签页
         this.openTabs.forEach(tab => {
-            // [关键] 检查标签页路径是否以旧前缀开头
             if (tab.path.startsWith(oldPrefix)) {
-                // 替换路径前缀
                 const newPath = tab.path.replace(oldPrefix, newPrefix);
                 const oldPath = tab.path;
                 
@@ -138,7 +188,6 @@ const tabManager = {
                 updatedCount++;
                 console.log(`  ✅ 更新标签页: ${oldPath} -> ${newPath}`);
 
-                // 如果当前激活的标签也被更新了，记录下来
                 if (this.activeTab === oldPath) {
                     this.activeTab = newPath;
                     activeTabUpdated = true;
@@ -146,7 +195,6 @@ const tabManager = {
             }
         });
 
-        // 如果激活标签被更新，同步更新 appState
         if (activeTabUpdated) {
             appState.activeFilePath = this.activeTab;
             console.log(`  🎯 激活标签已更新: ${this.activeTab}`);
@@ -154,12 +202,16 @@ const tabManager = {
 
         console.log(`✅ 共更新 ${updatedCount} 个标签页`);
         this.render();
-		this.updateWindowTitle(); // ✅ 文件夹重命名后也更新标题
-    },
+        this.updateWindowTitle();
+    }
 
+    /**
+     * 渲染标签页
+     */
     render() {
         dynamicTabContainer.innerHTML = '';
         homeTabBtn.classList.toggle('active', this.activeTab === 'home');
+        
         this.openTabs.forEach(tabData => {
             const tabEl = document.createElement('button');
             tabEl.className = 'tab-btn dynamic-tab-item';
@@ -167,6 +219,7 @@ const tabManager = {
             tabEl.title = tabData.path;
             tabEl.dataset.filePath = tabData.path;
             tabEl.classList.toggle('active', this.activeTab === tabData.path);
+            
             const closeBtn = document.createElement('span');
             closeBtn.className = 'close-tab-btn';
             closeBtn.textContent = '×';
@@ -174,58 +227,60 @@ const tabManager = {
                 e.stopPropagation();
                 this.closeTab(tabData.path);
             };
+            
             tabEl.appendChild(closeBtn);
             tabEl.addEventListener('click', () => this.switchToTab(tabData.path));
             dynamicTabContainer.appendChild(tabEl);
         });
-    },
+    }
 
+    /**
+     * 添加新笔记标签页
+     */
     handleAddNewNote() {
         const newTabId = `untitled-${Date.now()}`;
         const newTitle = `空白页签`;
         this.openTabs.push({ path: newTabId, title: newTitle, isNew: true });
         this.switchToTab(newTabId);
-    },
-	// ✅ 新增方法：更新窗口标题
-    // ✅ 完整替换 updateWindowTitle 方法
-	async updateWindowTitle() {
-		const baseTitle = 'CheetahNote - 极速笔记';
-		let newTitle = baseTitle;
-		
-		if (this.activeTab === 'home') {
-			newTitle = baseTitle;
-		} else {
-			const tabData = this.findTabByPath(this.activeTab);
-			
-			// 如果是新建的空白页签，不显示路径
-			if (tabData && tabData.isNew) {
-				newTitle = baseTitle;
-			} else if (appState.rootPath && this.activeTab) {
-				// 显示完整绝对路径
-				const rootPath = appState.rootPath.replace(/\\/g, '/');
-				const relativePath = this.activeTab.replace(/\\/g, '/');
-				const absolutePath = `${rootPath}/${relativePath}`;
-				
-				newTitle = `${baseTitle} - ${absolutePath}`;
-			}
-		}
-		
-		// 1. 更新网页标题
-		document.title = newTitle;
-		
-		// 2. 更新 Tauri 窗口标题
-		try {
-			if (window.__TAURI__) {
-				const appWindow = window.__TAURI__.window.getCurrentWindow();
-				await appWindow.setTitle(newTitle);
-				console.log('✅ 标题已更新:', newTitle);
-			}
-		} catch (error) {
-			console.warn('⚠️ 更新 Tauri 窗口标题失败:', error);
-		}
-	}
-	
-};
+    }
 
-document.addEventListener('DOMContentLoaded', () => tabManager.init());
-window.tabManager = tabManager;
+    /**
+     * 更新窗口标题
+     */
+    async updateWindowTitle() {
+        const baseTitle = 'CheetahNote - 极速笔记';
+        let newTitle = baseTitle;
+        
+        if (this.activeTab === 'home') {
+            newTitle = baseTitle;
+        } else {
+            const tabData = this.findTabByPath(this.activeTab);
+            
+            if (tabData && tabData.isNew) {
+                newTitle = baseTitle;
+            } else if (appState.rootPath && this.activeTab) {
+                const rootPath = appState.rootPath.replace(/\\/g, '/');
+                const relativePath = this.activeTab.replace(/\\/g, '/');
+                const absolutePath = `${rootPath}/${relativePath}`;
+                
+                newTitle = `${baseTitle} - ${absolutePath}`;
+            }
+        }
+        
+        // 更新网页标题
+        document.title = newTitle;
+        
+        // 更新 Tauri 窗口标题
+        try {
+            if (window.__TAURI__) {
+                const appWindow = window.__TAURI__.window.getCurrentWindow();
+                await appWindow.setTitle(newTitle);
+                console.log('✅ 标题已更新:', newTitle);
+            }
+        } catch (error) {
+            console.warn('⚠️ 更新 Tauri 窗口标题失败:', error);
+        }
+    }
+}
+
+console.log('✅ tab_manager.js 加载完成');

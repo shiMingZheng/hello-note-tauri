@@ -1,6 +1,7 @@
 // src/js/links.js
 
 'use strict';
+const { invoke } = window.__TAURI__.core;
 console.log('📜 links.js 开始加载...');
 
 let backlinksListElement;
@@ -42,5 +43,8 @@ async function updateBacklinksUI(relativePath) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', initializeLinks);
-window.updateBacklinksUI = updateBacklinksUI;
+// ES Module 导出
+export {
+    initializeLinks,
+    updateBacklinksUI
+};

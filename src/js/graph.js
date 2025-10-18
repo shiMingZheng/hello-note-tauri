@@ -1,6 +1,7 @@
 // src/js/graph.js
 
 'use strict';
+const { invoke } = window.__TAURI__.core;
 console.log('📜 graph.js 开始加载...');
 
 let graphViewBtn, graphOverlay, closeGraphBtn, graphContainer;
@@ -94,4 +95,9 @@ function closeGraphView() {
     graphContainer.innerHTML = '';
 }
 
-document.addEventListener('DOMContentLoaded', initializeGraph);
+// ES Module 导出
+export {
+    initializeGraph,
+    openGraphView,
+    closeGraphView
+};

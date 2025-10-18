@@ -5,6 +5,7 @@
 // 它们通过 <script> 标签加载，所以不需要 import
 
 'use strict';
+
 console.log('📜 app.js 开始加载...');
 
 
@@ -428,10 +429,5 @@ async function openLastFile() {
 }
 
 // 导出必要的函数和变量
-window.appState = appState;
-window.showWelcomeScreen = showWelcomeScreen;
-window.handleOpenWorkspace = handleOpenWorkspace;
-window.initializeMilkdownEditor = initializeMilkdownEditor;
-window.enableFallbackEditor = enableFallbackEditor;
 
 console.log('✅ app.js 加载完成');

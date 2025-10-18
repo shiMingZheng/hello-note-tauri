@@ -248,4 +248,6 @@ function updateVirtualScrollData(filteredPaths = null) {
     console.log(`📊 虚拟滚动数据已更新: ${visibleItems.length} 项`);
 }
 
+
+
 console.log('✅ virtual-scroll.js 加载完成');

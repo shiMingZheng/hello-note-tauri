@@ -2,6 +2,7 @@
 // CheetahNote - 编辑器逻辑（最终修复版）
 
 'use strict';
+import { appState } from './core/AppState.js';
 console.log('📜 editor.js 开始加载...');
 
 // ========================================
@@ -207,15 +208,14 @@ function toggleViewMode() {
 // ========================================
 // 初始化
 // ========================================
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('📄 editor.js DOM 已加载');
-});
+// ES Module 导出
+export {
+    handleSearch,
+    clearSearch,
+    handleSaveFile,
+    toggleViewMode,
+    loadFileToEditor
+};
 
-// 导出函数到全局
-window.handleSearch = handleSearch;
-window.clearSearch = clearSearch;
-window.handleSaveFile = handleSaveFile;
-window.toggleViewMode = toggleViewMode;
-window.loadFileToEditor = loadFileToEditor;
 
 console.log('✅ editor.js 加载完成');

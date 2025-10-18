@@ -1,6 +1,9 @@
 // src/js/homepage.js
 
 'use strict';
+import { appState } from './core/AppState.js';
+
+const { invoke } = window.__TAURI__.core;
 console.log('📜 homepage.js 开始加载...');
 
 let historyListElement;
@@ -195,9 +198,13 @@ async function cleanupInvalidHistory() {
     }
 }
 
-// 导出到全局
-window.initializeHomepage = initializeHomepage;
-window.loadPinnedNotes = loadPinnedNotes;
-window.loadHistory = loadHistory;
+// ES Module 导出
+export {
+    initializeHomepage,
+    loadPinnedNotes,
+    loadHistory,
+    isFileExists,
+    cleanupInvalidHistory
+};
 
 console.log('✅ homepage.js 加载完成');

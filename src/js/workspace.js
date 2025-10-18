@@ -2,15 +2,21 @@
 // CheetahNote - 工作区管理模块 (移除索引提示)
 
 'use strict';
+import { appState } from './core/AppState.js';
+import { TauriAPI } from './core/TauriAPI.js';
 console.log('📜 workspace.js 开始加载...');
 
 const WORKSPACE_STORAGE_KEY = 'cheetah_workspace_path';
+const { invoke } = window.__TAURI__.core;
+const { open } = window.__TAURI__.dialog;
 
 /**
  * 工作区管理器
  */
-const workspaceManager = {
-    currentWorkspace: null,
+export class WorkspaceManager {
+    constructor() {
+        this.currentWorkspace = null;
+    }
 
     /**
      * 获取上次使用的工作区路径
@@ -22,7 +28,7 @@ const workspaceManager = {
             console.warn('读取工作区路径失败:', error);
             return null;
         }
-    },
+    }
 
     /**
      * 保存工作区路径
@@ -34,7 +40,7 @@ const workspaceManager = {
         } catch (error) {
             console.warn('保存工作区路径失败:', error);
         }
-    },
+    }
 
     /**
      * 清除工作区路径
@@ -46,7 +52,7 @@ const workspaceManager = {
         } catch (error) {
             console.warn('清除工作区路径失败:', error);
         }
-    },
+    }
 
     /**
      * 选择并打开工作区
@@ -69,7 +75,7 @@ const workspaceManager = {
             showError('选择工作区失败: ' + error);
             return null;
         }
-    },
+    }
 
     /**
      * 打开指定路径的工作区
@@ -110,7 +116,7 @@ const workspaceManager = {
             showError('打开工作区失败: ' + error);
             return null;
         }
-    },
+    }
 
     /**
      * 初始化新工作区
@@ -150,7 +156,7 @@ const workspaceManager = {
 			console.error('初始化工作区失败:', error);
 			throw error;
 		}
-	},
+	}
 
     /**
      * 加载现有工作区
@@ -189,7 +195,7 @@ const workspaceManager = {
 			console.error('加载工作区失败:', error);
 			throw error;
 		}
-	},
+	}
 
     /**
      * 关闭当前工作区
@@ -216,7 +222,7 @@ const workspaceManager = {
             console.error('关闭工作区失败:', error);
             showError('关闭工作区失败: ' + error);
         }
-    },
+    }
 
     /**
      * 尝试恢复上次的工作区
@@ -257,7 +263,6 @@ function showWelcomeScreen() {
     searchBox.style.display = 'none';
 }
 
-// 导出到全局
-window.workspaceManager = workspaceManager;
+
 
 console.log('✅ workspace.js 加载完成');
