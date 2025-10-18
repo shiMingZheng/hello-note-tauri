@@ -4,6 +4,12 @@
 'use strict';
 import { appState } from './core/AppState.js';
 import { updateVirtualScrollData } from './virtual-scroll.js';
+// 在文件顶部,现有导入语句之后添加:
+import { showError, showSuccessMessage } from './ui-utils.js';
+// 获取 invoke 方法
+import { TauriAPI, invoke } from './core/TauriAPI.js';
+
+
 console.log('📜 file-manager.js 开始加载...');
 
 // [保留] saveLastFile 用于在工作区内记忆上次打开的文件

@@ -80,3 +80,5 @@ export const TauriAPI = {
         checkIndexingStatus: () => invoke('check_indexing_status')
     }
 };
+// 在文件末尾添加:
+export { invoke };
