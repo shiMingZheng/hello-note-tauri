@@ -1,7 +1,8 @@
 // src/js/plugin-manager.js
-// CheetahNote 插件管理器
-
 'use strict';
+
+import { pluginContext } from './plugin-context.js';
+
 console.log('📜 plugin-manager.js 开始加载...');
 
 /**
@@ -10,19 +11,24 @@ console.log('📜 plugin-manager.js 开始加载...');
  */
 class PluginManager {
     constructor() {
+        if (PluginManager.instance) {
+            return PluginManager.instance;
+        }
+        
         this.plugins = new Map();           // 已加载的插件 Map<pluginId, pluginInstance>
         this.pluginConfigs = new Map();     // 插件配置 Map<pluginId, manifest>
-        this.context = null;                // 插件上下文（将在初始化时设置）
+        this.context = null;                // 插件上下文
         this.enabled = new Set();           // 已启用的插件 ID
+        
+        PluginManager.instance = this;
     }
 
     /**
      * 初始化插件系统
-     * @param {PluginContext} context - 插件上下文
      */
     async init(context) {
         console.log('🎯 初始化插件管理器...');
-        this.context = context;
+        this.context = context || pluginContext;
         
         // 从 localStorage 恢复启用状态
         this.restoreEnabledPlugins();
@@ -38,7 +44,7 @@ class PluginManager {
      */
     async loadBuiltInPlugins() {
         const builtInPlugins = [
-           // 'screenshot'  // 截图插件
+            // 'screenshot'  // 截图插件示例
         ];
         
         for (const pluginId of builtInPlugins) {
@@ -90,68 +96,14 @@ class PluginManager {
             const pluginInstance = new PluginClass(this.context);
             this.plugins.set(pluginId, pluginInstance);
 
-            // 5. 如果插件已启用，激活它
+            // 5. 如果插件应该启用，则激活它
             if (this.enabled.has(pluginId)) {
                 await this.activatePlugin(pluginId);
             }
 
-            console.log(`✅ 插件加载成功: ${manifest.name}`);
+            console.log(`✅ 插件加载成功: ${pluginId}`);
         } catch (error) {
             console.error(`❌ 加载插件失败: ${pluginId}`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * 激活插件
-     * @param {string} pluginId - 插件 ID
-     */
-    async activatePlugin(pluginId) {
-        const plugin = this.plugins.get(pluginId);
-        if (!plugin) {
-            throw new Error(`插件未加载: ${pluginId}`);
-        }
-
-        console.log(`🔌 激活插件: ${pluginId}`);
-
-        try {
-            if (typeof plugin.activate === 'function') {
-                await plugin.activate(this.context);
-            }
-            
-            this.enabled.add(pluginId);
-            this.saveEnabledPlugins();
-            
-            console.log(`✅ 插件激活成功: ${pluginId}`);
-        } catch (error) {
-            console.error(`❌ 激活插件失败: ${pluginId}`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * 停用插件
-     * @param {string} pluginId - 插件 ID
-     */
-    async deactivatePlugin(pluginId) {
-        const plugin = this.plugins.get(pluginId);
-        if (!plugin) {
-            throw new Error(`插件未加载: ${pluginId}`);
-        }
-
-        console.log(`🔌 停用插件: ${pluginId}`);
-
-        try {
-            if (typeof plugin.deactivate === 'function') {
-                await plugin.deactivate();
-            }
-            
-            this.enabled.delete(pluginId);
-            this.saveEnabledPlugins();
-            
-            console.log(`✅ 插件停用成功: ${pluginId}`);
-        } catch (error) {
-            console.error(`❌ 停用插件失败: ${pluginId}`, error);
             throw error;
         }
     }
@@ -174,13 +126,77 @@ class PluginManager {
                 await this.deactivatePlugin(pluginId);
             }
 
-            // 删除插件
+            // 移除插件
             this.plugins.delete(pluginId);
             this.pluginConfigs.delete(pluginId);
 
             console.log(`✅ 插件卸载成功: ${pluginId}`);
         } catch (error) {
             console.error(`❌ 卸载插件失败: ${pluginId}`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 激活插件
+     * @param {string} pluginId - 插件 ID
+     */
+    async activatePlugin(pluginId) {
+        const plugin = this.plugins.get(pluginId);
+        if (!plugin) {
+            throw new Error(`插件未加载: ${pluginId}`);
+        }
+
+        if (this.enabled.has(pluginId)) {
+            console.warn(`⚠️ 插件已激活: ${pluginId}`);
+            return;
+        }
+
+        console.log(`▶️ 激活插件: ${pluginId}`);
+
+        try {
+            if (plugin.onActivate) {
+                await plugin.onActivate();
+            }
+
+            this.enabled.add(pluginId);
+            this.saveEnabledPlugins();
+
+            console.log(`✅ 插件激活成功: ${pluginId}`);
+        } catch (error) {
+            console.error(`❌ 激活插件失败: ${pluginId}`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 停用插件
+     * @param {string} pluginId - 插件 ID
+     */
+    async deactivatePlugin(pluginId) {
+        const plugin = this.plugins.get(pluginId);
+        if (!plugin) {
+            throw new Error(`插件未加载: ${pluginId}`);
+        }
+
+        if (!this.enabled.has(pluginId)) {
+            console.warn(`⚠️ 插件未激活: ${pluginId}`);
+            return;
+        }
+
+        console.log(`⏸️ 停用插件: ${pluginId}`);
+
+        try {
+            if (plugin.onDeactivate) {
+                await plugin.onDeactivate();
+            }
+
+            this.enabled.delete(pluginId);
+            this.saveEnabledPlugins();
+
+            console.log(`✅ 插件停用成功: ${pluginId}`);
+        } catch (error) {
+            console.error(`❌ 停用插件失败: ${pluginId}`, error);
             throw error;
         }
     }
@@ -256,7 +272,7 @@ class PluginManager {
                 console.log('🔄 恢复插件启用状态:', enabledArray);
             } else {
                 // 默认启用所有内置插件
-               // this.enabled.add('screenshot');
+                // this.enabled.add('screenshot');
             }
         } catch (error) {
             console.warn('⚠️ 恢复插件状态失败:', error);
@@ -264,10 +280,16 @@ class PluginManager {
     }
 }
 
-// 创建全局插件管理器实例
+// 创建单例
 const pluginManager = new PluginManager();
 
-// 导出到全局
+// 导出到全局（供其他模块使用）
 window.pluginManager = pluginManager;
+
+// ES Module 导出
+export {
+    pluginManager,
+    PluginManager
+};
 
 console.log('✅ plugin-manager.js 加载完成');

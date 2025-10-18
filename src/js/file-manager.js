@@ -3,6 +3,7 @@
 
 'use strict';
 import { appState } from './core/AppState.js';
+import { updateVirtualScrollData } from './virtual-scroll.js';
 console.log('📜 file-manager.js 开始加载...');
 
 // [保留] saveLastFile 用于在工作区内记忆上次打开的文件
@@ -73,9 +74,8 @@ async function refreshFileTree(relativePath = "") {
         console.log('🔍 当前展开的文件夹:', Array.from(appState.expandedFolders));
         
         console.log('  🔄 更新虚拟滚动数据');
-        if (window.updateVirtualScrollData) {
-            updateVirtualScrollData();
-        }
+        updateVirtualScrollData();
+        
 
         console.log('✅ 文件树刷新完成');
 
@@ -370,9 +370,9 @@ function handleRenameItem() {
 
             await refreshFileTree(parentPath);
             
-            if (window.updateVirtualScrollData) {
-                updateVirtualScrollData();
-            }
+
+            updateVirtualScrollData();
+            
        
             // [新增] 刷新首页数据
             if (window.loadPinnedNotes) {
@@ -574,9 +574,9 @@ async function handleCreateFolderInRoot() {
             showSuccessMessage('文件夹已创建');
             await refreshFileTree("");
             
-            if (window.updateVirtualScrollData) {
-                updateVirtualScrollData();
-            }
+            
+            updateVirtualScrollData();
+            
         } catch (error) {
             showError('创建文件夹失败: ' + error);
         }

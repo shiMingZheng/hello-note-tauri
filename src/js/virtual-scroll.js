@@ -1,14 +1,35 @@
 // src/js/virtual-scroll.js
-// CheetahNote - 虚拟滚动核心逻辑
-
 'use strict';
+
+import { appState } from './core/AppState.js';
+
 console.log('📜 virtual-scroll.js 开始加载...');
+
+// 虚拟滚动配置
+const VIRTUAL_SCROLL_CONFIG = {
+    ITEM_HEIGHT: 32,
+    BUFFER_SIZE: 5,
+    THROTTLE_DELAY: 16
+};
+
+// DOM 元素引用
+let fileListContainer = null;
+let fileListElement = null;
+let fileListSpacer = null;
 
 /**
  * 设置虚拟滚动
  */
-function setupVirtualScroll() {
+export function setupVirtualScroll() {
     console.log('🎯 设置虚拟滚动...');
+    
+    fileListContainer = document.querySelector('.file-list-container');
+    fileListElement = document.getElementById('file-list');
+    
+    if (!fileListContainer || !fileListElement) {
+        console.error('❌ 虚拟滚动元素未找到');
+        return;
+    }
     
     // 创建哨兵元素（撑开滚动条）
     fileListSpacer = document.createElement('div');
@@ -53,24 +74,10 @@ function setupVirtualScroll() {
     
     console.log('✅ 虚拟滚动已设置');
 }
-// ✅ 新增：监听窗口大小变化
-window.addEventListener('resize', debounce(() => {
-    if (window.updateVirtualScrollData) {
-        console.log('🔄 窗口大小改变，重新计算虚拟滚动...');
-        window.updateVirtualScrollData();
-    }
-}, 200));
-function debounce(func, wait) {
-    let timeout;
-    return function(...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-}
 
 /**
  * 处理虚拟滚动
- * 这是虚拟滚动的核心函数，根据滚动位置计算并渲染可见项
+ * 根据滚动位置计算并渲染可见项
  */
 function handleVirtualScroll() {
     const { visibleItems } = appState.virtualScroll;
@@ -126,11 +133,15 @@ function renderVisibleItems(startIndex, endIndex) {
     fileListElement.appendChild(fragment);
 }
 
-//新函数
+/**
+ * 创建文件树项
+ * @param {Object} item - 文件树项数据
+ * @returns {HTMLElement} DOM 元素
+ */
 function createFileTreeItem(item) {
     const li = document.createElement('li');
     
-    // ✅ 实时检查展开状态,不要缓存
+    // 实时检查展开状态
     const isExpanded = appState.expandedFolders.has(item.path);
     
     // 根据实际展开状态选择图标和箭头
@@ -162,20 +173,21 @@ function createFileTreeItem(item) {
     }
     
     if (window.makeDraggable) {
-        makeDraggable(li, item);
+        window.makeDraggable(li, item);
     }
     
     return li;
 }
 
 /**
- * [新函数] 递归地从 Map 构建扁平化的可见列表
+ * 递归构建扁平化的可见列表
+ * @param {Array} nodes - 节点列表
+ * @param {number} level - 层级
+ * @param {Array} result - 结果数组
  */
-
 function buildVisibleList(nodes, level, result) {
     if (!nodes) return;
     
-    // ✅ 调试:显示当前展开的文件夹
     if (level === 0) {
         console.log('🔍 [buildVisibleList] 当前展开的文件夹:', Array.from(appState.expandedFolders));
     }
@@ -184,11 +196,9 @@ function buildVisibleList(nodes, level, result) {
         const item = { ...node, level };
         result.push(item);
 
-        // ✅ 关键修改:每次都重新检查展开状态
         if (node.is_dir) {
             const isExpanded = appState.expandedFolders.has(node.path);
             
-            // ✅ 调试:显示每个文件夹的展开状态
             console.log(`📁 [buildVisibleList] 文件夹: ${node.name}, 路径: ${node.path}, 是否展开: ${isExpanded}, fileTreeMap中有子节点: ${appState.fileTreeMap.has(node.path)}`);
             
             // 只有在展开状态下才递归添加子节点
@@ -200,17 +210,16 @@ function buildVisibleList(nodes, level, result) {
         }
     }
 }
+
 /**
- * 更新虚拟滚动数据源 (已修改)
- * 当文件树数据变化时调用此函数
- * [修改] `updateVirtualScrollData` 现在可以接收一个可选的文件路径数组
- * @param {string[]} [filteredPaths=null] - 如果提供，则只显示这些路径的文件
+ * 更新虚拟滚动数据源
+ * @param {string[]} [filteredPaths=null] - 筛选的文件路径列表
  */
-function updateVirtualScrollData(filteredPaths = null) {
+export function updateVirtualScrollData(filteredPaths = null) {
     let visibleItems = [];
 
     if (filteredPaths) {
-        // 如果有筛选路径，我们只从 fileTreeMap 中构建这些文件的视图
+        // 如果有筛选路径，只显示这些文件
         const filteredNodes = [];
         const pathSet = new Set(filteredPaths);
 
@@ -228,9 +237,6 @@ function updateVirtualScrollData(filteredPaths = null) {
             }
         }
         findNodesByPaths(appState.fileTreeRoot);
-        // 注意：这里的实现很简单，只会显示一个扁平的筛选后列表。
-        // 一个更复杂的实现会保留原始的目录结构。
-        // 为了简单起见，我们暂时将筛选结果扁平化显示。
         buildVisibleList(filteredNodes, 0, visibleItems);
 
     } else {
@@ -241,13 +247,18 @@ function updateVirtualScrollData(filteredPaths = null) {
     appState.virtualScroll.visibleItems = visibleItems;
     
     const totalHeight = visibleItems.length * VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT;
-    fileListSpacer.style.height = `${totalHeight}px`;
+    if (fileListSpacer) {
+        fileListSpacer.style.height = `${totalHeight}px`;
+    }
     
     handleVirtualScroll();
     
     console.log(`📊 虚拟滚动数据已更新: ${visibleItems.length} 项`);
 }
 
-
-
+// ES Module 导出
+export {
+    setupVirtualScroll,
+    updateVirtualScrollData
+};
 console.log('✅ virtual-scroll.js 加载完成');

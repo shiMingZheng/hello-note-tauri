@@ -1,70 +1,109 @@
 // src/js/ui-utils.js
-// CheetahNote - UI 辅助函数 (弹窗、消息提示、右键菜单等)
-
 'use strict';
+
 console.log('📜 ui-utils.js 开始加载...');
 
-/**
- * 防抖函数
- */
-function debounce(func, wait) {
-    let timeout;
-    return function(...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-}
-
 // ========================================
-// 右键菜单和文件操作
+// Toast 通知系统
 // ========================================
 
-function showContextMenu(event, file) {
-    event.stopPropagation();
-    
-    appState.contextTarget = {
-        path: file.path,
-        isDir: file.is_dir,
-        name: file.name
-    };
-    
-    contextMenu.style.left = event.pageX + 'px';
-    contextMenu.style.top = event.pageY + 'px';
-    contextMenu.classList.add('visible');
-    
-    if (file.is_dir) {
-        newNoteBtn.style.display = 'block';
-        newFolderBtn.style.display = 'block';
-    } else {
-        newNoteBtn.style.display = 'none';
-        newFolderBtn.style.display = 'none';
+let toastContainer = null;
+
+function createToastContainer() {
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        `;
+        document.body.appendChild(toastContainer);
     }
+    return toastContainer;
 }
 
-function hideContextMenu() {
-    contextMenu.classList.remove('visible');
+function showToast(message, type = 'info', duration = 3000) {
+    const container = createToastContainer();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    toast.style.cssText = `
+        padding: 12px 20px;
+        border-radius: 6px;
+        color: white;
+        font-size: 14px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        animation: slideIn 0.3s ease-out;
+        min-width: 200px;
+        max-width: 400px;
+    `;
+    
+    // 根据类型设置背景色
+    const colors = {
+        success: '#28a745',
+        error: '#dc3545',
+        warning: '#ffc107',
+        info: '#17a2b8'
+    };
+    toast.style.backgroundColor = colors[type] || colors.info;
+    
+    container.appendChild(toast);
+    
+    // 自动移除
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-in';
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, duration);
 }
 
-function showCustomConfirm(title, message, icon = '⚠️') {
+export function showSuccessMessage(message) {
+    showToast(message, 'success');
+    console.log('✅ ' + message);
+}
+
+export function showError(message) {
+    showToast(message, 'error', 5000);
+    console.error('❌ ' + message);
+}
+
+export function showWarning(message) {
+    showToast(message, 'warning');
+    console.warn('⚠️ ' + message);
+}
+
+export function showInfo(message) {
+    showToast(message, 'info');
+    console.log('ℹ️ ' + message);
+}
+
+// ========================================
+// 自定义确认对话框
+// ========================================
+
+export function showCustomConfirm(title, message, confirmText = '确认', cancelText = '取消') {
     return new Promise((resolve) => {
-        const dialog = customConfirmDialog;
-        const titleEl = document.getElementById('dialog-title');
-        const messageEl = document.getElementById('dialog-message');
-        const iconEl = document.getElementById('dialog-icon');
+        const overlay = document.getElementById('custom-dialog-overlay');
+        const dialogTitle = document.getElementById('dialog-title');
+        const dialogMessage = document.getElementById('dialog-message');
         const confirmBtn = document.getElementById('dialog-confirm-btn');
         const cancelBtn = document.getElementById('dialog-cancel-btn');
         
-        titleEl.textContent = title;
-        messageEl.textContent = message;
-        iconEl.textContent = icon;
+        dialogTitle.textContent = title;
+        dialogMessage.textContent = message;
+        confirmBtn.textContent = confirmText;
+        cancelBtn.textContent = cancelText;
         
-        dialog.style.display = 'flex';
-        
-        const cleanup = () => {
-            dialog.style.display = 'none';
-            confirmBtn.removeEventListener('click', handleConfirm);
-            cancelBtn.removeEventListener('click', handleCancel);
-        };
+        overlay.style.display = 'flex';
         
         const handleConfirm = () => {
             cleanup();
@@ -76,50 +115,33 @@ function showCustomConfirm(title, message, icon = '⚠️') {
             resolve(false);
         };
         
+        const cleanup = () => {
+            overlay.style.display = 'none';
+            confirmBtn.removeEventListener('click', handleConfirm);
+            cancelBtn.removeEventListener('click', handleCancel);
+        };
+        
         confirmBtn.addEventListener('click', handleConfirm);
         cancelBtn.addEventListener('click', handleCancel);
     });
 }
 
+// ========================================
+// 索引状态提示 (已移除,保留接口以兼容)
+// ========================================
 
-function showSuccessMessage(message) {
-    console.log('✅ ' + message);
-    
-    const indexingToast = document.getElementById('indexing-toast');
-    if (indexingToast) {
-        indexingToast.style.animation = 'slideOut 0.3s ease-out';
-        setTimeout(() => indexingToast.remove(), 300);
-    }
-    
-    const toast = document.createElement('div');
-    toast.textContent = '✅ ' + message;
-    toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #27ae60;
-        color: white;
-        padding: 12px 20px;
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 10000;
-        animation: slideIn 0.3s ease-out;
-    `;
-    
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.style.animation = 'slideOut 0.3s ease-out';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+export function showIndexingToast() {
+    // 不再显示索引提示
+    console.log('🔍 后台索引已启动');
 }
 
-function showError(message) {
-    alert('❌ ' + message);
+export function hideIndexingToast() {
+    // 不再显示索引提示
+    console.log('✅ 后台索引已完成');
 }
 
 // ========================================
-// 样式和动画
+// 样式注入
 // ========================================
 
 const style = document.createElement('style');
@@ -144,53 +166,6 @@ style.textContent = `
             transform: translateX(100%);
             opacity: 0;
         }
-    }
-    
-    @keyframes spin {
-        from {
-            transform: rotate(0deg);
-        }
-        to {
-            transform: rotate(360deg);
-        }
-    }
-    
-    #indexing-toast .spinner {
-        display: inline-block;
-        animation: spin 1s linear infinite;
-    }
-    
-    /* 虚拟滚动优化样式 */
-    .file-list-container {
-        position: relative;
-        overflow-y: auto;
-        overflow-x: hidden;
-    }
-    
-    #file-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-    }
-    
-    #file-list li {
-        cursor: pointer;
-        transition: background-color 0.15s ease;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    #file-list li:hover {
-        background-color: rgba(255, 255, 255, 0.1);
-    }
-    
-    #file-list li.active {
-        background-color: rgba(74, 144, 226, 0.3);
-    }
-    
-    #file-list li.folder {
-        font-weight: 500;
     }
 `;
 document.head.appendChild(style);

@@ -1,213 +1,250 @@
 // src/js/tag_modal.js
-
 'use strict';
+
+import { appState } from './core/AppState.js';
+import { sidebar } from './sidebar.js';
+import { showError, showSuccessMessage } from './ui-utils.js';
+
 console.log('📜 tag_modal.js 开始加载...');
 
-// [修改] 重命名变量以避免冲突
-let modalOverlay, manageTagsBtn, closeModalBtn, doneBtn, cancelBtn, tagModalSearchInput; 
-let allTagsContainer, currentTagsContainer;
+const { invoke } = window.__TAURI__.core;
 
-// 临时存储状态
-let tempSelectedTags = new Set();
-let allAvailableTags = [];
-
-const tagModal = {
+class TagModal {
+    constructor() {
+        if (TagModal.instance) {
+            return TagModal.instance;
+        }
+        
+        // DOM 元素引用
+        this.modalOverlay = null;
+        this.manageTagsBtn = null;
+        this.closeModalBtn = null;
+        this.doneBtn = null;
+        this.cancelBtn = null;
+        this.tagModalSearchInput = null;
+        this.allTagsContainer = null;
+        this.currentTagsContainer = null;
+        
+        // 临时状态
+        this.tempSelectedTags = new Set();
+        this.allAvailableTags = [];
+        
+        TagModal.instance = this;
+    }
+    
+    /**
+     * 初始化标签弹窗
+     */
     init() {
         console.log('🎯 初始化标签弹窗模块...');
         
-        modalOverlay = document.getElementById('tag-modal-overlay');
-        manageTagsBtn = document.getElementById('manage-tags-btn');
-        closeModalBtn = document.getElementById('tag-modal-close-btn');
-        doneBtn = document.getElementById('tag-modal-done-btn');
-        cancelBtn = document.getElementById('tag-modal-cancel-btn');
-        tagModalSearchInput = document.getElementById('tag-modal-search-input');
-        allTagsContainer = document.getElementById('tag-modal-all-tags');
-        currentTagsContainer = document.getElementById('tag-modal-current-tags');
-
-        // [修复] 检查元素是否存在
-        if (!modalOverlay) {
-            console.error('❌ 未找到标签弹窗元素 #tag-modal-overlay');
-            return;
-        }
-
-        if (!manageTagsBtn) {
-            console.error('❌ 未找到管理标签按钮 #manage-tags-btn');
-            return;
-        }
-
-        // 绑定事件
-        manageTagsBtn.addEventListener('click', () => {
-            console.log('🏷️ 点击管理标签按钮');
-            this.open();
-        });
+        this.modalOverlay = document.getElementById('tag-modal-overlay');
+        this.manageTagsBtn = document.getElementById('manage-tags-btn');
+        this.closeModalBtn = document.getElementById('tag-modal-close-btn');
+        this.doneBtn = document.getElementById('tag-modal-done-btn');
+        this.cancelBtn = document.getElementById('tag-modal-cancel-btn');
+        this.tagModalSearchInput = document.getElementById('tag-modal-search-input');
+        this.allTagsContainer = document.getElementById('tag-modal-all-tags');
+        this.currentTagsContainer = document.getElementById('tag-modal-current-tags');
         
-        closeModalBtn.addEventListener('click', () => this.close());
-        cancelBtn.addEventListener('click', () => this.close());
-        doneBtn.addEventListener('click', () => this.handleDone());
-        tagModalSearchInput.addEventListener('keyup', (e) => this.handleSearch(e));
+        if (!this.modalOverlay || !this.manageTagsBtn) {
+            console.error('❌ 标签弹窗元素未找到');
+            return;
+        }
+        
+        // 绑定事件
+        this.manageTagsBtn.addEventListener('click', () => this.open());
+        this.closeModalBtn.addEventListener('click', () => this.close());
+        this.cancelBtn.addEventListener('click', () => this.close());
+        this.doneBtn.addEventListener('click', () => this.handleDone());
+        this.tagModalSearchInput.addEventListener('keyup', (e) => this.handleSearch(e));
         
         console.log('✅ 标签弹窗模块初始化完成');
-    },
-
+    }
+    
+    /**
+     * 打开标签弹窗
+     */
     async open() {
         console.log('🔓 尝试打开标签弹窗...');
-        console.log('📋 当前激活文件:', appState.activeFilePath);
         
         if (!appState.activeFilePath) {
             showError('请先打开一个笔记');
             return;
         }
-
-        // [修复] 检查文件路径是否有效（排除临时标签页）
+        
         if (appState.activeFilePath.startsWith('untitled-')) {
             showError('请先保存当前笔记');
             return;
         }
-
+        
+        // 初始化临时选择集
+        this.tempSelectedTags = new Set(appState.currentFileTags);
+        
+        // 加载所有可用标签
         try {
-            console.log('📡 请求获取标签数据...');
-            
-            // 获取最新数据
-            const [currentTags, allTags] = await Promise.all([
-                invoke('get_tags_for_file', { relativePath: appState.activeFilePath }),
-                invoke('get_all_tags')
-            ]);
-            
-            console.log('✅ 获取到当前文件标签:', currentTags);
-            console.log('✅ 获取到所有标签:', allTags);
-            
-            appState.currentFileTags = currentTags;
-            appState.allTags = allTags;
-            allAvailableTags = allTags.map(t => t.name);
-            tempSelectedTags = new Set(currentTags);
-
-            this.render();
-            modalOverlay.style.display = 'flex';
-            
-            // [修复] 使用正确的变量名
-            tagModalSearchInput.focus();
-            
-            console.log('✅ 标签弹窗已打开');
+            this.allAvailableTags = await invoke('get_all_tags');
+            console.log('📋 加载了', this.allAvailableTags.length, '个标签');
         } catch (error) {
-            console.error('❌ 加载标签数据失败:', error);
-            showError('加载标签数据失败: ' + error);
-        }
-    },
-
-    close() {
-        console.log('🔒 关闭标签弹窗');
-        modalOverlay.style.display = 'none';
-        tagModalSearchInput.value = '';
-    },
-
-    render(filter = '') {
-        console.log('🎨 渲染标签弹窗内容，过滤词:', filter);
-        
-        // 渲染当前文件的标签
-        currentTagsContainer.innerHTML = '';
-        if (tempSelectedTags.size === 0) {
-            currentTagsContainer.innerHTML = '<p style="color: #999; font-size: 13px; padding: 10px;">暂无标签</p>';
-        } else {
-            tempSelectedTags.forEach(tagName => {
-                const pill = this.createPill(tagName, true);
-                currentTagsContainer.appendChild(pill);
-            });
-        }
-
-        // 渲染所有可选标签
-        allTagsContainer.innerHTML = '';
-        const filteredTags = allAvailableTags.filter(tagName => 
-            tagName.toLowerCase().includes(filter.toLowerCase()) && !tempSelectedTags.has(tagName)
-        );
-
-        if (filteredTags.length === 0 && filter) {
-            allTagsContainer.innerHTML = `<p style="color: #999; font-size: 13px; padding: 10px;">按 Enter 创建新标签 "${filter}"</p>`;
-        } else if (filteredTags.length === 0) {
-            allTagsContainer.innerHTML = '<p style="color: #999; font-size: 13px; padding: 10px;">暂无其他标签</p>';
-        } else {
-            filteredTags.forEach(tagName => {
-                const pill = this.createPill(tagName, false);
-                allTagsContainer.appendChild(pill);
-            });
+            console.error('❌ 加载标签失败:', error);
+            this.allAvailableTags = [];
         }
         
-        console.log(`  当前已选: ${tempSelectedTags.size} 个`);
-        console.log(`  可选标签: ${filteredTags.length} 个`);
-    },
-
-    createPill(tagName, isSelected) {
-        const pill = document.createElement('div');
-        pill.className = 'tag-pill';
-        pill.textContent = tagName;
-        pill.dataset.tagName = tagName;
-        if (isSelected) {
-            pill.classList.add('selected');
-        }
-        pill.addEventListener('click', () => this.handlePillClick(tagName));
-        return pill;
-    },
-
-    handlePillClick(tagName) {
-        console.log('🖱️ 点击标签:', tagName);
+        // 渲染标签列表
+        this.renderCurrentTags();
+        this.renderAllTags();
         
-        if (tempSelectedTags.has(tagName)) {
-            tempSelectedTags.delete(tagName);
-            console.log('  ➖ 取消选择');
-        } else {
-            tempSelectedTags.add(tagName);
-            console.log('  ➕ 选择');
-        }
+        // 显示弹窗
+        this.modalOverlay.style.display = 'flex';
+        this.tagModalSearchInput.value = '';
+        this.tagModalSearchInput.focus();
         
-        // [修复] 使用正确的变量名
-        this.render(tagModalSearchInput.value);
-    },
+        console.log('✅ 标签弹窗已打开');
+    }
     
-    handleSearch(e) {
-        const query = tagModalSearchInput.value.trim();
+    /**
+     * 关闭标签弹窗
+     */
+    close() {
+        this.modalOverlay.style.display = 'none';
+        console.log('🔒 标签弹窗已关闭');
+    }
+    
+    /**
+     * 渲染当前文件的标签
+     */
+    renderCurrentTags() {
+        this.currentTagsContainer.innerHTML = '';
         
-        if (e.key === 'Enter' && query) {
-            console.log('✨ 创建/选择新标签:', query);
+        if (this.tempSelectedTags.size === 0) {
+            this.currentTagsContainer.innerHTML = '<span class="no-tags-hint">暂无标签</span>';
+            return;
+        }
+        
+        this.tempSelectedTags.forEach(tagName => {
+            const pill = document.createElement('span');
+            pill.className = 'tag-pill selected';
+            pill.textContent = tagName;
             
-            // 创建新标签
-            const lowerCaseQuery = query.toLowerCase();
+            const removeBtn = document.createElement('span');
+            removeBtn.className = 'tag-remove-btn';
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', () => this.removeTag(tagName));
             
-            // 如果是新标签，添加到可用列表
-            if (!allAvailableTags.includes(lowerCaseQuery)) {
-                allAvailableTags.push(lowerCaseQuery);
-                console.log('  ➕ 添加到可用标签列表');
+            pill.appendChild(removeBtn);
+            this.currentTagsContainer.appendChild(pill);
+        });
+    }
+    
+    /**
+     * 渲染所有可用标签
+     */
+    renderAllTags(filterText = '') {
+        this.allTagsContainer.innerHTML = '';
+        
+        const filtered = this.allAvailableTags.filter(tag => 
+            tag.name.toLowerCase().includes(filterText.toLowerCase())
+        );
+        
+        if (filtered.length === 0 && filterText) {
+            const createHint = document.createElement('div');
+            createHint.className = 'create-tag-hint';
+            createHint.textContent = `按 Enter 创建新标签 "${filterText}"`;
+            this.allTagsContainer.appendChild(createHint);
+            return;
+        }
+        
+        filtered.forEach(tag => {
+            const pill = document.createElement('span');
+            pill.className = 'tag-pill';
+            
+            if (this.tempSelectedTags.has(tag.name)) {
+                pill.classList.add('selected');
             }
             
-            // 选中这个标签
-            this.handlePillClick(lowerCaseQuery);
+            pill.textContent = `${tag.name} (${tag.count})`;
+            pill.addEventListener('click', () => this.toggleTag(tag.name));
             
-            // 清空搜索框
-            tagModalSearchInput.value = '';
-            this.render('');
-        } else {
-            // 普通搜索过滤
-            this.render(query);
+            this.allTagsContainer.appendChild(pill);
+        });
+    }
+    
+    /**
+     * 处理搜索
+     */
+    handleSearch(e) {
+        const query = e.target.value.trim();
+        
+        if (e.key === 'Enter' && query) {
+            // 创建新标签
+            this.addTag(query);
+            e.target.value = '';
+            return;
         }
-    },
-
+        
+        this.renderAllTags(query);
+    }
+    
+    /**
+     * 添加标签
+     */
+    addTag(tagName) {
+        if (!tagName || this.tempSelectedTags.has(tagName)) {
+            return;
+        }
+        
+        this.tempSelectedTags.add(tagName);
+        
+        // 如果是新标签,添加到可用标签列表
+        if (!this.allAvailableTags.find(t => t.name === tagName)) {
+            this.allAvailableTags.push({ name: tagName, count: 0 });
+        }
+        
+        this.renderCurrentTags();
+        this.renderAllTags();
+    }
+    
+    /**
+     * 移除标签
+     */
+    removeTag(tagName) {
+        this.tempSelectedTags.delete(tagName);
+        this.renderCurrentTags();
+        this.renderAllTags();
+    }
+    
+    /**
+     * 切换标签选择状态
+     */
+    toggleTag(tagName) {
+        if (this.tempSelectedTags.has(tagName)) {
+            this.removeTag(tagName);
+        } else {
+            this.addTag(tagName);
+        }
+    }
+    
+    /**
+     * 完成编辑
+     */
     async handleDone() {
         console.log('💾 保存标签变更...');
         
         const originalTags = new Set(appState.currentFileTags);
-        const newTags = tempSelectedTags;
-
+        const newTags = this.tempSelectedTags;
+        
         const tagsToAdd = [...newTags].filter(t => !originalTags.has(t));
         const tagsToRemove = [...originalTags].filter(t => !newTags.has(t));
-
+        
         console.log('  ➕ 需要添加:', tagsToAdd);
         console.log('  ➖ 需要移除:', tagsToRemove);
-
-        // 如果没有变更，直接关闭
+        
         if (tagsToAdd.length === 0 && tagsToRemove.length === 0) {
             console.log('  ℹ️ 没有变更，直接关闭');
             this.close();
             return;
         }
-
+        
         try {
             // 并行处理所有标签变更
             await Promise.all([
@@ -229,16 +266,8 @@ const tagModal = {
             console.log('✅ 标签更新成功');
             
             // 刷新侧边栏显示
-            if (window.updateCurrentFileTagsUI) {
-                console.log('🔄 刷新侧边栏标签显示...');
-                updateCurrentFileTagsUI(appState.activeFilePath);
-            }
-            
-            // 刷新全局标签列表
-            if (window.refreshAllTagsList) {
-                console.log('🔄 刷新全局标签列表...');
-                refreshAllTagsList();
-            }
+            sidebar.updateCurrentFileTagsUI(appState.activeFilePath);
+            sidebar.refreshAllTagsList();
             
             showSuccessMessage('标签已保存');
         } catch (error) {
@@ -248,15 +277,24 @@ const tagModal = {
             this.close();
         }
     }
+}
+
+// 创建单例
+const tagModal = new TagModal();
+
+
+
+// ES Module 导出
+export {
+    tagModal
 };
 
-// [修复] 确保在 DOM 完全加载后初始化
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('📄 DOM 加载完成，初始化标签模块');
+// 为了兼容性,也导出初始化函数
+export function initializeTagModal() {
+    if (tagModal.modalOverlay) {
+        return;
+    }
     tagModal.init();
-});
-
-// 导出到全局
-window.tagModal = tagModal;
+}
 
 console.log('✅ tag_modal.js 加载完成');
