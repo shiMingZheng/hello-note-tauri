@@ -9,9 +9,27 @@ import { showError, showSuccessMessage } from './ui-utils.js';
 // 获取 invoke 方法
 import { TauriAPI, invoke } from './core/TauriAPI.js';
 import { eventBus } from './core/EventBus.js';
-
+import { domElements } from './dom-init.js';  // ⭐ 新增
+import { showContextMenu, hideContextMenu } from './context-menu.js';  // ⭐ 新增
 
 console.log('📜 file-manager.js 开始加载...');
+// 在文件顶部导入需要的元素引用
+let contextMenu, newNoteBtn, newFolderBtn, deleteFileBtn, pinNoteBtn, unpinNoteBtn, renameItemBtn;
+
+// 在某个初始化函数中赋值这些引用
+export function initFileManagerDOM() {
+    contextMenu = document.getElementById('context-menu');
+    newNoteBtn = document.getElementById('new-note-btn');
+    newFolderBtn = document.getElementById('new-folder-btn');
+    deleteFileBtn = document.getElementById('delete-file-btn');
+    pinNoteBtn = document.getElementById('pin-note-btn');
+    unpinNoteBtn = document.getElementById('unpin-note-btn');
+    renameItemBtn = document.getElementById('rename-item-btn');
+    
+    console.log('✅ file-manager DOM 元素已初始化');
+}
+
+
 
 // [保留] saveLastFile 用于在工作区内记忆上次打开的文件
 function saveLastFile(relativePath) {
@@ -415,43 +433,6 @@ function handleRenameItem() {
     });
 }
 
-async function showContextMenu(event, file) {
-    event.preventDefault();
-    event.stopPropagation();
-    appState.contextTarget = { path: file.path, is_dir: file.is_dir, name: file.name };
-    
-    contextMenu.style.left = event.pageX + 'px';
-    contextMenu.style.top = event.pageY + 'px';
-    contextMenu.classList.add('visible');
-
-    renameItemBtn.style.display = 'block';
-    pinNoteBtn.style.display = 'none';
-    unpinNoteBtn.style.display = 'none';
-    newNoteBtn.style.display = 'none';
-    newFolderBtn.style.display = 'none';
-    deleteFileBtn.style.display = 'none';
-
-    if (file.from === 'pinned-section') {
-        unpinNoteBtn.style.display = 'block';
-    } else if (file.is_dir) {
-        newNoteBtn.style.display = 'block';
-        newFolderBtn.style.display = 'block';
-        deleteFileBtn.style.display = 'block';
-    } else {
-        deleteFileBtn.style.display = 'block';
-        try {
-            const pinnedNotes = await invoke('get_pinned_notes');
-            const isPinned = pinnedNotes.some(note => note.path === file.path);
-            if (isPinned) {
-                unpinNoteBtn.style.display = 'block';
-            } else {
-                pinNoteBtn.style.display = 'block';
-            }
-        } catch (error) {
-            console.error("检查置顶状态失败:", error);
-        }
-    }
-}
 
 /**
  * 在根目录新建笔记 - 内联输入
@@ -628,7 +609,18 @@ export {
     toggleFolderLazy  // 👈 确保有这一行
 };
 
+// ⭐ 订阅右键菜单事件
+eventBus.on('context-menu:create-note', handleCreateNote);
+eventBus.on('context-menu:create-folder', handleCreateFolder);
+eventBus.on('context-menu:delete-item', handleDeleteFile);
+eventBus.on('context-menu:rename-item', handleRenameItem);
+eventBus.on('context-menu:pin-note', handlePinNote);
+eventBus.on('context-menu:unpin-note', handleUnpinNote);
 
+// ⭐ 订阅根目录操作事件
+eventBus.on('root-action:create-note', handleCreateNoteInRoot);
+eventBus.on('root-action:create-folder', handleCreateFolderInRoot);
 
+console.log('✅ file-manager 已订阅根目录操作事件');
 
 console.log('✅ file-manager.js 加载完成');

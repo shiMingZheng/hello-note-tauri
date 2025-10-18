@@ -6,65 +6,82 @@ import { appState } from './core/AppState.js';
 import { invoke } from './core/TauriApi.js';
 import { showError, showSuccessMessage } from './ui-utils.js';
 console.log('📜 editor.js 开始加载...');
+// 在文件顶部添加变量声明
+let fileListElement;
 
+// 添加初始化函数
+export function initEditorDOM() {
+    searchInput = document.getElementById('search-input');
+    clearSearchBtn = document.getElementById('clear-search-btn');
+    searchResultsList = document.getElementById('search-results-list');
+    fileListElement = document.getElementById('file-list');
+    
+    // ⭐ 绑定搜索事件
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(handleSearch, 300));
+    }
+    
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener('click', clearSearch);
+    }
+    
+    console.log('✅ editor DOM 元素已初始化');
+}
+
+// 需要一个防抖函数
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
 // ========================================
 // 搜索相关函数
 // ========================================
-function resetSearchInactivityTimer() {
-    if (appState.searchInactivityTimer) {
-        clearTimeout(appState.searchInactivityTimer);
-    }
-    appState.searchInactivityTimer = setTimeout(() => {
-        invoke('release_index').catch(err => console.error('释放索引失败:', err));
-    }, SEARCH_INACTIVITY_TIMEOUT);
-}
-
-async function handleSearch() {
-    resetSearchInactivityTimer();
-    const query = searchInput.value.trim();
-    if (!query) { clearSearch(); return; }
-    if (!appState.rootPath) {
-        showError('请先打开一个文件夹再进行搜索。');
-        return;
-    }
-    clearSearchBtn.style.display = 'block';
-    try {
-        await invoke('ensure_index_is_loaded', { rootPath: appState.rootPath });
-        const results = await invoke('search_notes', { query });
-        displaySearchResults(results);
-    } catch (error) {
-        showError('搜索失败: ' + error);
-    }
-}
-
-function displaySearchResults(results) {
-    searchResultsList.innerHTML = '';
-    if (results.length === 0) {
-        searchResultsList.innerHTML = '<li>没有找到相关笔记</li>';
-    } else {
-        results.forEach(result => {
-            const li = document.createElement('li');
-            const snippetHTML = result.snippet || '';
-            li.innerHTML = `<div class="search-result-title">${result.title}</div><div class="search-result-snippet">${snippetHTML}</div>`;
-            li.addEventListener('click', () => {
-                tabManager.openTab(result.path);
-                clearSearch();
-            });
-            searchResultsList.appendChild(li);
-        });
-    }
-    
-    fileListElement.style.display = 'none';
-    searchResultsList.style.display = 'block';
-}
-
-function clearSearch() {
-    resetSearchInactivityTimer();
-    searchInput.value = '';
-    clearSearchBtn.style.display = 'none';
-    searchResultsList.style.display = 'none';
-    fileListElement.style.display = 'block';
-}
+//function resetSearchInactivityTimer() {
+//    if (appState.searchInactivityTimer) {
+//        clearTimeout(appState.searchInactivityTimer);
+//    }
+//    appState.searchInactivityTimer = setTimeout(() => {
+//        invoke('release_index').catch(err => console.error('释放索引失败:', err));
+//    }, SEARCH_INACTIVITY_TIMEOUT);
+//}
+//
+//
+//
+//function displaySearchResults(results) {
+//    searchResultsList.innerHTML = '';
+//    if (results.length === 0) {
+//        searchResultsList.innerHTML = '<li>没有找到相关笔记</li>';
+//    } else {
+//        results.forEach(result => {
+//            const li = document.createElement('li');
+//            const snippetHTML = result.snippet || '';
+//            li.innerHTML = `<div class="search-result-title">${result.title}</div><div class="search-result-snippet">${snippetHTML}</div>`;
+//            li.addEventListener('click', () => {
+//                tabManager.openTab(result.path);
+//                clearSearch();
+//            });
+//            searchResultsList.appendChild(li);
+//        });
+//    }
+//    
+//    fileListElement.style.display = 'none';
+//    searchResultsList.style.display = 'block';
+//}
+//
+//function clearSearch() {
+//    resetSearchInactivityTimer();
+//    searchInput.value = '';
+//    clearSearchBtn.style.display = 'none';
+//    searchResultsList.style.display = 'none';
+//    fileListElement.style.display = 'block';
+//}
 
 // ========================================
 // 编辑器相关函数（Milkdown）
@@ -212,8 +229,6 @@ function toggleViewMode() {
 // ========================================
 // ES Module 导出
 export {
-    handleSearch,
-    clearSearch,
     handleSaveFile,
     toggleViewMode,
     loadFileToEditor

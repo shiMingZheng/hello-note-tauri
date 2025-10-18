@@ -2,11 +2,14 @@
 'use strict';
 
 import { appState } from './core/AppState.js';
+import { eventBus } from './core/EventBus.js';
+import { invoke } from './core/TauriAPI.js';
+import { domElements } from './dom-init.js';
+import { showError } from './ui-utils.js';
 import { updateVirtualScrollData } from './virtual-scroll.js';
+import { handleFileListClick, handleFileListContextMenu } from './file-manager.js';
 
 console.log('📜 sidebar.js 开始加载...');
-
-const { invoke } = window.__TAURI__.core;
 
 class Sidebar {
     constructor() {
@@ -14,133 +17,251 @@ class Sidebar {
             return Sidebar.instance;
         }
         
-        // DOM 元素引用
-        this.tagSidebarListElement = null;
-        this.clearFilterBtnElement = null;
-        this.toggleTagsBtn = null;
-        this.tagsPopover = null;
-        this.currentFileTagsList = null;
+        this.isTagsPopoverVisible = false;
         
         Sidebar.instance = this;
     }
     
+    /**
+     * 初始化侧边栏模块
+     */
     init() {
-        this.tagSidebarListElement = document.getElementById('tag-sidebar-list');
-        this.clearFilterBtnElement = document.getElementById('clear-filter-btn');
-        this.toggleTagsBtn = document.getElementById('toggle-tags-btn');
-        this.tagsPopover = document.getElementById('tags-popover');
-        this.currentFileTagsList = document.getElementById('current-file-tags-list');
+        console.log('🎯 初始化侧边栏模块...');
         
-        this.clearFilterBtnElement.addEventListener('click', () => this.handleClearTagFilter());
-        this.toggleTagsBtn.addEventListener('click', () => this.toggleTagsPopover());
-        
-        document.addEventListener('click', (e) => {
-            if (!this.tagsPopover.contains(e.target) && !this.toggleTagsBtn.contains(e.target)) {
-                this.tagsPopover.style.display = 'none';
-            }
-        });
-        
-        console.log('✅ 标签侧边栏初始化完成');
-    }
-    
-    toggleTagsPopover() {
-        const isVisible = this.tagsPopover.style.display === 'block';
-        this.tagsPopover.style.display = isVisible ? 'none' : 'block';
-        if (!isVisible) {
-            this.refreshAllTagsList();
+        // 绑定标签弹窗切换按钮
+        if (domElements.toggleTagsBtn) {
+            domElements.toggleTagsBtn.addEventListener('click', () => this.handleToggleTagsPopover());
         }
+        
+        // 绑定清除标签筛选按钮
+        if (domElements.clearFilterBtn) {
+            domElements.clearFilterBtn.addEventListener('click', () => this.handleClearTagFilter());
+        }
+        
+        // ⭐ 绑定文件列表的点击和右键事件
+        if (domElements.fileListElement) {
+            domElements.fileListElement.addEventListener('click', handleFileListClick);
+            domElements.fileListElement.addEventListener('contextmenu', handleFileListContextMenu);
+        }
+        
+        console.log('✅ 侧边栏模块初始化完成');
     }
     
+    /**
+     * 切换标签弹窗显示/隐藏
+     */
+    handleToggleTagsPopover() {
+        if (!domElements.tagsPopover) return;
+        
+        this.isTagsPopoverVisible = !this.isTagsPopoverVisible;
+        
+        if (this.isTagsPopoverVisible) {
+            domElements.tagsPopover.style.display = 'block';
+            this.refreshAllTagsList();
+        } else {
+            domElements.tagsPopover.style.display = 'none';
+        }
+        
+        console.log(`🏷️ 标签弹窗${this.isTagsPopoverVisible ? '显示' : '隐藏'}`);
+    }
+    
+    /**
+     * 刷新所有标签列表
+     */
     async refreshAllTagsList() {
+        if (!domElements.tagSidebarList) return;
+        
         try {
             const tags = await invoke('get_all_tags');
             appState.allTags = tags;
-            this.tagSidebarListElement.innerHTML = '';
             
-            if (tags.length === 0) {
-                this.tagSidebarListElement.innerHTML = '<li class="no-tags-info">暂无标签</li>';
-                return;
-            }
+            this.renderAllTagsList(tags);
             
-            tags.forEach(tagInfo => {
-                const li = document.createElement('li');
-                li.className = 'tag-sidebar-item';
-                li.textContent = `${tagInfo.name} (${tagInfo.count})`;
-                li.dataset.tagName = tagInfo.name;
-                
-                if (appState.activeTagFilter === tagInfo.name) {
-                    li.classList.add('active');
-                }
-                
-                li.addEventListener('click', () => this.handleTagFilterClick(tagInfo.name));
-                this.tagSidebarListElement.appendChild(li);
-            });
+            console.log(`✅ 刷新标签列表: ${tags.length} 个标签`);
         } catch (error) {
-            this.tagSidebarListElement.innerHTML = '<li class="no-tags-info">加载标签失败</li>';
+            console.error('❌ 加载标签列表失败:', error);
+            showError('加载标签列表失败: ' + error);
         }
     }
     
-    async handleTagFilterClick(tagName) {
-        this.tagsPopover.style.display = 'none';
+    /**
+     * 渲染所有标签列表
+     */
+    renderAllTagsList(tags) {
+        if (!domElements.tagSidebarList) return;
         
-        if (appState.activeTagFilter === tagName) {
-            this.handleClearTagFilter();
+        domElements.tagSidebarList.innerHTML = '';
+        
+        if (!tags || tags.length === 0) {
+            domElements.tagSidebarList.innerHTML = '<li style="padding: 10px; color: #999;">暂无标签</li>';
             return;
         }
         
+        tags.forEach(tag => {
+            const li = document.createElement('li');
+            li.className = 'tag-sidebar-item';
+            li.textContent = `${tag.name} (${tag.count})`;
+            
+            if (appState.activeTagFilter === tag.name) {
+                li.classList.add('active');
+            }
+            
+            li.addEventListener('click', () => this.handleTagClick(tag.name));
+            
+            domElements.tagSidebarList.appendChild(li);
+        });
+    }
+    
+    /**
+     * 处理标签点击事件 - 筛选文件
+     */
+    async handleTagClick(tagName) {
+        console.log(`🏷️ 点击标签筛选: ${tagName}`);
+        
         try {
-            const filePaths = await invoke('get_files_by_tag', { tagName });
             appState.activeTagFilter = tagName;
-            this.clearFilterBtnElement.style.display = 'block';
             
-            updateVirtualScrollData(filePaths);
-           
+            // 获取包含该标签的所有文件
+            const files = await invoke('get_files_by_tag', { tagName });
             
-            this.refreshAllTagsList();
-        } catch (error) {
-            if (window.showError) {
-                window.showError(`筛选文件失败: ${error}`);
+            console.log(`  找到 ${files.length} 个文件`);
+            
+            // 渲染筛选后的文件列表
+            this.renderFilteredFileList(files);
+            
+            // 显示"清除筛选"按钮
+            if (domElements.clearFilterBtn) {
+                domElements.clearFilterBtn.style.display = 'block';
             }
+            
+            // 更新标签列表高亮
+            this.updateTagListHighlight(tagName);
+            
+        } catch (error) {
+            console.error('❌ 标签筛选失败:', error);
+            showError('标签筛选失败: ' + error);
         }
     }
     
+    /**
+     * 渲染筛选后的文件列表
+     */
+    renderFilteredFileList(files) {
+        if (!domElements.fileListElement) return;
+        
+        domElements.fileListElement.innerHTML = '';
+        
+        if (files.length === 0) {
+            domElements.fileListElement.innerHTML = '<li style="padding: 10px; color: #999;">该标签下暂无文件</li>';
+            return;
+        }
+        
+        files.forEach(file => {
+            const li = document.createElement('li');
+            li.className = 'file';
+            li.dataset.path = file.path;
+            li.dataset.isDir = 'false';
+            li.dataset.name = file.title;
+            
+            const icon = '📄';
+            const name = file.title;
+            
+            li.innerHTML = `<span class="item-name">${icon} ${name}</span>`;
+            
+            if (appState.activeFilePath === file.path) {
+                li.classList.add('active');
+            }
+            
+            domElements.fileListElement.appendChild(li);
+        });
+    }
+    
+    /**
+     * 更新标签列表高亮
+     */
+    updateTagListHighlight(activeTagName) {
+        if (!domElements.tagSidebarList) return;
+        
+        const items = domElements.tagSidebarList.querySelectorAll('.tag-sidebar-item');
+        items.forEach(item => {
+            if (item.textContent.startsWith(activeTagName + ' ')) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    }
+    
+    /**
+     * 清除标签筛选
+     */
     handleClearTagFilter() {
-        appState.activeTagFilter = null;
-        this.clearFilterBtnElement.style.display = 'none';
+        console.log('🧹 清除标签筛选');
         
-        if (window.updateVirtualScrollData) {
-            window.updateVirtualScrollData();
+        appState.activeTagFilter = null;
+        
+        // 隐藏"清除筛选"按钮
+        if (domElements.clearFilterBtn) {
+            domElements.clearFilterBtn.style.display = 'none';
         }
         
-        this.refreshAllTagsList();
+        // 恢复完整文件树
+        updateVirtualScrollData();
+        
+        // 清除标签列表高亮
+        if (domElements.tagSidebarList) {
+            const items = domElements.tagSidebarList.querySelectorAll('.tag-sidebar-item');
+            items.forEach(item => item.classList.remove('active'));
+        }
     }
     
-    async updateCurrentFileTagsUI(relativePath) {
-        if (!this.currentFileTagsList) return;
+    /**
+     * 更新当前文件的标签显示
+     */
+    updateCurrentFileTagsUI(filePath) {
+        if (!domElements.currentFileTagsList) return;
         
-        if (!relativePath) {
-            this.currentFileTagsList.innerHTML = '<li class="no-tags-info">未选择文件</li>';
+        if (!filePath || filePath.startsWith('untitled-')) {
+            domElements.currentFileTagsList.innerHTML = '<li class="no-tags-info">未打开文件</li>';
+            return;
+        }
+        
+        if (!appState.currentFileTags || appState.currentFileTags.length === 0) {
+            domElements.currentFileTagsList.innerHTML = '<li class="no-tags-info">暂无标签</li>';
+            return;
+        }
+        
+        domElements.currentFileTagsList.innerHTML = '';
+        
+        appState.currentFileTags.forEach(tagName => {
+            const li = document.createElement('li');
+            li.className = 'tag-pill-display';
+            li.textContent = tagName;
+            domElements.currentFileTagsList.appendChild(li);
+        });
+    }
+    
+    /**
+     * 加载文件的标签
+     */
+    async loadFileTags(filePath) {
+        if (!filePath || filePath.startsWith('untitled-')) {
+            appState.currentFileTags = [];
+            this.updateCurrentFileTagsUI(filePath);
             return;
         }
         
         try {
-            const tags = await invoke('get_tags_for_file', { relativePath });
-            appState.currentFileTags = tags;
-            this.currentFileTagsList.innerHTML = '';
+            const tags = await invoke('get_file_tags', { relativePath: filePath });
+            appState.currentFileTags = tags.sort();
             
-            if (tags.length === 0) {
-                this.currentFileTagsList.innerHTML = '<li class="no-tags-info">无标签</li>';
-                return;
-            }
+            this.updateCurrentFileTagsUI(filePath);
             
-            tags.forEach(tagName => {
-                const li = document.createElement('li');
-                li.className = 'tag-pill-display';
-                li.textContent = tagName;
-                this.currentFileTagsList.appendChild(li);
-            });
+            console.log(`✅ 加载文件标签: ${tags.length} 个`);
         } catch (error) {
-            this.currentFileTagsList.innerHTML = '<li class="no-tags-info">加载标签失败</li>';
+            console.error('❌ 加载文件标签失败:', error);
+            appState.currentFileTags = [];
+            this.updateCurrentFileTagsUI(filePath);
         }
     }
 }
@@ -152,5 +273,10 @@ const sidebar = new Sidebar();
 export {
     sidebar
 };
+
+// 导出便捷函数
+export const refreshAllTagsList = () => sidebar.refreshAllTagsList();
+export const updateCurrentFileTagsUI = (filePath) => sidebar.updateCurrentFileTagsUI(filePath);
+export const loadFileTags = (filePath) => sidebar.loadFileTags(filePath);
 
 console.log('✅ sidebar.js 加载完成');

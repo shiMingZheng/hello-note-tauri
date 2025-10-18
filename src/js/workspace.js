@@ -5,10 +5,13 @@ import { appState } from './core/AppState.js';
 import { showError, showSuccessMessage } from './ui-utils.js';
 import { initializeHomepage } from './homepage.js';
 
+
+import { eventBus } from './core/EventBus.js';
+import { invoke } from './core/TauriAPI.js';
+
 console.log('📜 workspace.js 开始加载...');
 
 const WORKSPACE_STORAGE_KEY = 'cheetah_workspace_path';
-const { invoke } = window.__TAURI__.core;
 const { open } = window.__TAURI__.dialog;
 
 /**
@@ -191,7 +194,126 @@ export class WorkspaceManager {
             throw error;
         }
     }
-
+	
+	/**
+	* 启动时恢复工作区
+	*/
+	/**
+	* 启动时恢复工作区
+	*/
+	async startupWithWorkspace() {
+		console.log('🚀 启动时恢复工作区...');
+		
+		try {
+			// 1. 获取当前工作区（命令名称正确）
+			const currentWorkspace = await invoke('get_current_workspace');
+			
+			if (!currentWorkspace) {
+				console.log('ℹ️ 未找到上次打开的工作区');
+				return;
+			}
+			
+			console.log('✅ 找到上次的工作区:', currentWorkspace);
+			
+			// 2. 先设置 rootPath，再加载文件树
+			appState.rootPath = currentWorkspace.root_path;
+			appState.dbInitialized = true;
+			
+			// 3. 加载文件树
+			await this.loadWorkspaceFileTree();
+			
+			// 4. 恢复上次打开的文件（从 localStorage）
+			this.restoreLastOpenedFile();
+			
+			// 5. 初始化搜索索引（后台）
+			this.initializeSearchIndex();
+			
+			console.log('✅ 工作区启动完成');
+			
+		} catch (error) {
+			console.error('❌ 启动工作区失败:', error);
+		}
+	}
+		
+	/**
+	* 加载工作区文件树
+	*/
+	async loadWorkspaceFileTree() {
+		console.log('📂 加载文件树...');
+		
+		try {
+			const { refreshFileTree } = await import('./file-manager.js');
+			await refreshFileTree('');
+			
+			console.log('✅ 文件树加载完成');
+		} catch (error) {
+			console.error('❌ 加载文件树失败:', error);
+			throw error;
+		}
+	}
+		
+	/**
+	* 恢复上次打开的文件
+	* 从 localStorage 读取（因为后端没有对应命令）
+	*/
+	restoreLastOpenedFile() {
+		console.log('📄 尝试恢复上次打开的文件...');
+		
+		try {
+			const savedState = localStorage.getItem('cheetahnote_state');
+			
+			if (!savedState) {
+				console.log('ℹ️ 没有保存的状态');
+				return;
+			}
+			
+			const state = JSON.parse(savedState);
+			
+			if (state.activeFilePath && state.rootPath === appState.rootPath) {
+				console.log('✅ 恢复文件:', state.activeFilePath);
+				
+				// 延迟触发，确保 UI 已准备好
+				setTimeout(() => {
+					eventBus.emit('open-tab', state.activeFilePath);
+				}, 300);
+			} else {
+				console.log('ℹ️ 没有上次打开的文件');
+			}
+			
+		} catch (error) {
+			console.warn('⚠️ 恢复上次文件失败:', error);
+		}
+	}	
+	/**
+	* 初始化搜索索引（后台执行）
+	*/
+	initializeSearchIndex() {
+		console.log('🔍 开始初始化搜索索引（后台）...');
+		
+		if (!appState.rootPath) {
+			console.warn('⚠️ rootPath 未设置，跳过索引初始化');
+			return;
+		}
+		
+		// 先尝试加载已有索引
+		invoke('ensure_index_is_loaded', { rootPath: appState.rootPath })
+			.then(() => {
+				console.log('✅ 搜索索引已加载');
+				appState.indexInitialized = true;
+			})
+			.catch(err => {
+				console.warn('⚠️ 搜索索引加载失败，尝试初始化新索引...', err);
+				// 如果索引不存在，尝试初始化
+				return invoke('initialize_index_command', { rootPath: appState.rootPath });
+        })
+        .then(() => {
+            console.log('✅ 搜索索引初始化完成');
+            appState.indexInitialized = true;
+        })
+        .catch(err => {
+            console.error('❌ 搜索索引初始化失败:', err);
+        });
+}
     /**
      * 关闭当前工作区
      */
