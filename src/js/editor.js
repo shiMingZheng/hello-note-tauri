@@ -3,6 +3,8 @@
 
 'use strict';
 import { appState } from './core/AppState.js';
+import { invoke } from './core/TauriApi.js';
+import { showError, showSuccessMessage } from './ui-utils.js';
 console.log('📜 editor.js 开始加载...');
 
 // ========================================

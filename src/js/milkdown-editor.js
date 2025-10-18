@@ -42,6 +42,18 @@ class MilkdownEditorManager {
     async init(containerSelector, onContentChangeCallback) {
         console.log('🎨 初始化 Milkdown 编辑器...');
         
+		console.log('📍 [MilkdownEditor] 容器选择器:', containerSelector);
+    
+		// ⭐ 检查容器是否存在
+		const container = document.querySelector(containerSelector);
+		console.log('📍 [MilkdownEditor] 容器元素:', container);
+		
+		if (!container) {
+			const error = new Error(`找不到编辑器容器: ${containerSelector}`);
+			console.error('❌ [MilkdownEditor]', error);
+			throw error;
+		}
+		
         this.onContentChange = onContentChangeCallback;
         
         try {

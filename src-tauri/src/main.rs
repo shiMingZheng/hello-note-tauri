@@ -88,6 +88,13 @@ pub fn run() {
             println!("🏢 支持多工作区管理");
             println!("🔄 异步索引队列已就绪"); // [新增]
             println!("⚠️ 请先选择或创建工作区");
+			
+			   // ⭐ 添加这段代码 - 强制打开开发者工具
+			#[cfg(debug_assertions)]
+			{
+				let window = app.get_webview_window("main").unwrap();
+				window.open_devtools();
+			}
             
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("CheetahNote - 极速笔记");

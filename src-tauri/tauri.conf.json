@@ -33,7 +33,8 @@
         "decorations": true,
         "alwaysOnTop": false,
         "fullscreen": false,
-        "skipTaskbar": false
+        "skipTaskbar": false,
+		"devtools": true
       }
     ]
   }

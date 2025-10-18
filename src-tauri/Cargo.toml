@@ -56,7 +56,8 @@ panic = "abort"          # 减小二进制大小
 codegen-units = 1        # 最大化优化
 lto = true               # 链接时优化
 opt-level = "z"          # 优化文件大小
-strip = true             # 移除调试符号
+# strip = true           # ← 临时注释掉这行             # 移除调试符号
+debug = true
 
 [features]
 default = []

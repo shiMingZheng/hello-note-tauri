@@ -35,19 +35,38 @@ import { pluginContext } from './plugin-context.js';
 /**
  * 初始化 Milkdown 编辑器
  */
+/**
+ * 初始化 Milkdown 编辑器
+ */
 async function initializeMilkdownEditor() {
-    console.log('🎨 初始化 Milkdown 编辑器...');
+    console.log('🎨 [main.js] 开始初始化 Milkdown 编辑器...');
+    console.log('🔍 [main.js] 检查 milkdownEditor 对象:', window.milkdownEditor);
+    
+    if (!window.milkdownEditor) {
+        throw new Error('milkdownEditor 模块未加载');
+    }
     
     try {
+        console.log('📡 [main.js] 调用 milkdownEditor.init()...');
+        
         await milkdownEditor.init('#milkdown-editor', (content) => {
-            // 内容变化回调
             appState.hasUnsavedChanges = true;
         });
         
-        console.log('✅ Milkdown 编辑器初始化完成');
+        console.log('✅ [main.js] Milkdown 编辑器初始化完成');
+        console.log('🔍 [main.js] 编辑器实例:', window.milkdownEditor.editor);
+        
+        if (!window.milkdownEditor.editor) {
+            throw new Error('编辑器实例创建失败 (editor 为 null)');
+        }
+        
     } catch (error) {
-        console.error('❌ Milkdown 编辑器初始化失败:', error);
-        showError('编辑器初始化失败');
+        console.error('❌ [main.js] Milkdown 编辑器初始化失败:', error);
+        console.error('❌ [main.js] 错误堆栈:', error.stack);
+        showError('编辑器初始化失败: ' + error.message);
+        
+        // ⭐ 关键: 重新抛出错误,让调用者知道失败了
+        throw error;
     }
 }
 
