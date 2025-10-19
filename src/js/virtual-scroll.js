@@ -2,7 +2,8 @@
 'use strict';
 
 import { appState } from './core/AppState.js';
-
+import { eventBus } from './core/EventBus.js';
+import { showContextMenu } from './context-menu.js';
 console.log('📜 virtual-scroll.js 开始加载...');
 
 // 虚拟滚动配置
@@ -22,6 +23,12 @@ let fileListSpacer = null;
  */
 export function setupVirtualScroll() {
     console.log('🎯 设置虚拟滚动...');
+	// ⭐ 防止重复初始化
+    if (fileListElement && fileListElement.dataset.initialized === 'true') {
+        console.warn('⚠️ 虚拟滚动已初始化，跳过');
+        return;
+    }
+
 
     fileListContainer = document.querySelector('.file-list-container');
     fileListElement = document.getElementById('file-list');
@@ -30,6 +37,9 @@ export function setupVirtualScroll() {
         console.error('❌ 虚拟滚动元素未找到');
         return;
     }
+	  // ⭐ 标记已初始化
+    fileListElement.dataset.initialized = 'true';
+
     
     // 创建哨兵元素（撑开滚动条）
     fileListSpacer = document.createElement('div');
@@ -84,21 +94,13 @@ export function setupVirtualScroll() {
 		
 		console.log('🖱️ [虚拟滚动] 点击文件项:', path, isDir ? '(文件夹)' : '(文件)');
 		
-		if (isDir) {
-			// 切换文件夹展开/折叠
-			if (window.toggleFolderLazy) {
-				window.toggleFolderLazy(path);
+		    if (isDir) {
+				// ✅ 使用事件总线触发文件夹展开/折叠
+				eventBus.emit('folder:toggle', path);
 			} else {
-				console.error('❌ toggleFolderLazy 未定义');
+				// ✅ 使用事件总线触发文件打开
+				eventBus.emit('open-tab', path);
 			}
-		} else {
-			// 发布打开文件事件
-			if (window.eventBus) {
-				window.eventBus.emit('open-tab', path);
-			} else {
-				console.error('❌ eventBus 未定义');
-			}
-		}
 	});
 	
 	// 🆕 添加右键菜单事件委托
@@ -115,11 +117,9 @@ export function setupVirtualScroll() {
 		
 		console.log('🖱️ [虚拟滚动] 右键点击:', item);
 		
-		if (window.showContextMenu) {
-			window.showContextMenu(e, item);
-		} else {
-			console.error('❌ showContextMenu 未定义');
-		}
+
+		showContextMenu(e, item);
+
 	});
 	
 	console.log('✅ 虚拟滚动事件委托已绑定');
@@ -266,7 +266,16 @@ function buildVisibleList(nodes, level, result) {
  * @param {string[]} [filteredPaths=null] - 筛选的文件路径列表
  */
 export function updateVirtualScrollData(filteredPaths = null) {
-    let visibleItems = [];
+      // ⭐ 防止短时间内重复调用
+    if (updateVirtualScrollData.lastCallTime) {
+        const timeSinceLastCall = Date.now() - updateVirtualScrollData.lastCallTime;
+        if (timeSinceLastCall < 50) {  // 50ms 内不重复执行
+            console.log('⏭️ 跳过重复的虚拟滚动更新');
+            return;
+        }
+    }
+	updateVirtualScrollData.lastCallTime = Date.now();
+	let visibleItems = [];
 
     if (filteredPaths) {
         // 如果有筛选路径，只显示这些文件
@@ -303,7 +312,11 @@ export function updateVirtualScrollData(filteredPaths = null) {
     
     handleVirtualScroll();
     
-    console.log(`📊 虚拟滚动数据已更新: ${visibleItems.length} 项`);
+        // ⭐ 只在必要时输出日志
+    if (visibleItems.length > 0) {
+        console.log(`📊 虚拟滚动数据已更新: ${visibleItems.length} 项`);
+    }
 }
 
 console.log('✅ virtual-scroll.js 加载完成');
+

@@ -10,6 +10,11 @@ console.log('📜 dom-init.js 开始加载...');
  * 所有模块通过这个对象访问 DOM 元素
  */
 export const domElements = {
+	customConfirmDialog: null,
+	dialogTitle : null,
+	dialogMessage : null,
+	dialogConfirmBtn : null,
+	dialogCancelBtn : null,
     // 主要容器
     container: null,
     sidebar: null,
@@ -99,6 +104,12 @@ export function initializeDOMElements() {
     };
     
     try {
+		//自定义的对话框
+		domElements.customConfirmDialog = getElement('custom-confirm-dialog');
+		domElements.dialogTitle = getElement('dialog-title');
+		domElements.dialogMessage = getElement('dialog-message');
+		domElements.dialogConfirmBtn = getElement('dialog-confirm-btn');
+		domElements.dialogCancelBtn = getElement('dialog-cancel-btn');
         // 主要容器
         domElements.container = document.querySelector('.container');
         domElements.sidebar = document.querySelector('.sidebar');

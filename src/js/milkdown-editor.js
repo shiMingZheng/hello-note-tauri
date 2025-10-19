@@ -40,10 +40,9 @@ class MilkdownEditorManager {
      * 初始化编辑器
      */
     async init(containerSelector, onContentChangeCallback) {
-        console.log('🎨 初始化 Milkdown 编辑器...');
-        
+		console.log('🎨 初始化 Milkdown 编辑器...');
 		console.log('📍 [MilkdownEditor] 容器选择器:', containerSelector);
-    
+	
 		// ⭐ 检查容器是否存在
 		const container = document.querySelector(containerSelector);
 		console.log('📍 [MilkdownEditor] 容器元素:', container);
@@ -54,60 +53,70 @@ class MilkdownEditorManager {
 			throw error;
 		}
 		
-        this.onContentChange = onContentChangeCallback;
-        
-        try {
-            this.editor = await Editor.make()
-                .config((ctx) => {
-                    ctx.set(rootCtx, document.querySelector(containerSelector));
-                    ctx.set(defaultValueCtx, '# 欢迎使用 CheetahNote\n\n开始编写您的笔记...');
-                    
-                    // 监听内容变化
-                    ctx.get(listenerCtx).markdownUpdated((ctx, markdown, prevMarkdown) => {
-                        if (this.isLoading) {
-                            console.log('📝 [跳过] 正在加载内容，忽略变更');
-                            return;
-                        }
-                        
-                        if (markdown !== prevMarkdown && markdown !== this.currentContent) {
-                            console.log('📝 [触发] 内容已变更');
-                            this.currentContent = markdown;
-                            this.hasUnsavedChanges = true;
-                            
-                            if (this.onContentChange) {
-                                this.onContentChange(markdown);
-                            }
-                        }
-                    });
-                })
-                .use(nord)
-                .use(commonmark)
-                .use(gfm)
-                .use(history)
-                .use(clipboard)
-                .use(cursor)
-                .use(listener)
-                .use(createWikilinkPlugin((target) => {
-                    this.handleWikilinkClick(target);
-                }))
-                .create();
-            
-            console.log('✅ Milkdown 编辑器初始化成功');
-            
-            // 应用主题
-            if (window.themeManager) {
-                this.applyTheme(window.themeManager.getCurrentTheme());
-            }
-            
-            // 设置 Wikilink 处理器
-            this.setupWikilinkHandler(containerSelector);
-            
-            return this.editor;
-        } catch (error) {
-            console.error('❌ Milkdown 编辑器初始化失败:', error);
-            throw error;
-        }
-    }
+		// ⭐ 检查容器是否可见
+		const isVisible = container.offsetParent !== null;
+		console.log('👁️ [MilkdownEditor] 容器是否可见:', isVisible);
+		
+		if (!isVisible) {
+			console.warn('⚠️ [MilkdownEditor] 容器不可见，等待可见后初始化...');
+			
+			// 等待容器可见
+			await new Promise((resolve) => {
+				const checkVisibility = setInterval(() => {
+					if (container.offsetParent !== null) {
+						console.log('✅ [MilkdownEditor] 容器已可见');
+						clearInterval(checkVisibility);
+						resolve();
+					}
+				}, 50);
+				
+				// 超时保护
+				setTimeout(() => {
+					clearInterval(checkVisibility);
+					console.warn('⚠️ [MilkdownEditor] 等待容器可见超时，强制初始化');
+					resolve();
+				}, 3000);
+			});
+		}
+		
+		this.onContentChange = onContentChangeCallback;
+		
+		try {
+			this.editor = await Editor.make()
+				.config((ctx) => {
+					ctx.set(rootCtx, container);  // ⭐ 直接使用 container 变量
+					ctx.set(defaultValueCtx, '# 欢迎使用 CheetahNote\n\n开始编写您的笔记...');
+					
+					// ... 其余配置代码保持不变
+				})
+				.use(nord)
+				.use(commonmark)
+				.use(gfm)
+				.use(history)
+				.use(clipboard)
+				.use(cursor)
+				.use(listener)
+				.use(createWikilinkPlugin((target) => {
+					this.handleWikilinkClick(target);
+				}))
+				.create();
+			
+			console.log('✅ Milkdown 编辑器初始化成功');
+			
+			// 应用主题
+			if (window.themeManager) {
+				this.applyTheme(window.themeManager.getCurrentTheme());
+			}
+			
+			// 设置 Wikilink 处理器
+			this.setupWikilinkHandler(containerSelector);
+			
+			return this.editor;
+		} catch (error) {
+			console.error('❌ Milkdown 编辑器初始化失败:', error);
+			throw error;
+		}
+	}
 
     /**
      * 设置 Wikilink 点击处理

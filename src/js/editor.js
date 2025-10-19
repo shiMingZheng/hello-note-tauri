@@ -89,7 +89,7 @@ function debounce(func, wait) {
 // ========================================
 
 /**
- * 加载文件到编辑器
+ * 加载文件到编辑器，- 在加载文件时按需初始化编辑器
  * @param {string} relativePath - 文件相对路径
  */
 async function loadFileToEditor(relativePath) {
@@ -110,21 +110,20 @@ async function loadFileToEditor(relativePath) {
         });
         
         console.log('✅ [loadFileToEditor] 文件读取成功，内容长度:', content.length);
-        console.log('📝 [loadFileToEditor] 内容预览:', content.substring(0, 100));
         
-        // 2. 检查编辑器是否已初始化
+        // ⭐ 2. 确保编辑器已初始化（懒加载）
         if (!window.milkdownEditor || !window.milkdownEditor.editor) {
-            console.warn('⚠️ [loadFileToEditor] 编辑器未初始化，等待...');
+            console.log('🎨 [loadFileToEditor] 编辑器未初始化，开始初始化...');
             
-            let attempts = 0;
-            while ((!window.milkdownEditor || !window.milkdownEditor.editor) && attempts < 20) {
-                await new Promise(resolve => setTimeout(resolve, 200));
-                attempts++;
-                console.log(`⏳ [loadFileToEditor] 等待编辑器初始化... (${attempts}/20)`);
-            }
-            
-            if (!window.milkdownEditor || !window.milkdownEditor.editor) {
-                throw new Error('编辑器初始化超时');
+            try {
+                await window.milkdownEditor.init('#milkdown-editor', (content) => {
+                    appState.hasUnsavedChanges = true;
+                });
+                console.log('✅ [loadFileToEditor] 编辑器初始化完成');
+            } catch (error) {
+                console.error('❌ [loadFileToEditor] 编辑器初始化失败:', error);
+                showError('编辑器初始化失败: ' + error.message);
+                return;
             }
         }
         
@@ -137,15 +136,10 @@ async function loadFileToEditor(relativePath) {
         appState.hasUnsavedChanges = false;
         
         console.log('✅ [loadFileToEditor] 文件加载完成');
+        
     } catch (error) {
         console.error('❌ [loadFileToEditor] 加载文件失败:', error);
-        console.error('❌ [loadFileToEditor] 错误详情:', error.stack);
-        showError('加载文件失败: ' + error);
-        
-        // 加载失败时关闭标签
-        if (window.tabManager) {
-            tabManager.closeTab(relativePath);
-        }
+        showError('加载文件失败: ' + error.message);
     }
 }
 
@@ -196,6 +190,11 @@ async function handleSaveFile() {
         saveLastFile(relativePath);
         
         console.log('✅ [handleSaveFile] 文件保存成功');
+		// ✅ 发布保存成功事件
+		eventBus.emit('file:saved', {
+			path: appState.activeFilePath,
+			content: content
+		});
     } catch (error) {
         console.error('❌ [handleSaveFile] 保存文件失败:', error);
         console.error('❌ [handleSaveFile] 错误详情:', error.stack);
@@ -234,7 +233,14 @@ eventBus.on('load-file', async (filePath) => {
     await loadFileToEditor(filePath);
 });
 
-console.log('✅ [editor.js] 已订阅 load-file 事件');
+// ⭐ 订阅保存事件
+eventBus.on('editor:save', async () => {
+    console.log('💾 收到保存事件');
+    await handleSaveFile();
+});
+
+console.log('✅ editor 已订阅保存和 load-file 事件');
+
 
 // ========================================
 // 初始化

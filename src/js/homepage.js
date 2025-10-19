@@ -193,9 +193,7 @@ async function isFileExists(relativePath) {
 // [新增] 清理无效的历史记录
 async function cleanupInvalidHistory() {
     try {
-        await invoke('cleanup_invalid_history', { 
-            rootPath: appState.rootPath 
-        });
+        await invoke('cleanup_invalid_history',{rootPath: appState.rootPath} );
         console.log('✅ 清理无效历史记录完成');
     } catch (error) {
         console.warn('清理历史记录失败:', error);
@@ -212,3 +210,22 @@ export {
 };
 
 console.log('✅ homepage.js 加载完成');
+
+// ⭐ 订阅置顶相关事件
+eventBus.on('file:pinned', () => {
+    console.log('📌 刷新置顶列表');
+    loadPinnedNotes();
+});
+
+eventBus.on('file:unpinned', () => {
+    console.log('📌 刷新置顶列表');
+    loadPinnedNotes();
+});
+
+eventBus.on('file:deleted', () => {
+    console.log('🔄 刷新历史和置顶列表');
+    loadHistory();
+    loadPinnedNotes();
+});
+
+console.log('✅ homepage 已订阅文件操作事件');

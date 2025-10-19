@@ -5,7 +5,7 @@
 import { appState } from './core/AppState.js';
 
 // 在文件顶部,现有导入语句之后添加:
-import { showError, showSuccessMessage } from './ui-utils.js';
+import { showError, showSuccessMessage, showCustomConfirm } from './ui-utils.js';
 // 获取 invoke 方法
 import { TauriAPI, invoke } from './core/TauriAPI.js';
 import { eventBus } from './core/EventBus.js';
@@ -287,11 +287,18 @@ async function handleDeleteFile() {
         await invoke('delete_item', { rootPath: appState.rootPath, relativePath: target.path });
         showSuccessMessage(`已删除: ${target.name}`);
         
-        if (appState.activeFilePath === target.path) {
-            tabManager.closeTab(target.path);
-        }
+		// ✅ 发布删除成功事件, 📢 通知其他模块: 删除完成了!
+		eventBus.emit('file:deleted', {
+			path: target.path,
+			isDir: target.is_dir,
+			name: target.name
+		});
+       // if (appState.activeFilePath === target.path) {
+         //   tabManager.closeTab(target.path);
+        //}
         
-        await refreshFileTree();
+       // await refreshFileTree();
+		
         if (window.refreshAllTagsList) {
             await refreshAllTagsList();
         }
@@ -306,7 +313,10 @@ async function handlePinNote() {
     if (!targetPath) return;
     try {
         await invoke('pin_note', { relativePath: targetPath });
-        if (window.loadPinnedNotes) window.loadPinnedNotes();
+		showSuccessMessage('已置顶笔记');
+		
+		// ✅ 发布置顶事件
+		eventBus.emit('file:pinned', { path: targetPath });
     } catch (error) {
         showError("置顶失败: " + error);
     }
@@ -318,7 +328,10 @@ async function handleUnpinNote() {
     if (!targetPath) return;
     try {
         await invoke('unpin_note', { relativePath: targetPath });
-        if (window.loadPinnedNotes) window.loadPinnedNotes();
+		showSuccessMessage('已取消置顶');
+
+		// ✅ 发布取消置顶事件
+		eventBus.emit('file:unpinned', { path: targetPath });
     } catch (error) {
         showError("取消置顶失败: " + error);
     }
@@ -367,6 +380,12 @@ function handleRenameItem() {
             });
 
             console.log('✅ 重命名成功:', result);
+			// ✅ 发布重命名成功事件
+			eventBus.emit('file:renamed', {
+				oldPath: targetItem.path,
+				newPath: result.new_path,
+				isDir: result.is_dir
+			});
 
             if (result.is_dir) {
                 const oldPrefix = targetItem.path;
@@ -623,6 +642,78 @@ eventBus.on('context-menu:unpin-note', handleUnpinNote);
 eventBus.on('root-action:create-note', handleCreateNoteInRoot);
 eventBus.on('root-action:create-folder', handleCreateFolderInRoot);
 
-console.log('✅ file-manager 已订阅根目录操作事件');
+// ⭐ 订阅文件操作完成事件
+eventBus.on('file:renamed', async (data) => {
+    console.log('📝 处理重命名事件:', data);
+    
+    // 1. 刷新文件树
+    await refreshFileTree();
+    
+    // 2. 如果是文件,更新标签页
+    if (!data.isDir) {
+        const { TabManager } = await import('./tab_manager.js');
+        const tabManager = TabManager.getInstance();
+        
+        // 关闭旧标签页
+        if (tabManager.hasTab(data.oldPath)) {
+            tabManager.closeTab(data.oldPath);
+        }
+        
+        // 打开新标签页
+        eventBus.emit('open-tab', data.newPath);
+    }
+    
+    // 3. 刷新标签列表
+    if (window.refreshAllTagsList) {
+        await refreshAllTagsList();
+    }
+});
+
+eventBus.on('file:deleted', async (data) => {
+    console.log('🗑️ 处理删除事件:', data);
+    
+    // 1. 关闭标签页(如果打开)
+    if (appState.activeFilePath === data.path) {
+        const { TabManager } = await import('./tab_manager.js');
+        const tabManager = TabManager.getInstance();
+        tabManager.closeTab(data.path);
+    }
+    
+    // 2. 刷新文件树
+    await refreshFileTree();
+    
+    // 3. 刷新标签列表
+    if (window.refreshAllTagsList) {
+        await refreshAllTagsList();
+    }
+});
+
+eventBus.on('file:saved', async (data) => {
+    console.log('💾 处理保存事件:', data);
+    
+    // 1. 记录历史
+    try {
+        await invoke('record_file_event', {
+            relativePath: data.path,
+            eventType: 'edited'
+        });
+    } catch (error) {
+        console.warn('记录历史失败:', error);
+    }
+    
+    // 2. 更新标签页状态
+    const { TabManager } = await import('./tab_manager.js');
+    const tabManager = TabManager.getInstance();
+    tabManager.markTabAsSaved(data.path);
+});
+
+// ⭐ 订阅文件夹展开/折叠事件
+eventBus.on('folder:toggle', async (folderPath) => {
+    console.log('📁 处理文件夹展开/折叠:', folderPath);
+    await toggleFolderLazy(folderPath);
+});
+
+console.log('✅ file-manager 已订阅文件夹操作\文件操作\事件根目录操作\文件夹展开/折叠事件');
+
 
 console.log('✅ file-manager.js 加载完成');

@@ -65,7 +65,7 @@ export const TauriAPI = {
     history: {
         record: (relativePath, eventType) => invoke('record_file_event', { relativePath, eventType }),
         get: () => invoke('get_history'),
-        cleanup: () => invoke('cleanup_invalid_history')
+        cleanup: (rootPath) => invoke('cleanup_invalid_history', rootPath)
     },
 
     // 链接

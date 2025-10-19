@@ -137,7 +137,6 @@ async function initApp() {
         
         // 11. 延迟初始化编辑器和工作区
         setTimeout(async () => {
-            await initializeMilkdownEditor();
             
             const workspaceManager = new WorkspaceManager();
              await workspaceManager.startup();

@@ -384,15 +384,16 @@ export class WorkspaceManager {
             const currentWorkspace = await invoke('get_current_workspace');
 
             if (currentWorkspace) {
-                appState.rootPath = currentWorkspace;
+                
 
                 // 恢复展开状态
                 await this.restoreLastFileInWorkspace();
 
                 try {
                     console.log('🧹 清理无效的历史记录...');
-                    const cleanupCount = await invoke('cleanup_invalid_history', {
-                        rootPath: currentWorkspace
+                    const cleanupCount = await invoke('cleanup_invalid_history', 
+					 {
+                        rootPath: appState.rootPath 
                     });
 
                     if (cleanupCount > 0) {
