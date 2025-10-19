@@ -12,7 +12,7 @@
     flex-direction: column;
     border-right: 1px solid var(--border-color);
     position: relative;
-    transition: width 0.3s ease, opacity 0.3s ease; /* ✅ 添加过渡动画 */
+    transition: width 0.05s ease, opacity 0.05s ease; /* ✅ 添加过渡动画 */
 }
 
 /* ✅ 侧边栏折叠状态 */
@@ -107,6 +107,12 @@
     padding: 10px 15px;
     border-bottom: 1px solid var(--border-color);
     display: block; /* 明确设置为 block */
+}
+.file-list .item-name {
+    display: inline-flex;
+    align-items: center;
+    flex: 1;
+    overflow: visible; /* 关键:允许输入框溢出显示 */
 }
 
 /* 删除 .search-box.active 样式 */
@@ -1281,16 +1287,19 @@ a.internal-link:hover {
    文件重命名输入框样式
    ======================================== */
 .rename-input {
-    width: calc(100% - 40px); /* 减去内边距和图标宽度 */
-    padding: 2px 4px;
+    flex: 1;
+    min-width: 100px;
+    max-width: calc(100% - 30px);
+    padding: 2px 6px;
     margin-left: 5px;
-    border: 1px solid var(--accent-color);
+    border: 1px solid var(--primary-color);
     border-radius: 4px;
-    background-color: var(--bg-color);
-    color: var(--text-color);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     font-family: inherit;
-    font-size: inherit;
+    font-size: 13px;
     outline: none;
+    box-sizing: border-box;
 }
 /* ========================================
    在根目录下新建文件和文件夹样式

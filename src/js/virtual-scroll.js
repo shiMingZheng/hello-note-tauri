@@ -256,7 +256,9 @@ function buildVisibleList(nodes, level, result) {
                 const children = appState.fileTreeMap.get(node.path);
                 console.log(`  └─ 递归加载 ${children.length} 个子节点`);
                 buildVisibleList(children, level + 1, result);
-            }
+            } else {
+				console.warn(`  ⚠️ 文件夹 ${node.path} 被标记为展开,但 fileTreeMap 中没有子节点!`);
+			}
         }
     }
 }

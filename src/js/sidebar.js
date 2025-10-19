@@ -39,12 +39,7 @@ class Sidebar {
         if (domElements.clearFilterBtn) {
             domElements.clearFilterBtn.addEventListener('click', () => this.handleClearTagFilter());
         }
-        
-        // ⭐ 绑定文件列表的点击和右键事件
-        if (domElements.fileListElement) {
-            domElements.fileListElement.addEventListener('click', handleFileListClick);
-            domElements.fileListElement.addEventListener('contextmenu', handleFileListContextMenu);
-        }
+       
         
         console.log('✅ 侧边栏模块初始化完成');
     }

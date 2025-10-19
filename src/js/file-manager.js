@@ -201,23 +201,53 @@ function handleFileListContextMenu(e) {
 }
 
 async function toggleFolderLazy(folderPath) {
+    console.log(`\n🔄 [toggleFolderLazy] 开始处理: ${folderPath}`);
+    console.log(`📊 当前 expandedFolders:`, Array.from(appState.expandedFolders));
+    
     const isExpanded = appState.expandedFolders.has(folderPath);
+    console.log(`📂 文件夹当前状态: ${isExpanded ? '已展开' : '已折叠'}`);
+    
     if (isExpanded) {
+        // 折叠:直接移除展开状态
+        console.log(`➖ 执行折叠操作`);
         appState.expandedFolders.delete(folderPath);
     } else {
+        // 展开:添加展开状态并加载子节点
+        console.log(`➕ 执行展开操作`);
         appState.expandedFolders.add(folderPath);
+        
+        // 如果子节点还未加载,则加载
         if (!appState.fileTreeMap.has(folderPath)) {
+            console.log(`🔍 子节点未加载,开始加载...`);
             try {
-                const children = await invoke('list_dir_lazy', { rootPath: appState.rootPath, relativePath: folderPath });
+                const children = await invoke('list_dir_lazy', { 
+                    rootPath: appState.rootPath, 
+                    relativePath: folderPath 
+                });
                 appState.fileTreeMap.set(folderPath, children);
+                console.log(`✅ 成功加载 ${children.length} 个子节点`);
             } catch (error) {
+                console.error(`❌ 加载子节点失败:`, error);
                 showError(`获取子目录失败: ${error}`);
+                // 加载失败,撤销展开状态
                 appState.expandedFolders.delete(folderPath);
+                return; // 直接返回,不更新UI
             }
+        } else {
+            console.log(`✓ 子节点已存在,直接使用缓存`);
         }
     }
+    
+    // 保存展开状态到本地存储
     saveExpandedFolders();
+    
+    console.log(`📊 操作后 expandedFolders:`, Array.from(appState.expandedFolders));
+    console.log(`🎨 开始更新UI...`);
+    
+    // 更新虚拟滚动视图
     updateVirtualScrollData();
+    
+    console.log(`✅ [toggleFolderLazy] 完成\n`);
 }
 
 async function handleCreateNote() {
@@ -504,7 +534,7 @@ async function handleCreateNoteInRoot() {
     `;
     
     // 插入到文件树顶部
-    fileListElement.insertBefore(inputWrapper, fileListElement.firstChild);
+    domElements.fileListElement.insertBefore(inputWrapper, domElements.fileListElement.firstChild);
     
     const input = inputWrapper.querySelector('input');
     input.focus();
@@ -581,7 +611,7 @@ async function handleCreateFolderInRoot() {
                style="flex: 1; border: 1px solid #4a9eff; padding: 2px 6px; outline: none; background: white; border-radius: 2px;">
     `;
     
-    fileListElement.insertBefore(inputWrapper, fileListElement.firstChild);
+    domElements.fileListElement.insertBefore(inputWrapper, domElements.fileListElement.firstChild);
     
     const input = inputWrapper.querySelector('input');
     input.focus();
