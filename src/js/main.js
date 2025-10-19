@@ -3,6 +3,7 @@
 
 console.log('🚀 CheetahNote 主入口开始加载...');
 import { eventBus } from './core/EventBus.js';
+import { fileChangeListener } from './file-change-listener.js';
 
 // 核心模块
 import { appState } from './core/AppState.js';

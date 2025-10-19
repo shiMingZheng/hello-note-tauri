@@ -700,7 +700,8 @@ eventBus.on('file:renamed', async (data) => {
     // 2. 如果是文件,更新标签页
     if (!data.isDir) {
         const { TabManager } = await import('./tab_manager.js');
-        const tabManager = TabManager.getInstance();
+        //const tabManager = TabManager.getInstance();
+		const tabManager = window.tabManager;
         
         // 关闭旧标签页
         if (tabManager.hasTab(data.oldPath)) {
@@ -723,7 +724,8 @@ eventBus.on('file:deleted', async (data) => {
     // 1. 关闭标签页(如果打开)
     if (appState.activeFilePath === data.path) {
         const { TabManager } = await import('./tab_manager.js');
-        const tabManager = TabManager.getInstance();
+      
+		const tabManager = window.tabManager;
         tabManager.closeTab(data.path);
     }
     
@@ -742,6 +744,7 @@ eventBus.on('file:saved', async (data) => {
     // 1. 记录历史
     try {
         await invoke('record_file_event', {
+			rootPath: appState.rootPath,  // ✅ 添加 rootPath
             relativePath: data.path,
             eventType: 'edited'
         });
@@ -750,9 +753,11 @@ eventBus.on('file:saved', async (data) => {
     }
     
     // 2. 更新标签页状态
-    const { TabManager } = await import('./tab_manager.js');
-    const tabManager = TabManager.getInstance();
-    tabManager.markTabAsSaved(data.path);
+      const tabManager = window.tabManager;  // ✅ 修复 TabManager 调用
+		if (tabManager && tabManager.markTabAsSaved) {
+			tabManager.markTabAsSaved(data.path);
+		}
+    
 });
 
 // ⭐ 订阅文件夹展开/折叠事件

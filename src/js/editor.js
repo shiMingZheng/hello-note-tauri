@@ -187,7 +187,6 @@ async function handleSaveFile() {
         }
         
         showSuccessMessage('保存成功');
-        saveLastFile(relativePath);
         
         console.log('✅ [handleSaveFile] 文件保存成功');
 		// ✅ 发布保存成功事件

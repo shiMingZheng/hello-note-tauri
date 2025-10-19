@@ -5,7 +5,7 @@ use crate::indexing_jobs; // [新增]
 use crate::AppState;
 use std::fs;
 use std::path::Path;
-use tauri::{command, State};
+use tauri::{command,State, AppHandle};  // ✅ 添加 AppHandle
 use serde::Serialize;
 
 const WORKSPACE_META_DIR: &str = ".cheetah-note";
@@ -97,6 +97,7 @@ pub async fn initialize_workspace(
 pub async fn load_workspace(
     workspace_path: String,
     state: State<'_, AppState>,
+    app: AppHandle,  // 现在应该能识别了
 ) -> Result<String, String> {
     println!("📂 加载工作区: {}", workspace_path);
     
@@ -142,7 +143,11 @@ pub async fn load_workspace(
 	std::thread::sleep(std::time::Duration::from_millis(500));
 	
 	// ✅ 启动文件监听器
-	if let Err(e) = crate::file_watcher::start_file_watcher(workspace_path.clone()) {
+	// ✅ 启动文件监听器
+	if let Err(e) = crate::file_watcher::start_file_watcher(
+		workspace_path.clone(),
+		Some(app.clone())  // ✅ 传递 AppHandle
+	) {
 		eprintln!("⚠️ 启动文件监听失败: {}", e);
 	}
     println!("✅ 工作区加载完成");
