@@ -6,7 +6,7 @@ import { appState } from './core/AppState.js';
 console.log('📜 virtual-scroll.js 开始加载...');
 
 // 虚拟滚动配置
-const VIRTUAL_SCROLL_CONFIG = {
+export const VIRTUAL_SCROLL_CONFIG = {
     ITEM_HEIGHT: 32,
     BUFFER_SIZE: 5,
     THROTTLE_DELAY: 16

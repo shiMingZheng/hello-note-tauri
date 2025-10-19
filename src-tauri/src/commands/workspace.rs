@@ -17,6 +17,7 @@ pub struct WorkspaceInfo {
     pub is_initialized: bool,
 }
 
+
 #[command]
 pub async fn check_workspace(workspace_path: String) -> Result<WorkspaceInfo, String> {
     let path = Path::new(&workspace_path);
@@ -178,7 +179,16 @@ pub async fn close_workspace(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[command]
-pub async fn get_current_workspace(state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let current_path = state.current_path.lock().unwrap();
-    Ok(current_path.clone())
+pub async fn get_current_workspace(state: State<'_, AppState>) -> Result<Option<WorkspaceInfo>, String> {
+    let current_path_lock = state.current_path.lock().unwrap();
+    
+    if let Some(path) = current_path_lock.as_ref() {
+        Ok(Some(WorkspaceInfo {
+            path: path.clone(),
+            exists: true,
+            is_initialized: true,
+        }))
+    } else {
+        Ok(None)
+    }
 }

@@ -121,13 +121,8 @@ export class TabManager {
             } else {
                 mainHeaderActions.style.display = 'flex';
                 
-                if (window.markdownEditor) {
-                    window.markdownEditor.readOnly = false;
-                }
-                
-                if (window.loadFileToEditor) {
-                    window.loadFileToEditor(tabId);
-                }
+				// ✅ 改用事件驱动
+				eventBus.emit('load-file', tabId);
                 if (window.updateCurrentFileTagsUI) {
                     window.updateCurrentFileTagsUI(tabId);
                 }

@@ -126,7 +126,7 @@ async function initApp() {
         if (domElements.openFolderBtn) {
             domElements.openFolderBtn.addEventListener('click', async () => {
                 const workspaceManager = new WorkspaceManager();
-                await workspaceManager.handleOpenWorkspace();
+                await workspaceManager.selectWorkspace();
             });
         }
         
@@ -140,7 +140,7 @@ async function initApp() {
             await initializeMilkdownEditor();
             
             const workspaceManager = new WorkspaceManager();
-            await workspaceManager.startupWithWorkspace();
+             await workspaceManager.startup();
         }, 100);
         
         console.log('✅ 应用初始化完成');
@@ -191,5 +191,11 @@ document.addEventListener('DOMContentLoaded', initApp);
 // 导出必要的对象到全局（用于插件系统）
 window.appState = appState;
 window.TauriAPI = TauriAPI;
+
+// 导出到全局（供 TabManager 等模块使用）
+window.loadFileToEditor = loadFileToEditor;
+window.handleSaveFile = handleSaveFile;
+window.toggleViewMode = toggleViewMode;
+
 
 console.log('✅ 主入口模块加载完成');

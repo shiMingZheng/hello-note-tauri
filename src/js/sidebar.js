@@ -3,11 +3,13 @@
 
 import { appState } from './core/AppState.js';
 import { eventBus } from './core/EventBus.js';
+
 import { invoke } from './core/TauriAPI.js';
 import { domElements } from './dom-init.js';
 import { showError } from './ui-utils.js';
 import { updateVirtualScrollData } from './virtual-scroll.js';
 import { handleFileListClick, handleFileListContextMenu } from './file-manager.js';
+
 
 console.log('📜 sidebar.js 开始加载...');
 
@@ -52,37 +54,50 @@ class Sidebar {
      */
     handleToggleTagsPopover() {
         if (!domElements.tagsPopover) return;
-        
-        this.isTagsPopoverVisible = !this.isTagsPopoverVisible;
-        
-        if (this.isTagsPopoverVisible) {
-            domElements.tagsPopover.style.display = 'block';
-            this.refreshAllTagsList();
-        } else {
-            domElements.tagsPopover.style.display = 'none';
-        }
-        
-        console.log(`🏷️ 标签弹窗${this.isTagsPopoverVisible ? '显示' : '隐藏'}`);
-    }
+		
+		const isVisible = domElements.tagsPopover.style.display === 'block';
+		
+		if (isVisible) {
+			domElements.tagsPopover.style.display = 'none';
+		} else {
+			// ✅ 检查工作区是否已初始化
+			if (!appState.rootPath || !appState.dbInitialized) {
+				showError('请先打开一个笔记仓库');
+				return;
+			}
+			
+			domElements.tagsPopover.style.display = 'block';
+			this.refreshAllTagsList();
+		}
+		
+		console.log(`🏷️ 标签面板${isVisible ? '隐藏' : '显示'}`);
+	}
     
     /**
      * 刷新所有标签列表
      */
     async refreshAllTagsList() {
-        if (!domElements.tagSidebarList) return;
-        
-        try {
-            const tags = await invoke('get_all_tags');
-            appState.allTags = tags;
-            
-            this.renderAllTagsList(tags);
-            
-            console.log(`✅ 刷新标签列表: ${tags.length} 个标签`);
-        } catch (error) {
-            console.error('❌ 加载标签列表失败:', error);
-            showError('加载标签列表失败: ' + error);
-        }
-    }
+		if (!domElements.tagSidebarList) return;
+		
+		// ✅ 检查工作区是否已初始化
+		if (!appState.rootPath || !appState.dbInitialized) {
+			console.warn('⚠️ 工作区未初始化，跳过加载标签');
+			domElements.tagSidebarList.innerHTML = '<li style="padding: 10px; color: #999;">请先打开笔记仓库</li>';
+			return;
+		}
+		
+		try {
+			const tags = await invoke('get_all_tags');
+			appState.allTags = tags;
+			
+			this.renderAllTagsList(tags);
+			
+			console.log(`✅ 刷新标签列表: ${tags.length} 个标签`);
+		} catch (error) {
+			console.error('❌ 加载标签列表失败:', error);
+			showError('加载标签列表失败: ' + error);
+		}
+	}
     
     /**
      * 渲染所有标签列表

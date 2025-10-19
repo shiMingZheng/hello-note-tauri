@@ -3,6 +3,7 @@
 
 'use strict';
 import { appState } from './core/AppState.js';
+import { eventBus } from './core/EventBus.js';
 import { invoke } from './core/TauriApi.js';
 import { showError, showSuccessMessage } from './ui-utils.js';
 console.log('📜 editor.js 开始加载...');
@@ -223,6 +224,17 @@ function toggleViewMode() {
     
     console.log(`🔄 切换视图模式: ${newMode}`);
 }
+// ========================================
+// 事件订阅
+// ========================================
+
+// 订阅文件加载事件
+eventBus.on('load-file', async (filePath) => {
+    console.log('📥 [editor.js] 收到 load-file 事件:', filePath);
+    await loadFileToEditor(filePath);
+});
+
+console.log('✅ [editor.js] 已订阅 load-file 事件');
 
 // ========================================
 // 初始化

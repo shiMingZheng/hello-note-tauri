@@ -3,7 +3,7 @@
 
 'use strict';
 import { appState } from './core/AppState.js';
-import { updateVirtualScrollData } from './virtual-scroll.js';
+
 // 在文件顶部,现有导入语句之后添加:
 import { showError, showSuccessMessage } from './ui-utils.js';
 // 获取 invoke 方法
@@ -11,6 +11,8 @@ import { TauriAPI, invoke } from './core/TauriAPI.js';
 import { eventBus } from './core/EventBus.js';
 import { domElements } from './dom-init.js';  // ⭐ 新增
 import { showContextMenu, hideContextMenu } from './context-menu.js';  // ⭐ 新增
+
+import { updateVirtualScrollData, VIRTUAL_SCROLL_CONFIG } from './virtual-scroll.js';
 
 console.log('📜 file-manager.js 开始加载...');
 // 在文件顶部导入需要的元素引用

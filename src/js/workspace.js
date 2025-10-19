@@ -90,110 +90,117 @@ export class WorkspaceManager {
      * @param {string} path - 工作区路径
      * @returns {Promise<string|null>} 打开的路径
      */
-    async openWorkspace(path) {
-        console.log('🔍 检查工作区:', path);
-
-        try {
-            // 步骤1: 检查工作区是否存在
-            const exists = await invoke('check_workspace', { workspacePath: path });
-
-            if (!exists) {
-                console.log('📦 工作区不存在，开始初始化...');
-                await this.initializeWorkspace(path);
-            } else {
-                console.log('📂 工作区已存在，加载中...');
-                await this.loadWorkspace(path);
-            }
-
-            // 保存路径
-            this.saveWorkspace(path);
-            appState.rootPath = path;
-
-            return path;
-        } catch (error) {
-            console.error('打开工作区失败:', error);
-            showError('打开工作区失败: ' + error);
-            return null;
-        }
-    }
+	async openWorkspace(path) {
+		console.log('🔍 检查工作区:', path);
+	
+		try {
+			  // ✅ 关键：先设置 rootPath
+			appState.rootPath = path;
+			appState.dbInitialized = true;
+			this.saveWorkspace(path);
+        
+			// 步骤1: 检查工作区是否存在
+			const workspaceInfo = await invoke('check_workspace', { workspacePath: path });
+			
+			// ✅ 正确判断：检查 is_initialized 字段
+			if (!workspaceInfo.is_initialized) {
+				console.log('📦 工作区未初始化，开始初始化...');
+				await this.initializeWorkspace(path);
+			} else {
+				console.log('📂 工作区已存在，加载中...');
+				await this.loadWorkspace(path);
+			}
+	
+			
+	
+			return path;
+		} catch (error) {
+			console.error('打开工作区失败:', error);
+			showError('打开工作区失败: ' + error);
+			return null;
+		}
+	}
 
     /**
      * 初始化新工作区
      * @param {string} path - 工作区路径
      */
     async initializeWorkspace(path) {
-        console.log('🚀 初始化新工作区:', path);
-
-        try {
-            // 步骤1: 初始化数据库和索引
-            await invoke('initialize_workspace', { workspacePath: path });
-            console.log('✅ 工作区数据库初始化完成');
-
-            // 步骤2: 后台同步文件系统
-            console.log('🔄 后台同步文件系统...');
-            try {
-                const syncResult = await invoke('sync_workspace', { rootPath: path });
-                console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
-
-                // 等待索引完成
-                if (syncResult.added > 0) {
-                    console.log('⏳ 等待索引任务处理...');
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-            } catch (syncError) {
-                console.warn('⚠️ 后台同步失败:', syncError);
-            }
-
-            // 步骤3: 刷新UI
-            
-            initializeHomepage();
-
-            showSuccessMessage('工作区初始化完成');
-
-        } catch (error) {
-            console.error('初始化工作区失败:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * 加载现有工作区
-     * @param {string} path - 工作区路径
-     */
-    async loadWorkspace(path) {
-        console.log('📂 加载工作区:', path);
-
-        try {
-            // 步骤1: 加载数据库和索引
-            await invoke('load_workspace', { workspacePath: path });
-            console.log('✅ 工作区加载成功');
-
-            // 步骤2: 同步文件系统（检测外部变更）
-            console.log('🔄 后台同步文件系统...');
-            try {
-                const syncResult = await invoke('sync_workspace', { rootPath: path });
-                console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
-
-                if (syncResult.added > 0 || syncResult.removed > 0) {
-                    console.log('⏳ 等待索引任务处理...');
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    showSuccessMessage(`已同步: 新增 ${syncResult.added}, 移除 ${syncResult.removed}`);
-                }
-            } catch (syncError) {
-                console.warn('⚠️ 后台同步失败:', syncError);
-            }
-
-            // 步骤3: 刷新UI
-            initializeHomepage();
-
-
-            showSuccessMessage('工作区加载完成');
-
-        } catch (error) {
-            console.error('加载工作区失败:', error);
-            throw error;
-        }
-    }
+		console.log('🚀 初始化新工作区:', path);
+	
+		try {
+			// 步骤1: 初始化数据库和索引
+			await invoke('initialize_workspace', { workspacePath: path });
+			console.log('✅ 工作区数据库初始化完成');
+	
+			// 步骤2: 后台同步文件系统
+			console.log('🔄 后台同步文件系统...');
+			try {
+				const syncResult = await invoke('sync_workspace', { rootPath: path });
+				console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
+	
+				if (syncResult.added > 0) {
+					console.log('⏳ 等待索引任务处理...');
+					await new Promise(resolve => setTimeout(resolve, 2000));
+				}
+			} catch (syncError) {
+				console.warn('⚠️ 后台同步失败:', syncError);
+			}
+	
+			// 步骤3: 刷新UI
+			initializeHomepage();
+			
+			// ✅ 新增：加载文件树
+			console.log('📂 加载文件树...');
+			const { refreshFileTree } = await import('./file-manager.js');
+			await refreshFileTree('');
+	
+			showSuccessMessage('工作区初始化完成');
+	
+		} catch (error) {
+			console.error('初始化工作区失败:', error);
+			throw error;
+		}
+	}
+	
+	async loadWorkspace(path) {
+		console.log('📂 加载工作区:', path);
+	
+		try {
+			// 步骤1: 加载数据库和索引
+			await invoke('load_workspace', { workspacePath: path });
+			console.log('✅ 工作区加载成功');
+	
+			// 步骤2: 同步文件系统（检测外部变更）
+			console.log('🔄 后台同步文件系统...');
+			try {
+				const syncResult = await invoke('sync_workspace', { rootPath: path });
+				console.log(`📊 同步结果: 添加 ${syncResult.added}, 删除 ${syncResult.removed}`);
+	
+				if (syncResult.added > 0 || syncResult.removed > 0) {
+					console.log('⏳ 等待索引任务处理...');
+					await new Promise(resolve => setTimeout(resolve, 2000));
+					showSuccessMessage(`已同步: 新增 ${syncResult.added}, 移除 ${syncResult.removed}`);
+				}
+			} catch (syncError) {
+				console.warn('⚠️ 后台同步失败:', syncError);
+			}
+	
+			// 步骤3: 刷新UI
+			initializeHomepage();
+			
+			// ✅ 新增：加载文件树
+			console.log('📂 加载文件树...');
+			const { refreshFileTree } = await import('./file-manager.js');
+			await refreshFileTree('');
+	
+			showSuccessMessage('工作区加载完成');
+	
+		} catch (error) {
+			console.error('加载工作区失败:', error);
+			throw error;
+		}
+	}
 	
 	/**
 	* 启动时恢复工作区
@@ -205,27 +212,28 @@ export class WorkspaceManager {
 		console.log('🚀 启动时恢复工作区...');
 		
 		try {
-			// 1. 获取当前工作区（命令名称正确）
-			const currentWorkspace = await invoke('get_current_workspace');
+			// 1. 获取当前工作区
+			const workspaceInfo = await invoke('get_current_workspace');
 			
-			if (!currentWorkspace) {
+			// ✅ 正确判断：检查返回值
+			if (!workspaceInfo || !workspaceInfo.path) {
 				console.log('ℹ️ 未找到上次打开的工作区');
 				return;
 			}
 			
-			console.log('✅ 找到上次的工作区:', currentWorkspace);
+			console.log('✅ 找到上次的工作区:', workspaceInfo);
 			
-			// 2. 先设置 rootPath，再加载文件树
-			appState.rootPath = currentWorkspace.root_path;
+			// 2. 设置 rootPath
+			appState.rootPath = workspaceInfo.path;
 			appState.dbInitialized = true;
 			
 			// 3. 加载文件树
 			await this.loadWorkspaceFileTree();
 			
-			// 4. 恢复上次打开的文件（从 localStorage）
+			// 4. 恢复上次打开的文件
 			this.restoreLastOpenedFile();
 			
-			// 5. 初始化搜索索引（后台）
+			// 5. 初始化搜索索引
 			this.initializeSearchIndex();
 			
 			console.log('✅ 工作区启动完成');
