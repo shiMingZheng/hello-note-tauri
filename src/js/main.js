@@ -81,66 +81,70 @@ async function initializeMilkdownEditor() {
 /**
  * 应用初始化
  */
+// src/js/main.js
+
+// src/js/main.js
+
 async function initApp() {
     console.log('🎯 初始化应用...');
     
     try {
-        // ⭐ 1. 首先初始化所有 DOM 元素引用
-        initializeDOMElements();
-        
-        // 导出事件总线到全局（供插件和调试使用）
+        // ⭐ 1. 初始化 DOM 和无依赖的模块
+        initializeDOMElements(); 
         window.eventBus = eventBus;
         console.log('✅ EventBus 已导出到全局');
         
-        // ⭐ 2. 初始化核心功能模块
-        searchManager.init();           // 搜索模块
-        contextMenuManager.init();      // 右键菜单模块
-        
-        // 3. 初始化 UI 组件（显式调用）
+        themeManager.init(); 
+
+        // ⭐ 2. 初始化虚拟滚动系统 (startup 依赖它)
+        setupVirtualScroll();
+
+        // 3. 初始化其他“预加载”模块 (不依赖工作区数据)
+        searchManager.init();
+        contextMenuManager.init();
         sidebarControl.init();
-        sidebar.init();
-        themeManager.init();
         tagModal.init();
         uiActions.init();
-        graphView.init();
         dragDropManager.init();
-        
-        // 4. 初始化虚拟滚动
-        setupVirtualScroll();
-        
-        // 5. 初始化标签管理器
+        initializeLinks();
+        initializeHomepage(); // 初始化首页（欢迎页）
+
+        // ⭐ 4. 【关键修复】实例化并初始化 TabManager
+        // 必须在 workspaceManager.startup() 之前完成
+        // 因为 startup() 会调用 openLastFile() 来使用 tabManager
         const tabManager = new TabManager();
         tabManager.init();
         window.tabManager = tabManager;
         
-        // 6. 初始化链接系统
-        initializeLinks();
+        // ⭐ 5. 实例化并启动 WorkspaceManager
+        // (这会加载数据, 并使用已就绪的 tabManager 切换视图)
+        const workspaceManager = new WorkspaceManager();
+        await workspaceManager.startup();
+        console.log('✅ 工作区加载完毕');
+
+        // ⭐ 6. 【关键修复】最后初始化编辑器
+        // 此时 startup() 应该已经切换了 Tab，使编辑器容器可见
+        await initializeMilkdownEditor();
+        console.log('✅ 编辑器初始化完毕');
+
+        // ⭐ 7. 初始化依赖“数据”和“编辑器”的模块
+        sidebar.init();           
+        graphView.init();         
         
-        // 7. 初始化首页
-        initializeHomepage();
+        // 8. 绑定剩余的事件
+        bindRootActions();
         
-        // 8. 绑定根目录操作按钮事件
-        bindRootActions();  // ⭐ 新增函数
-        
-        // 9. 绑定工作区按钮
+        // 绑定打开工作区按钮 (复用已创建的 manager 实例)
         if (domElements.openFolderBtn) {
             domElements.openFolderBtn.addEventListener('click', async () => {
-                const workspaceManager = new WorkspaceManager();
                 await workspaceManager.selectWorkspace();
             });
         }
         
-        // 10. 初始化插件系统
+        // 9. 初始化插件系统
         if (window.pluginManager && window.pluginContext) {
             await window.pluginManager.init(window.pluginContext);
         }
-        
-        // 11. 延迟初始化编辑器和工作区
-        setTimeout(async () => {
-            
-            const workspaceManager = new WorkspaceManager();
-             await workspaceManager.startup();
-        }, 100);
         
         console.log('✅ 应用初始化完成');
         

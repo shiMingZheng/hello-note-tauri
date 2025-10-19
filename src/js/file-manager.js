@@ -337,6 +337,11 @@ async function handleUnpinNote() {
     }
 }
 
+// file-manager.js
+// file-manager.js
+
+// ... (其他函数) ...
+
 function handleRenameItem() {
     hideContextMenu();
     const targetItem = appState.contextTarget;
@@ -361,8 +366,14 @@ function handleRenameItem() {
 
     textSpan.innerHTML = (isFile ? '📄' : '📁') + ' ';
     textSpan.appendChild(input);
-    input.focus();
-    input.select();
+
+    // ⭐ 修复一：使用 setTimeout(..., 0)
+    // 这会等待导致问题的“点击事件”冒泡结束后，
+    // 才执行 focus 和 select，赢得事件竞争。
+    setTimeout(() => {
+        input.focus();
+        input.select();
+    }, 0); 
 
     const finishRename = async (newName) => {
         if (!newName || newName === originalName) {
@@ -451,6 +462,13 @@ function handleRenameItem() {
             input.value = originalName;
             input.blur();
         }
+    });
+    
+    // ⭐ 修复二：保留 mousedown 监听
+    // 这可以防止您在输入框*出现后*，*再次*用鼠标点击它时
+    // 触发“点击空白处”的逻辑，导致输入框消失。
+    input.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
     });
 }
 
