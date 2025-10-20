@@ -394,7 +394,7 @@ function handleRenameItem() {
     if (!li) return;
 
     const textSpan = li.querySelector('.item-name');
-    const originalContent = textSpan.textContent;
+    const originalContent = textSpan.innerHTML; // ✅ 改用 innerHTML 保留箭头
     const isFile = !targetItem.is_dir;
 
     let originalName = targetItem.name;
@@ -406,112 +406,111 @@ function handleRenameItem() {
     input.type = 'text';
     input.className = 'rename-input';
     input.value = originalName;
+    input.style.cssText = 'flex: 1; border: 1px solid #4a9eff; padding: 2px 6px; outline: none; background: white; border-radius: 2px;';
 
-    textSpan.innerHTML = (isFile ? '📄' : '📁') + ' ';
+    // ✅ 保留图标
+    const icon = isFile ? '📄' : (textSpan.querySelector('.folder-arrow') ? textSpan.innerHTML.split('</span>')[0] + '</span>' : '📁');
+    textSpan.innerHTML = icon + ' ';
     textSpan.appendChild(input);
 
-    // ⭐ 修复一：使用 setTimeout(..., 0)
-    // 这会等待导致问题的“点击事件”冒泡结束后，
-    // 才执行 focus 和 select，赢得事件竞争。
+    // ✅ 延迟聚焦,避免事件冲突
     setTimeout(() => {
         input.focus();
         input.select();
-    }, 0); 
+    }, 0);
 
-    const finishRename = async (newName) => {
-        if (!newName || newName === originalName) {
-            textSpan.textContent = originalContent;
+    let isRenaming = false; // ✅ 防止重复提交
+
+    const finishRename = async () => {
+        if (isRenaming) {
+            console.log('⚠️ 重命名正在进行中,跳过');
+            return;
+        }
+        
+        const newName = input.value.trim();
+        
+        // ✅ 验证输入
+        if (!newName) {
+            console.log('❌ 新名称为空,取消重命名');
+            textSpan.innerHTML = originalContent;
+            return;
+        }
+        
+        if (newName === originalName) {
+            console.log('ℹ️ 名称未改变,取消重命名');
+            textSpan.innerHTML = originalContent;
             return;
         }
 
+        isRenaming = true;
+        
         try {
-            console.log(`🔄 开始重命名: ${targetItem.path} -> ${newName}`);
+            // ✅ 构造完整文件名
+            let finalNewName = newName;
+            if (isFile && !finalNewName.endsWith('.md')) {
+                finalNewName = finalNewName + '.md';
+            }
+            
+            console.log(`🔄 开始重命名: ${targetItem.path} -> ${finalNewName}`);
+            console.log(`📍 rootPath: ${appState.rootPath}`);
+            console.log(`📍 oldRelativePath: ${targetItem.path}`);
+            console.log(`📍 newName: ${finalNewName}`);
+            
+            // ✅ 显示加载状态
+            input.disabled = true;
+            input.style.opacity = '0.6';
             
             const result = await invoke('rename_item', {
                 rootPath: appState.rootPath,
                 oldRelativePath: targetItem.path,
-                newName: newName
+                newName: finalNewName
             });
 
             console.log('✅ 重命名成功:', result);
-			// ✅ 发布重命名成功事件
-			eventBus.emit('file:renamed', {
-				oldPath: targetItem.path,
-				newPath: result.new_path,
-				isDir: result.is_dir
-			});
-
-            if (result.is_dir) {
-                const oldPrefix = targetItem.path;
-                const newPrefix = result.new_path;
-                
-                if (tabManager.updatePathsForRenamedFolder) {
-                    tabManager.updatePathsForRenamedFolder(oldPrefix, newPrefix);
-                }
-
-                appState.fileTreeMap.delete(oldPrefix);
-                
-                if (appState.expandedFolders.has(oldPrefix)) {
-                    appState.expandedFolders.delete(oldPrefix);
-                    appState.expandedFolders.add(newPrefix);
-                    saveExpandedFolders();
-                }
-            } else {
-                const tabsToUpdate = tabManager.openTabs.filter(tab => tab.path === targetItem.path);
-                tabsToUpdate.forEach(tab => {
-                    tabManager.updateTabId(targetItem.path, result.new_path);
-                });
-            }
-
-            const separator = result.new_path.includes('\\') ? '\\' : '/';
-            const lastSlashIndex = targetItem.path.lastIndexOf(separator);
-            const parentPath = lastSlashIndex > 0 
-                ? targetItem.path.substring(0, lastSlashIndex)
-                : "";
-
-            await refreshFileTree(parentPath);
             
+            // 发布事件
+            eventBus.emit('file:renamed', {
+                oldPath: targetItem.path,
+                newPath: result.new_path,
+                isDir: result.is_dir
+            });
 
-            updateVirtualScrollData();
+            // 更新 UI (由事件处理器负责)
             
-       
-            // [新增] 刷新首页数据
-            if (window.loadPinnedNotes) {
-                window.loadPinnedNotes();
-            }
-            if (window.loadHistory) {
-                window.loadHistory();
-            }
-
-            showSuccessMessage('重命名成功');
-
         } catch (error) {
             console.error('❌ 重命名失败:', error);
             showError('重命名失败: ' + error);
-            textSpan.textContent = originalContent;
+            textSpan.innerHTML = originalContent;
+        } finally {
+            isRenaming = false;
         }
     };
 
-    input.addEventListener('blur', () => {
-        finishRename(input.value.trim());
-    });
+    const cancelRename = () => {
+        console.log('🚫 取消重命名');
+        textSpan.innerHTML = originalContent;
+    };
 
+    // ✅ Enter 键提交
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            input.blur();
+            e.stopPropagation();
+            finishRename();
         } else if (e.key === 'Escape') {
             e.preventDefault();
-            input.value = originalName;
-            input.blur();
+            e.stopPropagation();
+            cancelRename();
         }
     });
-    
-    // ⭐ 修复二：保留 mousedown 监听
-    // 这可以防止您在输入框*出现后*，*再次*用鼠标点击它时
-    // 触发“点击空白处”的逻辑，导致输入框消失。
-    input.addEventListener('mousedown', (e) => {
-        e.stopPropagation();
+
+    // ✅ 失去焦点时提交 (延迟执行,避免与其他事件冲突)
+    input.addEventListener('blur', () => {
+        setTimeout(() => {
+            if (!isRenaming && input.parentNode) {
+                finishRename();
+            }
+        }, 200);
     });
 }
 

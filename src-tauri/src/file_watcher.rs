@@ -7,6 +7,9 @@ use crate::indexing_jobs;
 use tauri::{AppHandle, Emitter};
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
+use crate::indexing_jobs::SAVE_TRACKER;
+use std::fs::metadata as fs_metadata;
+
 
 // 获取当前时间的时:分:秒格式
 fn get_time_string() -> String {
@@ -104,9 +107,74 @@ pub fn start_file_watcher(
                             log_with_time!("  ✅ 相对路径: {}", rel_path);
                             
                             match kind {
-                                EventKind::Create(_) => {
-                                    println!("👀 [文件监听] 检测到创建: {}", rel_path);
+                                EventKind::Create(_) | EventKind::Modify(_) => {
+									 // ✅ 提前检查文件是否存在
+    								let absolute_path = Path::new(&workspace_path).join(&rel_path);
+    								if !absolute_path.exists() {
+										log_with_time!("⏭️ [文件不存在] 跳过: {} (可能是重命名操作的旧路径)", rel_path);
+										continue;
+									}
+                                    let event_type = if matches!(kind, EventKind::Create(_)) { "创建" } else { "修改" };
+									log_with_time!("👀 [文件监听] 检测到{}: {}", event_type, rel_path);
+								// ✅ Layer 1: 检查瞬时锁
+									{
+										let saving = SAVE_TRACKER.files_currently_saving.lock().unwrap();
+										if saving.contains(&rel_path) {
+											log_with_time!("⏭️ [Layer 1] 跳过: {} (正在保存中)", rel_path);
+											continue; // 忽略此事件,不分发索引,不通知前端
+										}
+									}
+									
+									// ✅ Layer 2: 检查索引标记
+									{
+										let indexing = SAVE_TRACKER.files_currently_indexing.lock().unwrap();
+										if indexing.contains(&rel_path) {
+											log_with_time!("⏭️ [Layer 2] 跳过: {} (正在索引中)", rel_path);
+											continue; // 忽略此事件
+										}
+									}
+									
+									// ✅ Layer 3: 时间戳对比
+									let absolute_path = Path::new(&workspace_path).join(&rel_path);
+									let should_ignore = {
+										let known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
+										
+										if let Some(known_time) = known_times.get(&rel_path) {
+											if let Ok(meta) = fs_metadata(&absolute_path) {
+												if let Ok(disk_time) = meta.modified() {
+													// 时间戳容差: 4秒 (兼容 FAT32)
+													let tolerance = std::time::Duration::from_secs(5);
+													
+													// 磁盘时间 <= 已知时间 + 容差 → 内部修改
+													if disk_time <= *known_time + tolerance {
+														log_with_time!("⏭️ [Layer 3] 跳过: {} (时间戳匹配,内部修改)", rel_path);
+														true
+													} else {
+														log_with_time!("✅ [Layer 3] 通过: {} (时间戳不匹配,外部修改)", rel_path);
+														false
+													}
+												} else {
+													false
+												}
+											} else {
+												false
+											}
+										} else {
+											// 没有已知时间戳,可能是外部创建的文件
+											log_with_time!("✅ [Layer 3] 通过: {} (无已知时间戳)", rel_path);
+											false
+										}
+									};
+									
+									if should_ignore {
+										continue; // 忽略此事件
+									}
+									
+									// ✅ 三层检查都通过 → 确认是外部修改
+									log_with_time!("🔔 [外部修改] 检测到外部{}文件: {}", event_type, rel_path);
+                                 
                                     
+									
                                     if let Err(e) = indexing_jobs::dispatch_update_job(
                                         workspace_path.clone(),
                                         rel_path.clone()
@@ -122,24 +190,7 @@ pub fn start_file_watcher(
                                         }));
                                     }
                                 }
-                                EventKind::Modify(_) => {
-                                    log_with_time!("👀 [文件监听] 检测到修改: {}", rel_path);
-                                    
-                                    if let Err(e) = indexing_jobs::dispatch_update_job(
-                                        workspace_path.clone(),
-                                        rel_path.clone()
-                                    ) {
-                                        log_with_time!("⚠️ 分发索引任务失败: {}", e);
-                                    }
-                                    
-                                    // 发送事件到前端
-                                    if let Some(ref handle) = app_handle {
-                                        let _ = handle.emit("file-changed", serde_json::json!({
-                                            "type": "modified",
-                                            "path": rel_path
-                                        }));
-                                    }
-                                }
+								
                                 EventKind::Remove(_) => {
                                     log_with_time!("👀 [文件监听] 检测到删除: {}", rel_path);
                                     

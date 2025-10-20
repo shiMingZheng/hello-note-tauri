@@ -14,8 +14,62 @@ use std::sync::Mutex;
 use crate::commands::path_utils::to_absolute_path;
 use std::fs::metadata;
 use std::time::UNIX_EPOCH;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::time::{SystemTime, Duration};
 
+// ============================================================================
+// [新增] 全局追踪器: 三层防护机制
+// ============================================================================
 
+pub struct SaveTracker {
+    /// Layer 1: 瞬时锁 - 正在保存的文件 (生命周期: 保存开始→写入完成)
+    pub files_currently_saving: Mutex<HashSet<String>>,
+    
+    /// Layer 2: 索引标记 - 正在索引的文件 (生命周期: 索引开始→索引完成)
+    pub files_currently_indexing: Mutex<HashSet<String>>,
+    
+    /// Layer 2 辅助: 索引开始时间 (用于超时检测)
+    pub indexing_start_times: Mutex<HashMap<String, SystemTime>>,
+    
+    /// Layer 3: 时间戳地图 - 已知的写入时间 (生命周期: 应用运行期间)
+    pub known_write_times: Mutex<HashMap<String, SystemTime>>,
+    
+    /// 超时时长
+    pub indexing_timeout: Duration,
+}
+
+impl SaveTracker {
+    pub fn new() -> Self {
+        Self {
+            files_currently_saving: Mutex::new(HashSet::new()),
+            files_currently_indexing: Mutex::new(HashSet::new()),
+            indexing_start_times: Mutex::new(HashMap::new()),
+            known_write_times: Mutex::new(HashMap::new()),
+            indexing_timeout: Duration::from_secs(30),
+        }
+    }
+    
+    /// 清理超时的索引标记
+    pub fn cleanup_timeout_markers(&self) {
+        let now = SystemTime::now();
+        let mut indexing = self.files_currently_indexing.lock().unwrap();
+        let mut times = self.indexing_start_times.lock().unwrap();
+        
+        times.retain(|path, start_time| {
+            if now.duration_since(*start_time).unwrap_or(Duration::from_secs(0)) > self.indexing_timeout {
+                println!("⚠️ [追踪器] 清理超时索引标记: {}", path);
+                indexing.remove(path);
+                false
+            } else {
+                true
+            }
+        });
+    }
+}
+
+// 全局追踪器实例
+pub static SAVE_TRACKER: Lazy<SaveTracker> = Lazy::new(|| SaveTracker::new());
 
 // [新增] 全局数据库连接池引用
 pub static DB_POOL_REF: Lazy<Mutex<Option<DbPool>>> = Lazy::new(|| Mutex::new(None));
@@ -218,7 +272,33 @@ fn process_job(
 				"UPDATE files SET indexed = 1, last_modified = ?1 WHERE path = ?2",
 				params![mtime, relative_path],
 			)?;
+			  // ✅ Layer 2: 索引完成,移除标记
+			{
+				let mut indexing = SAVE_TRACKER.files_currently_indexing.lock().unwrap();
+				let mut times = SAVE_TRACKER.indexing_start_times.lock().unwrap();
+				
+				indexing.remove(relative_path);
+				times.remove(relative_path);
+				
+				println!("✅ [索引] 已清除索引标记: {}", relative_path);
+			}
 			
+			// ✅ Layer 3: 更新已知时间戳
+			{
+				let absolute_path = crate::commands::path_utils::to_absolute_path(
+					Path::new(root_path),
+					Path::new(relative_path)
+				);
+				
+				if let Ok(meta) = metadata(&absolute_path) {
+					if let Ok(modified) = meta.modified() {
+						let mut known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
+						known_times.insert(relative_path.clone(), modified);
+						println!("✅ [时间戳] 已记录: {}", relative_path);
+					}
+				}
+			}
+
 			println!("✅ [索引] 已更新数据库状态: {} (mtime={})", relative_path, mtime);
 		}
         
@@ -275,6 +355,36 @@ fn process_job(
 				"UPDATE files SET indexed = 1, last_modified = ?1 WHERE path = ?2",
 				params![mtime, new_relative_path],
 			)?;
+			
+		// ✅ Layer 2: 索引完成,移除旧路径和新路径的标记
+			{
+				let mut indexing = SAVE_TRACKER.files_currently_indexing.lock().unwrap();
+				let mut times = SAVE_TRACKER.indexing_start_times.lock().unwrap();
+				
+				indexing.remove(old_relative_path);
+				indexing.remove(new_relative_path);
+				times.remove(old_relative_path);
+				times.remove(new_relative_path);
+				
+				println!("✅ [索引] 已清除索引标记: {} -> {}", old_relative_path, new_relative_path);
+			}
+			
+			// ✅ Layer 3: 更新已知时间戳 (使用 new_relative_path)
+			{
+				let absolute_path = crate::commands::path_utils::to_absolute_path(
+					Path::new(root_path),
+					Path::new(new_relative_path)
+				);
+				
+				if let Ok(meta) = metadata(&absolute_path) {
+					if let Ok(modified) = meta.modified() {
+						let mut known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
+						known_times.insert(new_relative_path.clone(), modified);
+						println!("✅ [时间戳] 已记录: {}", new_relative_path);
+					}
+				}
+			}						
+
 			
 			println!("✅ [索引] 已更新数据库状态: {} (mtime={})", new_relative_path, mtime);
 		}
@@ -425,7 +535,29 @@ fn delete_job_from_db(
 // ============================================================================
 
 /// 发送更新/保存任务
+/// 发送更新/保存任务
 pub fn dispatch_update_job(root_path: String, relative_path: String) -> Result<()> {
+    // ✅ Layer 2: 清理超时标记
+    SAVE_TRACKER.cleanup_timeout_markers();
+    
+    // ✅ Layer 2: 检查是否正在索引
+    {
+        let indexing = SAVE_TRACKER.files_currently_indexing.lock().unwrap();
+        if indexing.contains(&relative_path) {
+            println!("⏭️ [索引去重] 跳过重复任务: {} (正在索引中)", relative_path);
+            return Ok(()); // 直接返回,不分发任务
+        }
+    }
+    
+    // ✅ Layer 2: 标记为"索引中"
+    {
+        let mut indexing = SAVE_TRACKER.files_currently_indexing.lock().unwrap();
+        let mut times = SAVE_TRACKER.indexing_start_times.lock().unwrap();
+        
+        indexing.insert(relative_path.clone());
+        times.insert(relative_path.clone(), SystemTime::now());
+    }
+    
     let payload = JobPayload::UpdateOrSave {
         root_path,
         relative_path,
@@ -477,8 +609,21 @@ pub fn dispatch_rename_job(
     Ok(())
 }
 
+
 /// 发送删除任务
 pub fn dispatch_delete_job(relative_path: String) -> Result<()> {
+	  // ✅ 删除操作: 强制清除所有相关标记
+    {
+        let mut indexing = SAVE_TRACKER.files_currently_indexing.lock().unwrap();
+        let mut times = SAVE_TRACKER.indexing_start_times.lock().unwrap();
+        let mut saving = SAVE_TRACKER.files_currently_saving.lock().unwrap();
+        
+        indexing.remove(&relative_path);
+        times.remove(&relative_path);
+        saving.remove(&relative_path);
+    }
+    
+
     let payload = JobPayload::Delete { relative_path };
     
     // [关键修改] 先持久化到数据库
