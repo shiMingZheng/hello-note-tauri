@@ -1,12 +1,10 @@
 // src-tauri/src/search_core.rs
-use crate::commands::path_utils::{to_absolute_path, to_relative_path};
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -19,6 +17,11 @@ use tantivy::schema::{
 use tantivy::snippet::SnippetGenerator;
 use tantivy::tokenizer::{LowerCaser, RemoveLongFilter, TextAnalyzer};
 use tantivy::{doc, Index, IndexWriter, ReloadPolicy, TantivyDocument};
+ 
+// 改为
+use crate::commands::path_utils::to_absolute_path;  // ✅ 只保留使用的
+
+
 
 static JIEBA_TOKENIZER: Lazy<tantivy_jieba::JiebaTokenizer> =
     Lazy::new(|| tantivy_jieba::JiebaTokenizer {});

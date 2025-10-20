@@ -10,6 +10,12 @@ use std::sync::Mutex;
 use crate::indexing_jobs::SAVE_TRACKER;
 use std::fs::metadata as fs_metadata;
 
+use std::time::UNIX_EPOCH;  // ✅ 添加这行
+use anyhow::Result;  // ✅ 添加这行
+use rusqlite::params;  // ✅ 添加这行
+
+
+
 
 // 获取当前时间的时:分:秒格式
 fn get_time_string() -> String {
@@ -105,13 +111,23 @@ pub fn start_file_watcher(
                         
                         if let Some(rel_path) = relative_path {
                             log_with_time!("  ✅ 相对路径: {}", rel_path);
+							//从日志可以看到外部重命名的实际事件序列是：
+
+//Modify 事件（旧文件） → 家人.md → 文件已不存在 → 跳过
+//Modify 事件（新文件） → 家人2.md → 通过 Layer 3 → 尝试索引 → 报错
+
+//所以重命名检测的触发条件应该是：连续的两个 Modify 事件，第一个文件不存在，第二个文件存在且无已知时间戳。
                             
                             match kind {
                                 EventKind::Create(_) | EventKind::Modify(_) => {
 									 // ✅ 提前检查文件是否存在
-    								let absolute_path = Path::new(&workspace_path).join(&rel_path);
-    								if !absolute_path.exists() {
-										log_with_time!("⏭️ [文件不存在] 跳过: {} (可能是重命名操作的旧路径)", rel_path);
+									let absolute_path = Path::new(&workspace_path).join(&rel_path);
+									if !absolute_path.exists() {
+										log_with_time!("⏭️ [文件不存在] 检测到: {} (可能是重命名的旧路径)", rel_path);
+										
+										// ✅ 标记为潜在的重命名源
+										indexing_jobs::SAVE_TRACKER.mark_potential_rename_source(rel_path.clone());
+										
 										continue;
 									}
                                     let event_type = if matches!(kind, EventKind::Create(_)) { "创建" } else { "修改" };
@@ -172,25 +188,102 @@ pub fn start_file_watcher(
 									
 									// ✅ 三层检查都通过 → 确认是外部修改
 									log_with_time!("🔔 [外部修改] 检测到外部{}文件: {}", event_type, rel_path);
-                                 
-                                    
 									
-                                    if let Err(e) = indexing_jobs::dispatch_update_job(
-                                        workspace_path.clone(),
-                                        rel_path.clone()
-                                    ) {
-                                        log_with_time!("⚠️ 分发索引任务失败: {}", e);
-                                    }
-                                    
-                                    // 发送事件到前端
-                                    if let Some(ref handle) = app_handle {
-                                        let _ = handle.emit("file-changed", serde_json::json!({
-                                            "type": "created",
-                                            "path": rel_path
-                                        }));
-                                    }
-                                }
-								
+									// ✅ 先清理过期的重命名源标记
+									indexing_jobs::SAVE_TRACKER.cleanup_expired_rename_sources();
+									
+									// ✅ 检查是否为重命名操作
+									if let Some(old_path) = indexing_jobs::SAVE_TRACKER.find_recent_rename_source() {
+										log_with_time!("🔄 [重命名检测] 检测到外部重命名: {} -> {}", old_path, rel_path);
+										
+										// 确认重命名并移除标记
+										indexing_jobs::SAVE_TRACKER.confirm_rename(&old_path);
+										
+										// 更新数据库记录（保留元数据）
+										if let Err(e) = update_file_path_in_db(&workspace_path, &old_path, &rel_path) {
+											eprintln!("❌ [文件监听] 更新数据库路径失败: {}", e);
+											
+											// 失败则按新建处理
+											if let Err(e2) = ensure_file_record_exists(&workspace_path, &rel_path) {
+												eprintln!("❌ [文件监听] 创建数据库记录失败: {}: {}", rel_path, e2);
+												continue;
+											}
+											
+											if let Err(e2) = indexing_jobs::dispatch_update_job(
+												workspace_path.clone(),
+												rel_path.clone()
+											) {
+												log_with_time!("⚠️ 分发索引任务失败: {}", e2);
+											}
+											
+											// 发送创建事件到前端（降级处理）
+											if let Some(ref handle) = app_handle {
+												let _ = handle.emit("file-changed", serde_json::json!({
+													"type": "created",
+													"path": rel_path
+												}));
+											}
+										} else {
+											// 成功更新数据库，分发重命名索引任务
+											if let Err(e) = indexing_jobs::dispatch_rename_job(
+												workspace_path.clone(),
+												old_path.clone(),
+												rel_path.clone()
+											) {
+												log_with_time!("⚠️ 分发重命名索引任务失败: {}", e);
+											}
+											
+											// ✅ 发送重命名事件到前端
+											if let Some(ref handle) = app_handle {
+												log_with_time!("🔍 [调试] old_path内容: '{}'", old_path);
+												log_with_time!("🔍 [调试] rel_path内容: '{}'", rel_path);
+												log_with_time!("🔍 [调试] workspace_path: '{}'", workspace_path);
+												log_with_time!("📤 [前端事件] 发送重命名事件: {} -> {}", old_path, rel_path);
+												let _ = handle.emit("file-changed", serde_json::json!({
+													"type": "renamed",
+													"oldPath": old_path,
+													"newPath": rel_path
+												}));
+											}
+										}
+										
+										continue; // 处理完重命名，跳过后续逻辑
+									}
+									
+									// ✅ 不是重命名，是真正的外部创建或修改
+									log_with_time!("📝 [外部操作] {}文件: {}", event_type, rel_path);
+									
+									// 如果是 Create 事件或无已知时间戳（可能是新建），需要先创建数据库记录
+									if matches!(kind, EventKind::Create(_)) || !SAVE_TRACKER.known_write_times.lock().unwrap().contains_key(&rel_path) {
+										if let Err(e) = ensure_file_record_exists(&workspace_path, &rel_path) {
+											eprintln!("❌ [文件监听] 创建数据库记录失败: {}: {}", rel_path, e);
+											continue;
+										}
+									}
+									
+									// 分发索引任务
+									if let Err(e) = indexing_jobs::dispatch_update_job(
+										workspace_path.clone(),
+										rel_path.clone()
+									) {
+										log_with_time!("⚠️ 分发索引任务失败: {}", e);
+									}
+									
+									// 发送事件到前端
+									if let Some(ref handle) = app_handle {
+										let event_type_str = if matches!(kind, EventKind::Create(_)) {
+											"created"
+										} else {
+											"modified"
+										};
+										
+										log_with_time!("📤 [前端事件] 发送{}事件: {}", event_type_str, rel_path);
+										let _ = handle.emit("file-changed", serde_json::json!({
+											"type": event_type_str,
+											"path": rel_path
+										}));
+									}
+								}
                                 EventKind::Remove(_) => {
                                     log_with_time!("👀 [文件监听] 检测到删除: {}", rel_path);
                                     
@@ -233,4 +326,95 @@ pub fn stop_file_watcher() {
     log_with_time!("🛑 [文件监听] 正在停止...");
     *WATCHER.lock().unwrap() = None;
     log_with_time!("✅ [文件监听] 已停止");
+}
+
+
+
+/// 确保文件记录存在（用于外部创建）
+fn ensure_file_record_exists(root_path: &str, relative_path: &str) -> anyhow::Result<()> {
+    let db_pool_lock = indexing_jobs::DB_POOL_REF.lock().unwrap();
+    let db_pool = db_pool_lock.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("数据库连接池未初始化"))?;
+    
+    let conn = db_pool.get()?;
+    
+    // 检查记录是否已存在
+    let exists: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM files WHERE path = ?1)",
+        params![relative_path],
+        |row| row.get(0),
+    )?;
+    
+    if !exists {
+        let title = relative_path
+            .split('/')
+            .last()
+            .unwrap_or(relative_path)
+            .trim_end_matches(".md");
+        
+        let absolute_path = Path::new(root_path).join(relative_path);
+        let mtime = if let Ok(meta) = fs_metadata(&absolute_path) {
+            if let Ok(modified) = meta.modified() {
+                modified.duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+        
+        conn.execute(
+            "INSERT INTO files (path, title, is_dir, indexed, last_modified) 
+             VALUES (?1, ?2, 0, 0, ?3)",
+            params![relative_path, title, mtime],
+        )?;
+        
+        println!("✅ [文件监听] 已创建数据库记录: {}", relative_path);
+    }
+    
+    Ok(())
+}
+
+/// 更新文件路径（用于重命名）
+fn update_file_path_in_db(root_path: &str, old_path: &str, new_path: &str) -> anyhow::Result<()> {
+    let db_pool_lock = indexing_jobs::DB_POOL_REF.lock().unwrap();
+    let db_pool = db_pool_lock.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("数据库连接池未初始化"))?;
+    
+    let conn = db_pool.get()?;
+    
+    let new_title = new_path
+        .split('/')
+        .last()
+        .unwrap_or(new_path)
+        .trim_end_matches(".md");
+    
+    let absolute_path = Path::new(root_path).join(new_path);
+    let mtime = if let Ok(meta) = fs_metadata(&absolute_path) {
+        if let Ok(modified) = meta.modified() {
+            modified.duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+    
+    let updated = conn.execute(
+        "UPDATE files SET path = ?1, title = ?2, indexed = 0, last_modified = ?3 
+         WHERE path = ?4",
+        params![new_path, new_title, mtime, old_path],
+    )?;
+    
+    if updated > 0 {
+        println!("✅ [文件监听] 已更新数据库路径: {} -> {}", old_path, new_path);
+    } else {
+        println!("⚠️ [文件监听] 未找到旧路径记录: {}", old_path);
+    }
+    
+    Ok(())
 }

@@ -1,19 +1,16 @@
 // src-tauri/src/commands/fs.rs
 use crate::commands::history::record_file_event;
 use crate::commands::links::update_links_for_file;
-use crate::commands::path_utils::{to_absolute_path, to_relative_path};
+use crate::commands::path_utils::{to_absolute_path, to_relative_path};  
 use crate::AppState;
 use rusqlite::{params, Connection};
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
 use tauri::State;
-use std::fs::metadata;
-
-
-
 use crate::indexing_jobs;
 use walkdir::WalkDir;
+use std::fs::metadata; 
 
 #[derive(Debug, Serialize)]
 pub struct FileNode {
@@ -551,7 +548,7 @@ pub async fn rename_item(
         if is_dir {
             let old_prefix = old_relative_path.clone();
             let new_prefix = new_relative_path.clone();
-            let separator = "/";
+            let _separator  = "/";
             
             for old_file_path in &affected_files {
                 // 计算新路径

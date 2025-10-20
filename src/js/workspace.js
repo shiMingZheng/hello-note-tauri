@@ -154,6 +154,7 @@ export class WorkspaceManager {
 			console.log('📂 加载文件树...');
 			const { refreshFileTree } = await import('./file-manager.js');
 			await refreshFileTree('');
+			
 	
 			showSuccessMessage('工作区初始化完成');
 	
@@ -193,6 +194,10 @@ export class WorkspaceManager {
 			console.log('📂 加载文件树...');
 			const { refreshFileTree } = await import('./file-manager.js');
 			await refreshFileTree('');
+			
+			// ✅ 发布工作区打开事件
+			eventBus.emit('workspace:opened');
+			console.log('📢 已发布 workspace:opened 事件');
 	
 			showSuccessMessage('工作区加载完成');
 	
@@ -235,6 +240,10 @@ export class WorkspaceManager {
 			
 			// 5. 初始化搜索索引
 			this.initializeSearchIndex();
+			
+			// ✅ 发布工作区打开事件
+			eventBus.emit('workspace:opened');
+			console.log('📢 已发布 workspace:opened 事件');
 			
 			console.log('✅ 工作区启动完成');
 			

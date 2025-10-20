@@ -11,12 +11,10 @@ use rusqlite::{params, OptionalExtension}; // [修复] 添加 OptionalExtension
 use anyhow::Result;
 use crate::database::DbPool;
 use std::sync::Mutex;
-use crate::commands::path_utils::to_absolute_path;
-use std::fs::metadata;
-use std::time::UNIX_EPOCH;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::time::{SystemTime, Duration};
+
 
 // ============================================================================
 // [新增] 全局追踪器: 三层防护机制
@@ -37,6 +35,11 @@ pub struct SaveTracker {
     
     /// 超时时长
     pub indexing_timeout: Duration,
+	/// 待删除队列改为：可能是重命名的旧路径 (路径 -> 检测时间)
+    pub potential_rename_sources: Mutex<HashMap<String, SystemTime>>,
+    
+    /// 重命名检测窗口 (默认 500ms，因为外部重命名可能稍慢)
+    pub rename_detection_window: Duration,
 }
 
 impl SaveTracker {
@@ -47,7 +50,55 @@ impl SaveTracker {
             indexing_start_times: Mutex::new(HashMap::new()),
             known_write_times: Mutex::new(HashMap::new()),
             indexing_timeout: Duration::from_secs(30),
+			potential_rename_sources: Mutex::new(HashMap::new()),
+            rename_detection_window: Duration::from_millis(500),
         }
+    }
+	
+
+	/// 标记可能是重命名的旧路径
+	pub fn mark_potential_rename_source(&self, path: String) {
+		let mut sources = self.potential_rename_sources.lock().unwrap();
+		println!("⏳ [重命名检测] 标记潜在旧路径: {}", path);  // ✅ 先打印
+		sources.insert(path, SystemTime::now());  // ✅ 再插入
+	}
+    
+    /// 查找最近的潜在重命名源（500ms内）
+    pub fn find_recent_rename_source(&self) -> Option<String> {
+        let now = SystemTime::now();
+        let sources = self.potential_rename_sources.lock().unwrap();
+        
+        // 查找最近的一个（通常重命名事件会很接近）
+        sources.iter()
+            .filter(|(_, time)| {
+                now.duration_since(**time).unwrap_or(Duration::from_secs(999)) 
+                    < self.rename_detection_window
+            })
+            .max_by_key(|(_, time)| *time)
+            .map(|(path, _)| path.clone())
+    }
+    
+    /// 确认重命名并移除标记
+    pub fn confirm_rename(&self, old_path: &str) {
+        let mut sources = self.potential_rename_sources.lock().unwrap();
+        sources.remove(old_path);
+        println!("✅ [重命名检测] 确认重命名: {}", old_path);
+    }
+    
+    /// 清理过期的重命名源标记
+    pub fn cleanup_expired_rename_sources(&self) {
+        let now = SystemTime::now();
+        let mut sources = self.potential_rename_sources.lock().unwrap();
+        
+        sources.retain(|path, time| {
+            let elapsed = now.duration_since(*time).unwrap_or(Duration::from_secs(0));
+            if elapsed > self.rename_detection_window {
+                println!("⏱️ [重命名检测] 清理过期标记: {}", path);
+                false
+            } else {
+                true
+            }
+        });
     }
     
     /// 清理超时的索引标记
