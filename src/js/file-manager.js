@@ -59,6 +59,19 @@ async function refreshFileTree(relativePath = "") {
         console.warn('⚠️ rootPath 未设置，无法刷新文件树');
         return;
     }
+	// ⭐ 新增:如果是根目录刷新,先恢复展开状态。在 updateVirtualScrollData() 之前,确保 expandedFolders 状态已从 localStorage 恢复。
+    if (relativePath === "" && appState.expandedFolders.size === 0) {
+        try {
+            const expandedStr = localStorage.getItem('cheetah_expanded_folders');
+            if (expandedStr) {
+                const expandedArray = JSON.parse(expandedStr);
+                appState.expandedFolders = new Set(expandedArray);
+                console.log('🔄 从 localStorage 恢复展开状态:', expandedArray);
+            }
+        } catch (error) {
+            console.warn('恢复展开状态失败:', error);
+        }
+    }
 
     console.log(`🔄 刷新文件树: ${relativePath || '(根目录)'}`);
     
