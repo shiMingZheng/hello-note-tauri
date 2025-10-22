@@ -711,18 +711,20 @@ eventBus.on('file:renamed', async (data) => {
     
     // 2. 如果是文件,更新标签页
     if (!data.isDir) {
-        const { TabManager } = await import('./tab_manager.js');
-        //const tabManager = TabManager.getInstance();
-		const tabManager = window.tabManager;
-        
-        // 关闭旧标签页
-        if (tabManager.hasTab(data.oldPath)) {
-            tabManager.closeTab(data.oldPath);
-        }
-        
-        // 打开新标签页
-        eventBus.emit('open-tab', data.newPath);
+         // ✅ 新代码
+        eventBus.emit('tab:update-path', {
+            oldPath: data.oldPath,
+            newPath: data.newPath
+        });
+
+    } else {
+        // 文件夹重命名
+        eventBus.emit('tab:update-folder-paths', {
+            oldPrefix: data.oldPath,
+            newPrefix: data.newPath
+        });
     }
+
     
     // 3. 刷新标签列表
     if (window.refreshAllTagsList) {
@@ -735,10 +737,9 @@ eventBus.on('file:deleted', async (data) => {
     
     // 1. 关闭标签页(如果打开)
     if (appState.activeFilePath === data.path) {
-        const { TabManager } = await import('./tab_manager.js');
-      
-		const tabManager = window.tabManager;
-        tabManager.closeTab(data.path);
+          // ✅ 新代码
+        eventBus.emit('tab:close', data.path);
+
     }
     
     // 2. 刷新文件树
@@ -776,6 +777,60 @@ eventBus.on('file:saved', async (data) => {
 eventBus.on('folder:toggle', async (folderPath) => {
     console.log('📁 处理文件夹展开/折叠:', folderPath);
     await toggleFolderLazy(folderPath);
+});
+
+// ⭐ 订阅文件移动事件
+eventBus.on('file:moved', async (data) => {
+    console.log('📦 处理文件移动事件:', data);
+    
+    const { oldPath, newPath, isDir, sourceParent, targetParent } = data;
+    
+    try {
+        // 1. 更新标签页路径
+        if (isDir) {
+            // 文件夹移动：批量更新标签页
+            // ✅ 新代码
+			eventBus.emit('tab:update-folder-paths', {
+				oldPrefix: oldPath,
+				newPrefix: newPath
+			});
+        } else {
+            // 文件移动：更新单个标签页
+			eventBus.emit('tab:update-path', {
+				oldPath: oldPath,
+				newPath: newPath
+			});
+        }
+        
+        // 2. 清除旧路径缓存
+        appState.fileTreeMap.delete(oldPath);
+        
+        // 3. 更新展开状态
+        if (isDir && appState.expandedFolders.has(oldPath)) {
+            appState.expandedFolders.delete(oldPath);
+            appState.expandedFolders.add(newPath);
+            saveExpandedFolders();
+        }
+        
+        // 4. 刷新源和目标文件夹
+        await refreshFileTree(sourceParent);
+        if (targetParent !== sourceParent) {
+            await refreshFileTree(targetParent);
+        }
+        
+        // 5. 确保目标文件夹展开
+        appState.expandedFolders.add(targetParent);
+        saveExpandedFolders();
+        
+        // 6. 更新虚拟滚动
+        updateVirtualScrollData();
+        
+        console.log('✅ 文件移动处理完成');
+        
+    } catch (error) {
+        console.error('❌ 处理文件移动失败:', error);
+        showError('更新界面失败: ' + error);
+    }
 });
 
 console.log('✅ file-manager 已订阅文件夹操作\文件操作\事件根目录操作\文件夹展开/折叠事件');

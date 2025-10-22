@@ -4,6 +4,7 @@
 import { appState } from './core/AppState.js';
 import { eventBus } from './core/EventBus.js';
 import { showContextMenu } from './context-menu.js';
+import { dragDropManager } from './drag-drop.js';
 console.log('📜 virtual-scroll.js 开始加载...');
 
 // 虚拟滚动配置
@@ -222,9 +223,8 @@ function createFileTreeItem(item) {
         li.classList.add('active');
     }
     
-    if (window.makeDraggable) {
-        window.makeDraggable(li, item);
-    }
+     dragDropManager.makeDraggable(li, item);
+
     
     return li;
 }

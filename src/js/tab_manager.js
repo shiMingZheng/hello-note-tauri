@@ -38,11 +38,56 @@ export class TabManager {
 			this.openTab(filePath);
 		});
 		
+		// ✅ 订阅外部事件
+        this.subscribeToEvents();
 		console.log('✅ TabManager 已订阅 open-tab 事件');
         
         console.log('✅ TabManager 初始化完成');
     }
-
+    // ✅ 新增：订阅外部事件
+    subscribeToEvents() {
+        // 订阅打开标签页事件
+        eventBus.on('open-tab', (filePath) => {
+            console.log('📥 [TabManager] 收到 open-tab 事件:', filePath);
+            this.openTab(filePath);
+        });
+        
+        // 订阅关闭标签页事件
+        eventBus.on('tab:close', (filePath) => {
+            console.log('📥 [TabManager] 收到 tab:close 事件:', filePath);
+            this.closeTab(filePath);
+        });
+        
+        // 订阅切换标签页事件
+        eventBus.on('tab:switch', (tabId) => {
+            console.log('📥 [TabManager] 收到 tab:switch 事件:', tabId);
+            this.switchToTab(tabId);
+        });
+        
+        // 订阅新建空白标签页事件
+        eventBus.on('tab:new', () => {
+            console.log('📥 [TabManager] 收到 tab:new 事件');
+            this.handleAddNewNote();
+        });
+        
+        // 订阅更新标签页路径事件（用于重命名）
+        eventBus.on('tab:update-path', ({ oldPath, newPath }) => {
+            console.log('📥 [TabManager] 收到 tab:update-path 事件:', oldPath, '->', newPath);
+            this.updateTabId(oldPath, newPath);
+        });
+        
+        // 订阅批量更新文件夹路径事件（用于文件夹重命名）
+        eventBus.on('tab:update-folder-paths', ({ oldPrefix, newPrefix }) => {
+            console.log('📥 [TabManager] 收到 tab:update-folder-paths 事件:', oldPrefix, '->', newPrefix);
+            this.updatePathsForRenamedFolder(oldPrefix, newPrefix);
+        });
+		// ✅ 订阅标记标签页已保存事件
+		eventBus.on('tab:mark-saved', (filePath) => {
+			console.log('📥 [TabManager] 收到 tab:mark-saved 事件:', filePath);
+			this.markTabAsSaved(filePath);
+		});
+        
+        console.log('✅ TabManager 已订阅所有标签页事件');
     /**
      * 打开标签页
      */
@@ -122,7 +167,8 @@ export class TabManager {
                 mainHeaderActions.style.display = 'flex';
                 
 				// ✅ 改用事件驱动
-				eventBus.emit('load-file', tabId);
+				eventBus.emit('editor:load-file', tabId);
+			
                 if (window.updateCurrentFileTagsUI) {
                     window.updateCurrentFileTagsUI(tabId);
                 }

@@ -240,9 +240,9 @@ class GraphView {
                 const nodeId = params.nodes[0];
                 const node = graphData.nodes.find(n => n.id === nodeId);
                 
-                if (node && window.tabManager) {
+                if (node) {
                     console.log('📄 打开笔记:', node.path);
-                    window.tabManager.openTab(node.path);
+					 eventBus.emit('tab:mark-saved', node.path)
                     this.closeGraph();
                 }
             }

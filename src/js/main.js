@@ -39,7 +39,7 @@ import { pluginContext } from './plugin-context.js';
 import { searchManager } from './search.js';  // ⭐ 新增
 import { contextMenuManager } from './context-menu.js';  // ⭐ 新增
 import { handleSaveFile, toggleViewMode, loadFileToEditor } from './editor.js';  // ⭐ 保留编辑器相关
-
+import { tabManager } from './tab_manager.js';
 
 /**
  * 初始化 Milkdown 编辑器
@@ -49,9 +49,9 @@ import { handleSaveFile, toggleViewMode, loadFileToEditor } from './editor.js'; 
  */
 async function initializeMilkdownEditor() {
     console.log('🎨 [main.js] 开始初始化 Milkdown 编辑器...');
-    console.log('🔍 [main.js] 检查 milkdownEditor 对象:', window.milkdownEditor);
+    console.log('🔍 [main.js] 检查 milkdownEditor 对象:', milkdownEditor);
     
-    if (!window.milkdownEditor) {
+    if (!milkdownEditor) {
         throw new Error('milkdownEditor 模块未加载');
     }
     
@@ -63,9 +63,9 @@ async function initializeMilkdownEditor() {
         });
         
         console.log('✅ [main.js] Milkdown 编辑器初始化完成');
-        console.log('🔍 [main.js] 编辑器实例:', window.milkdownEditor.editor);
+        console.log('🔍 [main.js] 编辑器实例:', milkdownEditor.editor);
         
-        if (!window.milkdownEditor.editor) {
+        if (!milkdownEditor.editor) {
             throw new Error('编辑器实例创建失败 (editor 为 null)');
         }
         
@@ -113,9 +113,9 @@ async function initApp() {
         // ⭐ 4. 【关键修复】实例化并初始化 TabManager
         // 必须在 workspaceManager.startup() 之前完成
         // 因为 startup() 会调用 openLastFile() 来使用 tabManager
-        const tabManager = new TabManager();
+        
         tabManager.init();
-        window.tabManager = tabManager;
+       
         
         // ⭐ 5. 实例化并启动 WorkspaceManager
         // (这会加载数据, 并使用已就绪的 tabManager 切换视图)
@@ -136,16 +136,26 @@ async function initApp() {
         bindRootActions();
         
         // 绑定打开工作区按钮 (复用已创建的 manager 实例)
-        if (domElements.openFolderBtn) {
-            domElements.openFolderBtn.addEventListener('click', async () => {
-                await workspaceManager.selectWorkspace();
-            });
-        }
-        
-        // 9. 初始化插件系统
-        if (window.pluginManager && window.pluginContext) {
-            await window.pluginManager.init(window.pluginContext);
-        }
+     //  if (domElements.openFolderBtn) {
+     //      domElements.openFolderBtn.addEventListener('click', async () => {
+     //          await workspaceManager.selectWorkspace();
+     //      });
+     //  }
+     //  
+     //  // 9. 初始化插件系统
+     //  if (window.pluginManager && window.pluginContext) {
+     //      await window.pluginManager.init(window.pluginContext);
+     //  }
+		
+		
+		// 绑定视图切换按钮
+		const viewToggleBtn = document.getElementById('view-toggle-btn');
+		if (viewToggleBtn) {
+			viewToggleBtn.addEventListener('click', () => {
+				eventBus.emit('editor:toggle-view');
+			});
+		}
+		
         
         console.log('✅ 应用初始化完成');
         
@@ -165,6 +175,14 @@ function bindRootActions() {
     if (domElements.newFolderRootBtn) {
         domElements.newFolderRootBtn.addEventListener('click', () => {
             eventBus.emit('root-action:create-folder');
+        });
+    }
+     // 绑定保存按钮
+    const saveBtn = document.getElementById('save-btn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            console.log('🖱️ [保存按钮] 被点击');
+            eventBus.emit('editor:save');
         });
     }
     
@@ -196,10 +214,7 @@ document.addEventListener('DOMContentLoaded', initApp);
 window.appState = appState;
 window.TauriAPI = TauriAPI;
 
-// 导出到全局（供 TabManager 等模块使用）
-window.loadFileToEditor = loadFileToEditor;
-window.handleSaveFile = handleSaveFile;
-window.toggleViewMode = toggleViewMode;
+
 
 
 console.log('✅ 主入口模块加载完成');

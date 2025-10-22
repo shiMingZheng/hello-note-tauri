@@ -311,17 +311,6 @@ class MilkdownEditorManager {
 // 创建单例实例
 const milkdownEditor = new MilkdownEditorManager();
 
-// 导出到全局（向后兼容）
-window.milkdownEditor = milkdownEditor;
-window.markdownEditor = {
-    get value() {
-        return milkdownEditor.getMarkdown();
-    },
-    set value(content) {
-        milkdownEditor.loadContent(content);
-    }
-};
-
 // ES Module 导出
 export {
     milkdownEditor,

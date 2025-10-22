@@ -2,6 +2,7 @@
 'use strict';
 
 import { appState } from './core/AppState.js';
+import { eventBus } from './core/EventBus.js';
 import { showError, showSuccessMessage, showCustomConfirm } from './ui-utils.js';
 
 console.log('📜 drag-drop.js 开始加载...');
@@ -176,33 +177,37 @@ class DragDropManager {
             showError('不能移动到自己或子文件夹中');
             return;
         }
+		   // ✅ 关键修复：在清空前保存数据副本
+		const draggedItemCopy = { ...this.draggedItem };
+		const dropTargetCopy = { ...this.dropTarget };
+    
         
         // 确认移动
         const confirmed = await showCustomConfirm(
             '移动文件',
-            `确定要将 "${this.draggedItem.name}" 移动到 "${this.dropTarget.name}" 吗？`,
+            `确定要将 "${draggedItemCopy.name}" 移动到 "${dropTargetCopy.name}" 吗？`,
             '移动',
             '取消'
         );
         
         if (!confirmed) return;
         
-        console.log(`📦 移动: ${this.draggedItem.path} -> ${targetPath}`);
+        console.log(`📦 移动: ${draggedItemCopy.path} -> ${targetPath}`);
         
         try {
             // 调用后端移动命令
             const result = await invoke('move_item', {
                 rootPath: appState.rootPath,
-                sourcePath: this.draggedItem.path,
+                sourcePath: draggedItemCopy.path,
                 targetDir: targetPath
             });
             
             console.log('✅ 移动成功:', result);
             
             // 更新标签页路径
-            if (this.draggedItem.isDir) {
+            if (draggedItemCopy.isDir) {
                 // 文件夹移动：批量更新所有子文件的标签页
-                const oldPrefix = this.draggedItem.path;
+                const oldPrefix = draggedItemCopy.path;
                 const newPrefix = result.new_path;
                 
                 if (window.tabManager && window.tabManager.updatePathsForRenamedFolder) {
@@ -221,40 +226,29 @@ class DragDropManager {
                     }
                 }
                 
-            } else {
-                // 文件移动：更新标签页
-                if (window.tabManager) {
-                    window.tabManager.openTabs.forEach(tab => {
-                        if (tab.path === this.draggedItem.path) {
-                            window.tabManager.updateTabId(this.draggedItem.path, result.new_path);
-                        }
-                    });
-                }
-            }
+            } 
             
             // 刷新源文件夹和目标文件夹
-            const sourceParent = this.getParentPath(this.draggedItem.path);
+            const sourceParent = this.getParentPath(draggedItemCopy.path);
             
-            if (window.refreshFileTree) {
-                await window.refreshFileTree(sourceParent);
-                
-                if (targetPath !== sourceParent) {
-                    await window.refreshFileTree(targetPath);
-                }
-            }
             
             // 确保目标文件夹展开
             appState.expandedFolders.add(targetPath);
             if (window.saveExpandedFolders) {
                 window.saveExpandedFolders();
             }
+			
+			// ✅ 发布文件移动成功事件
+			eventBus.emit('file:moved', {
+				oldPath: draggedItemCopy.path,
+				newPath: result.new_path,
+				isDir: draggedItemCopy.isDir,
+				sourceParent: sourceParent,
+				targetParent: targetPath
+			});
             
-            showSuccessMessage(`已移动到 ${this.dropTarget.name}`);
+            showSuccessMessage(`已移动到 ${dropTargetCopy.name}`);
             
-            // 更新虚拟滚动
-            if (window.updateVirtualScrollData) {
-                window.updateVirtualScrollData();
-            }
             
         } catch (error) {
             console.error('❌ 移动失败:', error);
@@ -272,13 +266,10 @@ class DragDropManager {
     }
 }
 
+
 // 创建单例
 const dragDropManager = new DragDropManager();
 
-
-// 导出函数供其他模块使用（向后兼容）
-window.makeDraggable = (li, item) => dragDropManager.makeDraggable(li, item);
-window.getParentPath = (path) => dragDropManager.getParentPath(path);
 
 // ES Module 导出
 export {

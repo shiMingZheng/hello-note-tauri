@@ -432,9 +432,8 @@ export class WorkspaceManager {
      * 显示欢迎界面
      */
     showWelcomeScreen() {
-        if (window.tabManager && window.tabManager.switchToTab) {
-            window.tabManager.switchToTab('home');
-        }
+		// ✅ 新代码
+		eventBus.emit('tab:switch', 'home');
 
         const fileListElement = document.getElementById('file-list');
         if (fileListElement) {
@@ -469,9 +468,10 @@ export class WorkspaceManager {
     async openLastFile() {
         try {
             const lastFile = localStorage.getItem('cheetah_last_file');
-            if (lastFile && window.tabManager) {
+            if (lastFile ) {
                 console.log('📄 恢复上次打开的文件:', lastFile);
-                window.tabManager.openTab(lastFile);
+				// ✅ 新代码
+				eventBus.emit('open-tab', lastFile);
             }
         } catch (error) {
             console.warn('恢复文件失败:', error);
