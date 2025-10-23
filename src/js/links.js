@@ -4,7 +4,7 @@
 // [重构] 步骤 2: 导入 eventBus 和 tabManager
 import { eventBus } from './core/EventBus.js';
 import { tabManager } from './tab_manager.js';
-const { invoke } = window.__TAURI__.core;
+import { invoke } from './core/TauriAPI.js';
 console.log('📜 links.js 开始加载...');
 
 let backlinksListElement;

@@ -4,10 +4,10 @@
 import { appState } from './core/AppState.js';
 import { eventBus } from './core/EventBus.js';
 import { showError, showSuccessMessage, showCustomConfirm } from './ui-utils.js';
-
+import { invoke } from './core/TauriAPI.js';
 console.log('📜 drag-drop.js 开始加载...');
 
-const { invoke } = window.__TAURI__.core;
+
 
 class DragDropManager {
     constructor() {

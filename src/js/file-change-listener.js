@@ -4,6 +4,7 @@
 import { eventBus } from './core/EventBus.js';
 import { showSuccessMessage } from './ui-utils.js';
 import { refreshFileTree } from './file-manager.js';
+import { listen } from './core/TauriAPI.js';
 
 console.log('📜 file-change-listener.js 开始加载...');
 
@@ -29,7 +30,7 @@ class FileChangeListener {
         console.log('👁️ 启动前端文件变化监听...');
         
         // 监听来自 Rust 的文件变化事件
-        const { listen } = window.__TAURI__.event;
+
         
 		this.unlistenFn = await listen('file-changed', (event) => {
 			const { type, path, oldPath, newPath } = event.payload;  // ✅ 解构 oldPath 和 newPath

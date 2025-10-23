@@ -3,8 +3,8 @@
 'use strict';
 import { appState } from './core/AppState.js';
 import { eventBus } from './core/EventBus.js';
+import { invoke } from './core/TauriAPI.js';
 
-const { invoke } = window.__TAURI__.core;
 console.log('📜 homepage.js 开始加载...');
 
 let historyListElement;

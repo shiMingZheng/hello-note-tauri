@@ -3,10 +3,11 @@
 
 import { appState } from './core/AppState.js';
 import { showError } from './ui-utils.js';
+import { invoke } from './core/TauriAPI.js';
 
 console.log('📜 graph.js 开始加载...');
 
-const { invoke } = window.__TAURI__.core;
+
 
 class GraphView {
     constructor() {

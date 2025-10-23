@@ -14,6 +14,7 @@ import { createWikilinkPlugin } from './milkdown-wikilink-plugin.js';
 import { appState } from './core/AppState.js';
 import { showError } from './ui-utils.js';
 import { eventBus } from './core/EventBus.js';
+import { themeManager } from './theme.js';
 
 console.log('📜 milkdown-editor.js 开始加载...');
 
@@ -104,9 +105,9 @@ class MilkdownEditorManager {
 			console.log('✅ Milkdown 编辑器初始化成功');
 			
 			// 应用主题
-			if (window.themeManager) {
-				this.applyTheme(window.themeManager.getCurrentTheme());
-			}
+			
+			this.applyTheme(themeManager.getCurrentTheme());
+			
 			
 			// 设置 Wikilink 处理器
 			this.setupWikilinkHandler(containerSelector);

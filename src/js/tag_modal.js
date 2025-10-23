@@ -4,10 +4,11 @@
 import { appState } from './core/AppState.js';
 import { sidebar } from './sidebar.js';
 import { showError, showSuccessMessage } from './ui-utils.js';
+import { invoke } from './core/TauriAPI.js';
 
 console.log('📜 tag_modal.js 开始加载...');
 
-const { invoke } = window.__TAURI__.core;
+
 
 class TagModal {
     constructor() {

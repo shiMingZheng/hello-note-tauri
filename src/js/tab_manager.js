@@ -3,6 +3,8 @@
 
 import { appState } from './core/AppState.js';
 import { eventBus } from './core/EventBus.js';
+import { IS_TAURI_APP,getCurrentWindow } from './core/TauriAPI.js';
+
 
 console.log('📜 tab_manager.js 开始加载...');
 
@@ -315,8 +317,8 @@ export class TabManager {
         
         // 更新 Tauri 窗口标题
         try {
-            if (window.__TAURI__) {
-                const appWindow = window.__TAURI__.window.getCurrentWindow();
+            if (IS_TAURI_APP) {
+                const appWindow = getCurrentWindow;
                 await appWindow.setTitle(newTitle);
                 console.log('✅ 标题已更新:', newTitle);
             }

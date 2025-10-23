@@ -283,8 +283,6 @@ class PluginManager {
 // 创建单例
 const pluginManager = new PluginManager();
 
-// 导出到全局（供其他模块使用）
-window.pluginManager = pluginManager;
 
 // ES Module 导出
 export {

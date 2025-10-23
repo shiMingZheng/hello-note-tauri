@@ -136,18 +136,6 @@ async function initApp() {
         // 8. 绑定剩余的事件
         bindRootActions();
         
-        // 绑定打开工作区按钮 (复用已创建的 manager 实例)
-     //  if (domElements.openFolderBtn) {
-     //      domElements.openFolderBtn.addEventListener('click', async () => {
-     //          await workspaceManager.selectWorkspace();
-     //      });
-     //  }
-     //  
-     //  // 9. 初始化插件系统
-     //  if (window.pluginManager && window.pluginContext) {
-     //      await window.pluginManager.init(window.pluginContext);
-     //  }
-		
 		
 		// 绑定视图切换按钮
 		const viewToggleBtn = document.getElementById('view-toggle-btn');
@@ -211,9 +199,6 @@ function bindRootActions() {
 // DOM 加载完成后初始化
 document.addEventListener('DOMContentLoaded', initApp);
 
-// 导出必要的对象到全局（用于插件系统）
-window.appState = appState;
-window.TauriAPI = TauriAPI;
 
 
 

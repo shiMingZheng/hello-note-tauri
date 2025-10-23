@@ -3,6 +3,8 @@
 
 import { appState } from './core/AppState.js';
 import { showSuccessMessage, showError } from './ui-utils.js';
+import { invoke,IS_TAURI_APP } from './core/TauriAPI.js';
+import { milkdownEditor } from './milkdown-editor.js';
 
 console.log('📜 plugin-context.js 开始加载...');
 
@@ -29,29 +31,29 @@ class PluginContext {
          * 获取当前编辑器内容
          */
         getContent() {
-            if (!window.milkdownEditor) {
+            if (!milkdownEditor) {
                 console.warn('⚠️ 编辑器未初始化');
                 return '';
             }
-            return window.milkdownEditor.getMarkdown();
+            return milkdownEditor.getMarkdown();
         },
 
         /**
          * 设置编辑器内容
          */
         async setContent(content) {
-            if (!window.milkdownEditor) {
+            if (!milkdownEditor) {
                 console.warn('⚠️ 编辑器未初始化');
                 return;
             }
-            await window.milkdownEditor.loadContent(content);
+            await milkdownEditor.loadContent(content);
         },
 
         /**
          * 在光标位置插入文本
          */
         insertText(text) {
-            if (!window.milkdownEditor || !window.milkdownEditor.editor) {
+            if (!milkdownEditor || !milkdownEditor.editor) {
                 console.warn('⚠️ 编辑器未初始化');
                 return;
             }
@@ -59,7 +61,7 @@ class PluginContext {
             try {
                 const currentContent = this.getContent();
                 const newContent = currentContent + '\n' + text;
-                window.milkdownEditor.loadContent(newContent);
+                milkdownEditor.loadContent(newContent);
             } catch (error) {
                 console.error('❌ 插入文本失败:', error);
             }
@@ -165,10 +167,9 @@ class PluginContext {
          * 读取文件内容
          */
         async readFile(relativePath) {
-            if (!window.__TAURI__) return null;
+            if (!IS_TAURI_APP) return null;
             
             try {
-                const { invoke } = window.__TAURI__.core;
                 return await invoke('read_file_content', {
                     rootPath: appState.rootPath,
                     relativePath
@@ -183,10 +184,10 @@ class PluginContext {
          * 保存文件内容
          */
         async saveFile(relativePath, content) {
-            if (!window.__TAURI__) return false;
+            if (!IS_TAURI_APP) return false;
             
             try {
-                const { invoke } = window.__TAURI__.core;
+                
                 await invoke('save_file', {
                     rootPath: appState.rootPath,
                     relativePath,
@@ -223,9 +224,6 @@ class PluginContext {
 
 // 创建单例
 const pluginContext = new PluginContext();
-
-// 导出到全局（供插件系统使用）
-window.pluginContext = pluginContext;
 
 // ES Module 导出
 export {

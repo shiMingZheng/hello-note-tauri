@@ -7,12 +7,12 @@ import { initializeHomepage } from './homepage.js';
 
 
 import { eventBus } from './core/EventBus.js';
-import { invoke } from './core/TauriAPI.js';
+import { invoke,open } from './core/TauriAPI.js';
 
 console.log('📜 workspace.js 开始加载...');
 
 const WORKSPACE_STORAGE_KEY = 'cheetah_workspace_path';
-const { open } = window.__TAURI__.dialog;
+
 
 /**
  * 工作区管理器
