@@ -40,6 +40,10 @@ pub struct SaveTracker {
     
     /// 重命名检测窗口 (默认 500ms，因为外部重命名可能稍慢)
     pub rename_detection_window: Duration,
+
+	pub files_currently_deleting: Mutex<HashSet<String>>,
+    //
+    pub known_delete_times: Mutex<HashMap<String, SystemTime>>,
 }
 
 impl SaveTracker {
@@ -52,6 +56,9 @@ impl SaveTracker {
             indexing_timeout: Duration::from_secs(30),
 			potential_rename_sources: Mutex::new(HashMap::new()),
             rename_detection_window: Duration::from_millis(500),
+			// ⭐ 初始化新字段
+			files_currently_deleting: Mutex::new(HashSet::new()),
+			known_delete_times: Mutex::new(HashMap::new()),
         }
     }
 	
@@ -102,7 +109,7 @@ impl SaveTracker {
     }
     
     /// 清理超时的索引标记
-    pub fn cleanup_timeout_markers(&self) {
+    pub fn cleanup_timeout_markerscleanup_timeout_markers(&self) {
         let now = SystemTime::now();
         let mut indexing = self.files_currently_indexing.lock().unwrap();
         let mut times = self.indexing_start_times.lock().unwrap();

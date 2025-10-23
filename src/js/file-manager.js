@@ -3,6 +3,7 @@
 
 'use strict';
 import { appState } from './core/AppState.js';
+import { tabManager } from './tab_manager.js';
 
 // 在文件顶部,现有导入语句之后添加:
 import { showError, showSuccessMessage, showCustomConfirm } from './ui-utils.js';
@@ -336,11 +337,6 @@ async function handleDeleteFile() {
 			isDir: target.is_dir,
 			name: target.name
 		});
-       // if (appState.activeFilePath === target.path) {
-         //   tabManager.closeTab(target.path);
-        //}
-        
-       // await refreshFileTree();
 		
         if (window.refreshAllTagsList) {
             await refreshAllTagsList();
@@ -751,13 +747,15 @@ eventBus.on('file:deleted', async (data) => {
     }
 });
 
+// file-manager.js
+
 eventBus.on('file:saved', async (data) => {
     console.log('💾 处理保存事件:', data);
     
     // 1. 记录历史
     try {
         await invoke('record_file_event', {
-			rootPath: appState.rootPath,  // ✅ 添加 rootPath
+            rootPath: appState.rootPath,
             relativePath: data.path,
             eventType: 'edited'
         });
@@ -765,12 +763,8 @@ eventBus.on('file:saved', async (data) => {
         console.warn('记录历史失败:', error);
     }
     
-    // 2. 更新标签页状态
-      const tabManager = window.tabManager;  // ✅ 修复 TabManager 调用
-		if (tabManager && tabManager.markTabAsSaved) {
-			tabManager.markTabAsSaved(data.path);
-		}
-    
+    // ✅ 2. 更新标签页状态（改为事件驱动）
+    eventBus.emit('tab:mark-saved', data.path);
 });
 
 // ⭐ 订阅文件夹展开/折叠事件

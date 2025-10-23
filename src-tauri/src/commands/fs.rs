@@ -224,53 +224,6 @@ pub async fn create_new_file(
 	
 }
 
-//#[tauri::command]
-//pub async fn create_new_folder(
-//    root_path: String, 
-//    relative_parent_path: String, 
-//    folder_name: String,
-//    state: State<'_, AppState>,
-//) -> Result<String, String> {
-//    let base_path = Path::new(&root_path);
-//    let absolute_parent_path = to_absolute_path(base_path, Path::new(&relative_parent_path));
-//    if !absolute_parent_path.exists() || !absolute_parent_path.is_dir() {
-//        return Err(format!("目录不存在: {}", absolute_parent_path.display()));
-//    }
-//    let absolute_folder_path = absolute_parent_path.join(&folder_name);
-//    if absolute_folder_path.exists() {
-//        return Err(format!("文件夹已存在: {}", absolute_folder_path.display()));
-//    }
-//    fs::create_dir(&absolute_folder_path).map_err(|e| format!("创建文件夹失败: {}", e))?;
-// 
-//	// [修改] 使用新的 to_relative_path
-//    let new_relative_path_str = to_relative_path(base_path, &absolute_folder_path)
-//        .ok_or_else(|| "无法生成相对路径".to_string())?;
-//		
-//	// ✅ Layer 3: 记录创建时间戳
-//    {
-//        if let Ok(meta) = metadata(&absolute_file_path) {
-//            if let Ok(modified) = meta.modified() {
-//                let mut known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
-//                known_times.insert(new_relative_path_str.clone(), modified);
-//            }
-//        }
-//    }
-//
-//    // [修复] 在独立作用域中处理数据库
-//    {
-//        let db_pool_lock = state.db_pool.lock().unwrap();
-//        if let Some(pool) = db_pool_lock.as_ref() {
-//            let conn = pool.get().map_err(|e| e.to_string())?;
-//            conn.execute(
-//                "INSERT OR IGNORE INTO files (path, title, is_dir, created_at, updated_at) 
-//                 VALUES (?1, ?2, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-//                params![new_relative_path_str.clone(), folder_name],
-//            ).map_err(|e| e.to_string())?;
-//        }
-//    } // db_pool_lock 在这里被释放
-//    
-//    Ok(new_relative_path_str)
-//}
 #[tauri::command]
 pub async fn create_new_folder(
     root_path: String, 
@@ -317,12 +270,16 @@ pub async fn delete_item(
     relative_path: String, 
     state: State<'_, AppState>
 ) -> Result<(), String> {
+	 // ✅ Layer 1: 添加瞬时锁
+    SAVE_TRACKER.files_currently_deleting.lock().insert(relative_path);
+
     let base_path = Path::new(&root_path);
     let absolute_path = to_absolute_path(base_path, Path::new(&relative_path));
     
     if !absolute_path.exists() {
         return Err(format!("路径不存在: {}", absolute_path.display()));
     }
+	
 
     let is_dir = absolute_path.is_dir();
     
@@ -354,13 +311,6 @@ pub async fn delete_item(
         }
     }
 
-    // 3. [关键修改] 异步删除索引 - 为每个文件分发删除任务
-    for path in paths_to_delete {
-        if let Err(e) = indexing_jobs::dispatch_delete_job(path.clone()) {
-            eprintln!("⚠️ 分发删除索引任务失败 ({}): {}", path, e);
-        }
-    }
-
     // 4. 删除文件系统对象
     //if absolute_path.is_file() {
       //  fs::remove_file(&absolute_path).map_err(|e| format!("删除文件失败: {}", e))?;
@@ -369,6 +319,19 @@ pub async fn delete_item(
     //}
 	// 4. 移动到回收站(而不是永久删除)
 	trash::delete(&absolute_path).map_err(|e| format!("移动到回收站失败: {}", e))?;
+	//【Layer 3】记录时间戳
+	SAVE_TRACKER.known_delete_times.lock().insert(relative_path, now);
+	
+	//【Layer 1】释放瞬时锁（关键：必须在 dispatch_remove_job 之前）
+    SAVE_TRACKER.files_currently_deleting.lock().remove(relative_path);
+	    // 3. [关键修改] 异步删除索引 - 为每个文件分发删除任务
+    for path in paths_to_delete {
+        if let Err(e) = indexing_jobs::dispatch_delete_job(path.clone()) {
+            eprintln!("⚠️ 分发删除索引任务失败 ({}): {}", path, e);
+        }
+    }
+
+
 	println!("🗑️ 已移动到回收站: {}", absolute_path.display());
 
     println!("✅ 删除操作完成");

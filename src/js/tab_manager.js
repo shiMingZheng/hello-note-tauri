@@ -88,6 +88,7 @@ export class TabManager {
 		});
         
         console.log('✅ TabManager 已订阅所有标签页事件');
+	}
     /**
      * 打开标签页
      */
@@ -332,5 +333,11 @@ export class TabManager {
         }
     }
 }
+
+// 创建并导出单例实例
+const tabManager = new TabManager();
+
+// ES Module 导出
+export { tabManager};
 
 console.log('✅ tab_manager.js 加载完成');

@@ -158,7 +158,7 @@ pub fn start_file_watcher(
 										if let Some(known_time) = known_times.get(&rel_path) {
 											if let Ok(meta) = fs_metadata(&absolute_path) {
 												if let Ok(disk_time) = meta.modified() {
-													// 时间戳容差: 4秒 (兼容 FAT32)
+													// 时间戳容差: 5秒 (兼容 FAT32)
 													let tolerance = std::time::Duration::from_secs(5);
 													
 													// 磁盘时间 <= 已知时间 + 容差 → 内部修改
@@ -287,17 +287,21 @@ pub fn start_file_watcher(
                                 EventKind::Remove(_) => {
                                     log_with_time!("👀 [文件监听] 检测到删除: {}", rel_path);
                                     
-                                    if let Err(e) = indexing_jobs::dispatch_delete_job(rel_path.clone()) {
-                                        log_with_time!("⚠️ 分发删除任务失败: {}", e);
-                                    }
-                                    
-                                    // 发送事件到前端
-                                    if let Some(ref handle) = app_handle {
-                                        let _ = handle.emit("file-changed", serde_json::json!({
-                                            "type": "deleted",
-                                            "path": rel_path
-                                        }));
-                                    }
+                                    // ✅ 处理删除事件（新增三层检查）
+									for path in event.paths {
+										if let Some(relative_path) = to_relative_path(root_path, &path) {
+											// ⭐ 三层检查：判断是否为内部删除
+											if should_skip_delete_event(&relative_path) {
+												println!("⏭️ [文件监听器] 跳过内部删除: {}", relative_path);
+												continue;
+											}
+											
+											// 确认为外部删除，发送事件到前端
+											println!("📢 [文件监听器] 检测到外部删除: {}", relative_path);
+											emit_file_changed(app_handle, "deleted", &relative_path, None);
+										}
+									}
+									
                                 }
                                 _ => {
                                     log_with_time!("  ⏭️ 忽略其他类型事件: {:?}", kind);
@@ -417,4 +421,99 @@ fn update_file_path_in_db(root_path: &str, old_path: &str, new_path: &str) -> an
     }
     
     Ok(())
+}
+
+/// ⭐ 新增：三层检查 - 判断删除事件是否应该跳过
+fn should_skip_delete_event(relative_path: &str) -> bool {
+    use crate::indexing_jobs::SAVE_TRACKER;
+    use std::time::SystemTime;
+    
+    // 【Layer 1: 瞬时锁检查】
+    {
+        let deleting = SAVE_TRACKER.files_currently_deleting.lock().unwrap();
+        
+        for deleting_path in deleting.iter() {
+            // 精确匹配
+            if relative_path == deleting_path {
+                println!("  ✅ Layer 1: 检测到瞬时锁（精确匹配）: {}", deleting_path);
+                return true;
+            }
+            
+            // 前缀匹配（文件夹删除场景）
+            if relative_path.starts_with(&format!("{}/", deleting_path)) {
+                println!("  ✅ Layer 1: 检测到瞬时锁（前缀匹配）: {} 属于 {}", relative_path, deleting_path);
+                return true;
+            }
+        }
+    }
+    
+    // 【Layer 2: IndexingJobs 检查】
+    if has_recent_delete_job(relative_path) {
+        println!("  ✅ Layer 2: 检测到近期删除任务: {}", relative_path);
+        return true;
+    }
+    
+    // 【Layer 3: 时间戳检查】
+    {
+        let delete_times = SAVE_TRACKER.known_delete_times.lock().unwrap();
+        
+        for (deleted_path, timestamp) in delete_times.iter() {
+            // 精确匹配
+            if relative_path == deleted_path {
+                if let Ok(elapsed) = timestamp.elapsed() {
+                    if elapsed < Duration::from_secs(5) {
+                        println!("  ✅ Layer 3: 检测到近期删除时间戳（精确匹配）: {} ({:?} 前)", deleted_path, elapsed);
+                        return true;
+                    }
+                }
+            }
+            
+            // 前缀匹配（文件夹删除场景）
+            if relative_path.starts_with(&format!("{}/", deleted_path)) {
+                if let Ok(elapsed) = timestamp.elapsed() {
+                    if elapsed < Duration::from_secs(5) {
+                        println!("  ✅ Layer 3: 检测到近期删除时间戳（前缀匹配）: {} 属于 {} ({:?} 前)", 
+                                 relative_path, deleted_path, elapsed);
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    
+    // 三层检查都未命中，确认为外部删除
+    false
+}
+
+/// ⭐ Layer 2 辅助函数：检查 IndexingJobs 表是否有近期删除任务
+fn has_recent_delete_job(relative_path: &str) -> bool {
+	use crate::database::DbPool;
+    use rusqlite::params;
+    
+	let db_pool_lock = indexing_jobs::DB_POOL_REF.lock().unwrap();
+    let db_pool = db_pool_lock.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("数据库连接池未初始化"))?;
+		
+    let conn = match db_pool.get() {
+        Ok(conn) => conn,
+        Err(_) => return false,
+    };
+    
+    // SQL 查询：检查是否有近期的删除任务
+    let sql = r#"
+        SELECT COUNT(*) 
+        FROM indexing_jobs 
+        WHERE (
+            file_path = ?1 
+            OR ?1 LIKE file_path || '/%'
+        )
+        AND operation = 'remove_document'
+        AND status IN ('pending', 'processing')
+        AND created_at > datetime('now', '-2 seconds')
+    "#;
+    
+    match conn.query_row(sql, params![relative_path], |row| row.get::<_, i64>(0)) {
+        Ok(count) => count > 0,
+        Err(_) => false,
+    }
 }
