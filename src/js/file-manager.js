@@ -186,9 +186,7 @@ function createFileTreeItem(item) {
         li.classList.add('active');
     }
     
-    if (window.makeDraggable) {
-        makeDraggable(li, item);
-    }
+    eventBus.emit('ui:makeDraggable', { element: li, item: item });
     
     return li;
 }
@@ -338,9 +336,7 @@ async function handleDeleteFile() {
 			name: target.name
 		});
 		
-        if (window.refreshAllTagsList) {
-            await refreshAllTagsList();
-        }
+        
     } catch (error) {
         showError(`删除失败: ` + error);
     }
@@ -720,9 +716,7 @@ eventBus.on('file:renamed', async (data) => {
 
     
     // 3. 刷新标签列表
-    if (window.refreshAllTagsList) {
-        await refreshAllTagsList();
-    }
+    eventBus.emit('ui:refreshAllTags');
 });
 
 eventBus.on('file:deleted', async (data) => {
@@ -739,9 +733,7 @@ eventBus.on('file:deleted', async (data) => {
     await refreshFileTree();
     
     // 3. 刷新标签列表
-    if (window.refreshAllTagsList) {
-        await refreshAllTagsList();
-    }
+    eventBus.emit('ui:refreshAllTags');
 });
 
 // file-manager.js
@@ -830,7 +822,14 @@ eventBus.on('file:moved', async (data) => {
     }
 });
 
-console.log('✅ file-manager 已订阅文件夹操作\文件操作\事件根目录操作\文件夹展开/折叠事件');
+// [重构] 步骤 2: 订阅 'ui:refreshFileTree' 事件
+// (这个事件由 workspace.js 在启动时发布)
+eventBus.on('ui:refreshFileTree', (relativePath) => {
+    console.log('🔄 收到 ui:refreshFileTree 事件, 刷新: ', relativePath);
+    // 调用本文件内定义的 refreshFileTree 函数
+    refreshFileTree(relativePath || "");
+});
+console.log('✅ file-manager 已订阅文件夹操作\文件操作\事件根目录操作\文件夹展开/折叠事件\refreshFileTree');
 
 
 console.log('✅ file-manager.js 加载完成');

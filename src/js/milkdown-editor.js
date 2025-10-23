@@ -317,4 +317,15 @@ export {
     MilkdownEditorManager
 };
 
+// [重构] 步骤 2: 订阅 'ui:makeDraggable' 事件
+// 之前是在 file-manager(旧版) 中通过 window.makeDraggable 调用
+// virtual-scroll.js 已经是通过 dragDropManager.makeDraggable() 调用，不受影响
+// 但 file-manager.js (新版) 会发布这个事件
+eventBus.on('ui:makeDraggable', ({ element, item }) => {
+    // 调用已实例化的管理器的 makeDraggable 方法
+    if (dragDropManager && element && item) {
+        dragDropManager.makeDraggable(element, item);
+    }
+});
+
 console.log('✅ milkdown-editor.js 加载完成');

@@ -138,50 +138,42 @@ export class TabManager {
             editorWrapperEl.style.display = 'none';
             mainHeaderActions.style.display = 'none';
             
-            if (window.updateCurrentFileTagsUI) {
-                window.updateCurrentFileTagsUI(null);
-            }
-            if (window.updateBacklinksUI) {
-                window.updateBacklinksUI(null);
-            }
+            // [重构] 步骤 1: 将全局函数调用改为事件发布
+           
+            eventBus.emit('ui:updateFileTags', null);
+            
+            // [重构] 步骤 1: 将全局函数调用改为事件发布
+            
+            eventBus.emit('ui:updateBacklinks', null);
         } else {
             homepageEl.style.display = 'none';
             editorWrapperEl.style.display = 'flex';
             
             const tabData = this.findTabByPath(tabId);
+			eventBus.emit('editor:load-file', tabId);
             if (tabData && tabData.isNew) {
                 mainHeaderActions.style.display = 'none';
                 appState.activeFilePath = null;
+              
                 
-                if (window.markdownEditor) {
-                    window.markdownEditor.value = `# 空白页签\n\n您可以在左侧文件树中新建或打开一个笔记进行编辑。`;
-                    window.markdownEditor.readOnly = true;
-                }
+                // [重构] 步骤 1: 将全局函数调用改为事件发布
+                eventBus.emit('ui:updateFileTags', null);
                 
-                if (window.updateCurrentFileTagsUI) {
-                    window.updateCurrentFileTagsUI(null);
-                }
-                if (window.updateBacklinksUI) {
-                    window.updateBacklinksUI(null);
-                }
+                // [重构] 步骤 1: 将全局函数调用改为事件发布
+                eventBus.emit('ui:updateBacklinks', null);
             } else {
                 mainHeaderActions.style.display = 'flex';
                 
-				// ✅ 改用事件驱动
-				eventBus.emit('editor:load-file', tabId);
 			
-                if (window.updateCurrentFileTagsUI) {
-                    window.updateCurrentFileTagsUI(tabId);
-                }
-                if (window.updateBacklinksUI) {
-                    window.updateBacklinksUI(tabId);
-                }
+                // [重构] 步骤 1: 将全局函数调用改为事件发布
+                eventBus.emit('ui:updateFileTags', tabId);
+
+                // [重构] 步骤 1: 将全局函数调用改为事件发布
+                eventBus.emit('ui:updateBacklinks', tabId);
             }
         }
         
-        if (window.updateVirtualScrollData) {
-            window.updateVirtualScrollData();
-        }
+        eventBus.emit('ui:updateVirtualScroll');
         
         this.updateWindowTitle();
     }

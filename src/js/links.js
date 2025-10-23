@@ -1,6 +1,9 @@
 // src/js/links.js
 
 'use strict';
+// [重构] 步骤 2: 导入 eventBus 和 tabManager
+import { eventBus } from './core/EventBus.js';
+import { tabManager } from './tab_manager.js';
 const { invoke } = window.__TAURI__.core;
 console.log('📜 links.js 开始加载...');
 
@@ -45,6 +48,11 @@ async function updateBacklinksUI(relativePath) {
 
 // ES Module 导出
 export {
-    initializeLinks,
-    updateBacklinksUI
+    initializeLinks
 };
+
+// [重构] 步骤 2: 添加事件订阅
+// 监听来自 tab_manager.js 的事件
+eventBus.on('ui:updateBacklinks', (relativePath) => {
+    updateBacklinksUI(relativePath);
+});

@@ -19,17 +19,50 @@ console.log('📜 editor.js 开始加载...');
  * 加载文件到编辑器
  * @param {string} relativePath - 文件相对路径
  */
+// src/js/editor.js
+
+/**
+ * 加载文件到编辑器
+ * @param {string} relativePath - 文件相对路径 (或 "untitled-..." 标识符)
+ */
 async function loadFileToEditor(relativePath) {
-    console.log('📂 [loadFileToEditor] 开始加载文件:', relativePath);
-    console.log('📂 [loadFileToEditor] 当前 rootPath:', appState.rootPath);
+    console.log('📂 [loadFileToEditor] 开始加载:', relativePath);
     
     if (!relativePath) {
         console.error('❌ [loadFileToEditor] 文件路径为空');
         return;
     }
-    
+
     try {
-        // 1. 从 Rust 后端读取文件内容
+        // [修复] 步骤 1: 确保编辑器已初始化（必须在所有操作之前）
+        if (!milkdownEditor || !milkdownEditor.editor) {
+            console.log('🎨 [loadFileToEditor] 编辑器未初始化，开始初始化...');
+            await milkdownEditor.init('#milkdown-editor', (content) => {
+                appState.hasUnsavedChanges = true;
+            });
+            console.log('✅ [loadFileToEditor] 编辑器初始化完成');
+        }
+
+        // [修复] 步骤 2: 检查是否为 "空白页签"
+        if (relativePath.startsWith('untitled-')) {
+            console.log('📄 [loadFileToEditor] 检测到空白页签, 加载空白状态...');
+            
+            // 加载空白内容
+            await milkdownEditor.loadContent("# 空白页签\n\n您可以在左侧文件树中新建或打开一个笔记进行编辑。");
+            
+            // 设置为只读
+            milkdownEditor.setReadonly(true);
+            
+            // 更新应用状态
+            appState.activeFilePath = null; // 保持与 tab_manager 一致
+            appState.hasUnsavedChanges = false;
+            
+            console.log('✅ [loadFileToEditor] 空白页签加载完成');
+            return; // 退出函数，不执行后续的文件读取
+        }
+
+        // [修复] 步骤 3: 如果不是空白页签，则执行真实文件加载
+        
         console.log('📡 [loadFileToEditor] 调用 Rust 后端读取文件...');
         const content = await invoke('read_file_content', { 
             rootPath: appState.rootPath,
@@ -37,36 +70,29 @@ async function loadFileToEditor(relativePath) {
         });
         
         console.log('✅ [loadFileToEditor] 文件读取成功，内容长度:', content.length);
+
+        // [修复] 确保编辑器是可编辑的
+        milkdownEditor.setReadonly(false);
         
-        // 2. 确保编辑器已初始化（懒加载）
-        if (!milkdownEditor || !milkdownEditor.editor) {
-            console.log('🎨 [loadFileToEditor] 编辑器未初始化，开始初始化...');
-            
-            try {
-                await milkdownEditor.init('#milkdown-editor', (content) => {
-                    appState.hasUnsavedChanges = true;
-                });
-                console.log('✅ [loadFileToEditor] 编辑器初始化完成');
-            } catch (error) {
-                console.error('❌ [loadFileToEditor] 编辑器初始化失败:', error);
-                showError('编辑器初始化失败: ' + error.message);
-                return;
-            }
-        }
-        
-        // 3. 加载内容到编辑器
         console.log('📝 [loadFileToEditor] 加载内容到 Milkdown...');
         await milkdownEditor.loadContent(content);
         
-        // 4. 更新应用状态
+        // 更新应用状态
         appState.activeFilePath = relativePath;
         appState.hasUnsavedChanges = false;
         
         console.log('✅ [loadFileToEditor] 文件加载完成');
         
     } catch (error) {
+        // catch 块现在只会捕获真实文件的读取错误
         console.error('❌ [loadFileToEditor] 加载文件失败:', error);
         showError('加载文件失败: ' + error.message);
+        
+        // [修复] 加载失败时，也应清空编辑器
+        if (milkdownEditor && milkdownEditor.editor) {
+            await milkdownEditor.loadContent(`# 加载失败\n\n错误: ${error.message}`);
+            milkdownEditor.setReadonly(true);
+        }
     }
 }
 

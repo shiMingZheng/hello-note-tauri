@@ -413,9 +413,7 @@ export class WorkspaceManager {
                 }
 
                 // 刷新文件树
-                if (window.refreshFileTree) {
-                    await window.refreshFileTree("");
-                }
+				eventBus.emit('ui:refreshFileTree', "");
 
                 // 打开上次的文件
                 await this.openLastFile();

@@ -20,7 +20,8 @@ import { sidebarControl } from './sidebar-control.js';
 // 功能模块
 import { setupVirtualScroll, updateVirtualScrollData } from './virtual-scroll.js';
 import { TabManager } from './tab_manager.js';
-import { initializeLinks, updateBacklinksUI } from './links.js';
+// 之后（修复）
+import { initializeLinks } from './links.js';
 import { tagModal } from './tag_modal.js';
 import { sidebar } from './sidebar.js';
 import { initializeHomepage, loadPinnedNotes, loadHistory } from './homepage.js';

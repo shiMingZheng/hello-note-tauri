@@ -69,11 +69,11 @@ export function setupVirtualScroll() {
     
     // 监听窗口大小变化
     let resizeTimeout = null;
-    window.addEventListener('resize', () => {
+	eventBus.on('browser:resize', () => {
         if (resizeTimeout) {
             clearTimeout(resizeTimeout);
         }
-        
+// ... (函数内部逻辑保持不变) ...
         resizeTimeout = setTimeout(() => {
             appState.virtualScroll.containerHeight = fileListContainer.clientHeight;
             handleVirtualScroll();
@@ -319,6 +319,17 @@ export function updateVirtualScrollData(filteredPaths = null) {
         console.log(`📊 虚拟滚动数据已更新: ${visibleItems.length} 项`);
     }
 }
+// [重构] 步骤 2: 添加事件订阅
+// 监听来自 tab_manager.js 的 'ui:updateVirtualScroll'
+eventBus.on('ui:updateVirtualScroll', () => {
+    console.log('🔄 收到 ui:updateVirtualScroll 事件');
+    // 确保容器高度是最新的
+    if(fileListContainer) {
+        appState.virtualScroll.containerHeight = fileListContainer.clientHeight;
+    }
+    // 重新计算并渲染
+    updateVirtualScrollData();
+});
 
 console.log('✅ virtual-scroll.js 加载完成');
 
