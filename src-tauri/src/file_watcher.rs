@@ -13,6 +13,8 @@ use std::fs::metadata as fs_metadata;
 use std::time::UNIX_EPOCH;  // ✅ 添加这行
 use anyhow::Result;  // ✅ 添加这行
 use rusqlite::params;  // ✅ 添加这行
+use crate::commands::path_utils::{to_relative_path};  
+
 
 
 
@@ -77,12 +79,12 @@ pub fn start_file_watcher(
             match res {
                 Ok(event) => {
                     let kind = event.kind;
-                    let paths = event.paths;
+                    let paths = event.paths.clone();
                     
                     //log_with_time!("📢 [文件监听] 收到事件: {:?}, 路径数: {}", kind, paths.len());
                     
                     // 只处理 .md 文件
-                    for path in paths {
+                    for path in &paths {
                         //log_with_time!("  🔍 检查路径: {:?}", path);
                         
                         // 跳过隐藏文件和 .cheetah-note 目录
@@ -288,8 +290,9 @@ pub fn start_file_watcher(
                                     log_with_time!("👀 [文件监听] 检测到删除: {}", rel_path);
                                     
                                     // ✅ 处理删除事件（新增三层检查）
-									for path in event.paths {
-										if let Some(relative_path) = to_relative_path(root_path, &path) {
+									for path in &paths {
+										//Path::new(&workspace_path).join(&rel_path);
+										if let Some(relative_path) = to_relative_path(Path::new(&workspace_path), &path) {
 											// ⭐ 三层检查：判断是否为内部删除
 											if should_skip_delete_event(&relative_path) {
 												println!("⏭️ [文件监听器] 跳过内部删除: {}", relative_path);
@@ -298,7 +301,15 @@ pub fn start_file_watcher(
 											
 											// 确认为外部删除，发送事件到前端
 											println!("📢 [文件监听器] 检测到外部删除: {}", relative_path);
-											emit_file_changed(app_handle, "deleted", &relative_path, None);
+											//emit_file_changed(app_handle, "deleted", &relative_path, None);
+											// 发送删除事件到前端
+											if let Some(ref handle) = app_handle {
+												log_with_time!("📤 [前端事件] 发送deleted事件: {}", relative_path);
+												let _ = handle.emit("file-changed", serde_json::json!({
+													"type": "deleted",
+													"path": relative_path
+												}));
+											}
 										}
 									}
 									
@@ -425,8 +436,6 @@ fn update_file_path_in_db(root_path: &str, old_path: &str, new_path: &str) -> an
 
 /// ⭐ 新增：三层检查 - 判断删除事件是否应该跳过
 fn should_skip_delete_event(relative_path: &str) -> bool {
-    use crate::indexing_jobs::SAVE_TRACKER;
-    use std::time::SystemTime;
     
     // 【Layer 1: 瞬时锁检查】
     {
@@ -448,7 +457,7 @@ fn should_skip_delete_event(relative_path: &str) -> bool {
     }
     
     // 【Layer 2: IndexingJobs 检查】
-    if has_recent_delete_job(relative_path) {
+    if has_recent_delete_job(relative_path).unwrap_or(false)  {
         println!("  ✅ Layer 2: 检测到近期删除任务: {}", relative_path);
         return true;
     }
@@ -486,8 +495,7 @@ fn should_skip_delete_event(relative_path: &str) -> bool {
 }
 
 /// ⭐ Layer 2 辅助函数：检查 IndexingJobs 表是否有近期删除任务
-fn has_recent_delete_job(relative_path: &str) -> bool {
-	use crate::database::DbPool;
+fn has_recent_delete_job(relative_path: &str) -> anyhow::Result<bool> {
     use rusqlite::params;
     
 	let db_pool_lock = indexing_jobs::DB_POOL_REF.lock().unwrap();
@@ -496,7 +504,7 @@ fn has_recent_delete_job(relative_path: &str) -> bool {
 		
     let conn = match db_pool.get() {
         Ok(conn) => conn,
-        Err(_) => return false,
+        Err(_) => return Ok(false),
     };
     
     // SQL 查询：检查是否有近期的删除任务
@@ -513,7 +521,7 @@ fn has_recent_delete_job(relative_path: &str) -> bool {
     "#;
     
     match conn.query_row(sql, params![relative_path], |row| row.get::<_, i64>(0)) {
-        Ok(count) => count > 0,
-        Err(_) => false,
+        Ok(count) => Ok(count > 0),
+        Err(_) => Ok(false),
     }
 }

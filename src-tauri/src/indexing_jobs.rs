@@ -109,7 +109,7 @@ impl SaveTracker {
     }
     
     /// 清理超时的索引标记
-    pub fn cleanup_timeout_markerscleanup_timeout_markers(&self) {
+    pub fn cleanup_timeout_markers(&self) {
         let now = SystemTime::now();
         let mut indexing = self.files_currently_indexing.lock().unwrap();
         let mut times = self.indexing_start_times.lock().unwrap();

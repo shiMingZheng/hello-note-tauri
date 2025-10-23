@@ -11,6 +11,8 @@ use tauri::State;
 use crate::indexing_jobs;
 use walkdir::WalkDir;
 use std::fs::metadata; 
+use crate::indexing_jobs::SAVE_TRACKER;
+use std::time::SystemTime;
 
 #[derive(Debug, Serialize)]
 pub struct FileNode {
@@ -125,7 +127,6 @@ pub async fn save_file(
     content: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    use crate::indexing_jobs::SAVE_TRACKER;
     
     // ✅ Layer 1: 添加瞬时锁
     {
@@ -231,7 +232,6 @@ pub async fn create_new_folder(
     folder_name: String,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    use crate::indexing_jobs::SAVE_TRACKER;
     
     let base_path = Path::new(&root_path);
     let absolute_parent_path = to_absolute_path(base_path, Path::new(&relative_parent_path));
@@ -271,7 +271,7 @@ pub async fn delete_item(
     state: State<'_, AppState>
 ) -> Result<(), String> {
 	 // ✅ Layer 1: 添加瞬时锁
-    SAVE_TRACKER.files_currently_deleting.lock().insert(relative_path);
+    SAVE_TRACKER.files_currently_deleting.lock().unwrap().insert(relative_path.clone());
 
     let base_path = Path::new(&root_path);
     let absolute_path = to_absolute_path(base_path, Path::new(&relative_path));
@@ -320,10 +320,11 @@ pub async fn delete_item(
 	// 4. 移动到回收站(而不是永久删除)
 	trash::delete(&absolute_path).map_err(|e| format!("移动到回收站失败: {}", e))?;
 	//【Layer 3】记录时间戳
-	SAVE_TRACKER.known_delete_times.lock().insert(relative_path, now);
+	let now = SystemTime::now();
+	SAVE_TRACKER.known_delete_times.lock().unwrap().insert(relative_path.to_string(), now);
 	
 	//【Layer 1】释放瞬时锁（关键：必须在 dispatch_remove_job 之前）
-    SAVE_TRACKER.files_currently_deleting.lock().remove(relative_path);
+    SAVE_TRACKER.files_currently_deleting.lock().unwrap().remove(&relative_path.to_string());
 	    // 3. [关键修改] 异步删除索引 - 为每个文件分发删除任务
     for path in paths_to_delete {
         if let Err(e) = indexing_jobs::dispatch_delete_job(path.clone()) {
@@ -434,9 +435,8 @@ pub async fn rename_item(
     new_name: String,
     state: State<'_, AppState>,
 ) -> Result<RenameResult, String> {
-    use crate::indexing_jobs::SAVE_TRACKER;
     use std::fs::metadata;
-    use std::time::SystemTime;
+
     
     println!("🔄 重命名请求: {} -> {}", old_relative_path, new_name);
     let old_relative_path = old_relative_path.replace('\\', "/");
