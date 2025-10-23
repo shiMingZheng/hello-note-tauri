@@ -145,6 +145,15 @@ async function initApp() {
 			});
 		}
 		
+		// [重构] 步骤 3: 封装原生 window 事件
+		// 在 main.js 中统一监听, 然后发布到 eventBus
+		window.addEventListener('resize', () => {
+			// 直接发布原始事件
+			// 我们让订阅者 (virtual-scroll.js) 自己决定如何进行防抖 (debounce)
+			eventBus.emit('browser:resize');
+		});
+    console.log('✅ 已设置全局 resize 事件监听');
+		
         
         console.log('✅ 应用初始化完成');
         
