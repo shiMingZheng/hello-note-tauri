@@ -29,24 +29,27 @@ class DragDropManager {
     init() {
         console.log('🎯 初始化拖拽功能...');
         
+        // ✅ 修复：绑定到 fileListContainer 而不是 fileListElement
+        // 因为虚拟滚动会频繁清空 fileListElement 的内容
+        const fileListContainer = document.querySelector('.file-list-container');
         this.fileListElement = document.getElementById('file-list');
         
-        if (!this.fileListElement) {
-            console.warn('⚠️ fileListElement 未定义，延迟初始化');
+        if (!fileListContainer || !this.fileListElement) {
+            console.warn('⚠️ 拖拽元素未定义，延迟初始化');
             setTimeout(() => this.init(), 100);
             return;
         }
         
         this.dragIndicator = document.getElementById('drag-indicator');
         
-        // 使用事件委托监听文件列表的拖拽事件
-        this.fileListElement.addEventListener('dragstart', (e) => this.handleDragStart(e));
-        this.fileListElement.addEventListener('dragend', (e) => this.handleDragEnd(e));
-        this.fileListElement.addEventListener('dragover', (e) => this.handleDragOver(e));
-        this.fileListElement.addEventListener('dragleave', (e) => this.handleDragLeave(e));
-        this.fileListElement.addEventListener('drop', (e) => this.handleDrop(e));
+        // ✅ 使用事件委托监听容器的拖拽事件
+        fileListContainer.addEventListener('dragstart', (e) => this.handleDragStart(e));
+        fileListContainer.addEventListener('dragend', (e) => this.handleDragEnd(e));
+        fileListContainer.addEventListener('dragover', (e) => this.handleDragOver(e));
+        fileListContainer.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+        fileListContainer.addEventListener('drop', (e) => this.handleDrop(e));
         
-        console.log('✅ 拖拽功能已初始化');
+        console.log('✅ 拖拽功能已初始化（绑定到 fileListContainer）');
     }
     
     /**
@@ -62,12 +65,24 @@ class DragDropManager {
      * 拖拽开始
      */
     handleDragStart(e) {
+        console.log('🔥 [handleDragStart] 事件触发了！', e.target);
+        
         const li = e.target.closest('li');
-        if (!li) return;
+        if (!li) {
+            console.log('❌ [handleDragStart] 未找到 li 元素');
+            return;
+        }
         
         const path = li.dataset.path;
         const isDir = li.dataset.isDir === 'true';
         const name = li.dataset.name;
+        
+        console.log('📊 [handleDragStart] li 元素信息:', {
+            path,
+            isDir,
+            name,
+            draggable: li.getAttribute('draggable')
+        });
         
         this.draggedItem = { path, isDir, name };
         
@@ -107,16 +122,30 @@ class DragDropManager {
      * 拖拽经过
      */
     handleDragOver(e) {
+        console.log('🌊 [handleDragOver] 事件触发！target:', e.target);
+        
         e.preventDefault();
+        e.stopPropagation();
         
         const li = e.target.closest('li');
-        if (!li) return;
+        if (!li) {
+            console.log('⚠️ [dragOver] 未找到 li 元素');
+            e.dataTransfer.dropEffect = 'none';
+            return;
+        }
         
         const targetPath = li.dataset.path;
         const targetIsDir = li.dataset.isDir === 'true';
         
+        console.log('🔍 [dragOver] 目标元素:', {
+            path: targetPath,
+            isDir: targetIsDir,
+            dataset: li.dataset
+        });
+        
         // 只允许拖到文件夹上
         if (!targetIsDir) {
+            console.log('❌ [dragOver] 目标不是文件夹');
             e.dataTransfer.dropEffect = 'none';
             return;
         }
@@ -126,10 +155,12 @@ class DragDropManager {
             targetPath === this.draggedItem.path ||
             targetPath.startsWith(this.draggedItem.path + '/')
         )) {
+            console.log('❌ [dragOver] 不能拖到自己或子文件夹');
             e.dataTransfer.dropEffect = 'none';
             return;
         }
         
+        console.log('✅ [dragOver] 允许放置');
         e.dataTransfer.dropEffect = 'move';
         
         // 高亮目标文件夹
@@ -145,6 +176,8 @@ class DragDropManager {
      * 拖拽离开
      */
     handleDragLeave(e) {
+        e.stopPropagation();
+        
         const li = e.target.closest('li');
         if (li) {
             li.classList.remove('drag-over');
@@ -177,10 +210,10 @@ class DragDropManager {
             showError('不能移动到自己或子文件夹中');
             return;
         }
-		   // ✅ 关键修复：在清空前保存数据副本
-		const draggedItemCopy = { ...this.draggedItem };
-		const dropTargetCopy = { ...this.dropTarget };
-    
+        
+        // ✅ 关键修复：在清空前保存数据副本
+        const draggedItemCopy = { ...this.draggedItem };
+        const dropTargetCopy = { ...this.dropTarget };
         
         // 确认移动
         const confirmed = await showCustomConfirm(
@@ -204,15 +237,19 @@ class DragDropManager {
             
             console.log('✅ 移动成功:', result);
             
-            // 更新标签页路径
+            // ========================================
+            // ✅ 改造点 1: 批量更新标签页路径
+            // ========================================
             if (draggedItemCopy.isDir) {
                 // 文件夹移动：批量更新所有子文件的标签页
                 const oldPrefix = draggedItemCopy.path;
                 const newPrefix = result.new_path;
                 
-                if (window.tabManager && window.tabManager.updatePathsForRenamedFolder) {
-                    window.tabManager.updatePathsForRenamedFolder(oldPrefix, newPrefix);
-                }
+                // ✅ 改为事件驱动
+                eventBus.emit('tab:update-folder-paths', {
+                    oldPrefix: oldPrefix,
+                    newPrefix: newPrefix
+                });
                 
                 // 清除缓存
                 appState.fileTreeMap.delete(oldPrefix);
@@ -221,34 +258,35 @@ class DragDropManager {
                 if (appState.expandedFolders.has(oldPrefix)) {
                     appState.expandedFolders.delete(oldPrefix);
                     appState.expandedFolders.add(newPrefix);
-                    if (window.saveExpandedFolders) {
-                        window.saveExpandedFolders();
-                    }
+                    
+                    // ========================================
+                    // ✅ 改造点 2: 保存展开状态
+                    // ========================================
+                    eventBus.emit('folder:state-changed');
                 }
-                
-            } 
+            }
             
             // 刷新源文件夹和目标文件夹
             const sourceParent = this.getParentPath(draggedItemCopy.path);
             
-            
             // 确保目标文件夹展开
             appState.expandedFolders.add(targetPath);
-            if (window.saveExpandedFolders) {
-                window.saveExpandedFolders();
-            }
-			
-			// ✅ 发布文件移动成功事件
-			eventBus.emit('file:moved', {
-				oldPath: draggedItemCopy.path,
-				newPath: result.new_path,
-				isDir: draggedItemCopy.isDir,
-				sourceParent: sourceParent,
-				targetParent: targetPath
-			});
+            
+            // ========================================
+            // ✅ 改造点 3: 保存展开状态
+            // ========================================
+            eventBus.emit('folder:state-changed');
+            
+            // ✅ 发布文件移动成功事件
+            eventBus.emit('file:moved', {
+                oldPath: draggedItemCopy.path,
+                newPath: result.new_path,
+                isDir: draggedItemCopy.isDir,
+                sourceParent: sourceParent,
+                targetParent: targetPath
+            });
             
             showSuccessMessage(`已移动到 ${dropTargetCopy.name}`);
-            
             
         } catch (error) {
             console.error('❌ 移动失败:', error);
@@ -266,10 +304,8 @@ class DragDropManager {
     }
 }
 
-
 // 创建单例
 const dragDropManager = new DragDropManager();
-
 
 // ES Module 导出
 export {

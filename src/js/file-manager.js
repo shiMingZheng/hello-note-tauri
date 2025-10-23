@@ -377,9 +377,6 @@ async function handleUnpinNote() {
 }
 
 // file-manager.js
-// file-manager.js
-
-// ... (其他函数) ...
 
 function handleRenameItem() {
     hideContextMenu();
@@ -771,6 +768,12 @@ eventBus.on('file:saved', async (data) => {
 eventBus.on('folder:toggle', async (folderPath) => {
     console.log('📁 处理文件夹展开/折叠:', folderPath);
     await toggleFolderLazy(folderPath);
+});
+
+// ⭐ 订阅文件夹状态变化事件
+eventBus.on('folder:state-changed', () => {
+    console.log('📁 处理文件夹状态变化');
+    saveExpandedFolders();
 });
 
 // ⭐ 订阅文件移动事件
