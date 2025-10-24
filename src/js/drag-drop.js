@@ -41,10 +41,15 @@ class DragDropManager {
         }
         
         this.dragIndicator = document.getElementById('drag-indicator');
-        
+		
+
         // ✅ 使用事件委托监听容器的拖拽事件
         fileListContainer.addEventListener('dragstart', (e) => this.handleDragStart(e));
         fileListContainer.addEventListener('dragend', (e) => this.handleDragEnd(e));
+		 // [新增] 监听拖拽被中止（例如按 Esc 键）
+        // 确保在任何情况下都能运行清理逻辑
+        fileListContainer.addEventListener('dragabort', (e) => this.handleDragEnd(e));
+
         fileListContainer.addEventListener('dragover', (e) => this.handleDragOver(e));
         fileListContainer.addEventListener('dragleave', (e) => this.handleDragLeave(e));
         fileListContainer.addEventListener('drop', (e) => this.handleDrop(e));

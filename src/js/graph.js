@@ -14,7 +14,7 @@ console.log('📜 graph.js 开始加载...');
 // 这是在 ES 模块中处理非模块化第三方库 (如 vis.js) 的标准做法
 // 它将隐式的全局依赖 (window.vis) 变成了模块顶层的显式依赖
 const vis = window.vis; 
-
+let hasSubscribed = false;
 /**
  * 关系图谱类
  */
@@ -25,12 +25,19 @@ class Graph {
         this.graphData = null;
         this.init();
     }
-
+    
     /**
      * 初始化图谱
      */
     init() {
+		if (hasSubscribed) {
+			console.warn('⚠️ graph.js 尝试重复订阅事件，已跳过');
+			return;
+		}
+	
+		hasSubscribed = true;
         this.graphContainer = document.getElementById('graph-container');
+		
         if (!this.graphContainer) {
             console.error('❌ 关系图谱容器 #graph-container 未找到');
             return;

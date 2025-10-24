@@ -412,8 +412,8 @@ export class WorkspaceManager {
                     console.warn('清理历史记录失败:', error);
                 }
 
-                // 刷新文件树
-				eventBus.emit('ui:refreshFileTree', "");
+                // 刷新文件树,重复渲染
+				//eventBus.emit('ui:refreshFileTree', "");
 
                 // 打开上次的文件
                 await this.openLastFile();

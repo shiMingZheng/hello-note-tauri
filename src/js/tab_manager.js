@@ -34,11 +34,6 @@ export class TabManager {
         homeTabBtn.addEventListener('click', () => this.switchToTab('home'));
         addNewNoteTabBtn.addEventListener('click', () => this.handleAddNewNote());
 		
-		// 订阅打开标签页事件
-		eventBus.on('open-tab', (filePath) => {
-			console.log('📥 收到 open-tab 事件:', filePath);
-			this.openTab(filePath);
-		});
 		
 		// ✅ 订阅外部事件
         this.subscribeToEvents();
@@ -318,7 +313,7 @@ export class TabManager {
         // 更新 Tauri 窗口标题
         try {
             if (IS_TAURI_APP) {
-                const appWindow = getCurrentWindow;
+                const appWindow = getCurrentWindow();
                 await appWindow.setTitle(newTitle);
                 console.log('✅ 标题已更新:', newTitle);
             }

@@ -252,13 +252,21 @@ function buildVisibleList(nodes, level, result) {
             console.log(`📁 [buildVisibleList] 文件夹: ${node.name}, 路径: ${node.path}, 是否展开: ${isExpanded}, fileTreeMap中有子节点: ${appState.fileTreeMap.has(node.path)}`);
             
             // 只有在展开状态下才递归添加子节点
-            if (isExpanded && appState.fileTreeMap.has(node.path)) {
-                const children = appState.fileTreeMap.get(node.path);
-                console.log(`  └─ 递归加载 ${children.length} 个子节点`);
-                buildVisibleList(children, level + 1, result);
-            } else {
-				console.warn(`  ⚠️ 文件夹 ${node.path} 被标记为展开,但 fileTreeMap 中没有子节点!`);
-			}
+            // --- 这是修改后的逻辑 ---
+            
+            // 只有在展开状态下才需要检查子节点并递归
+            if (isExpanded) {
+                // 检查子节点是否已加载到 fileTreeMap 中
+                if (appState.fileTreeMap.has(node.path)) {
+                    const children = appState.fileTreeMap.get(node.path);
+                    console.log(`  └─ 递归加载 ${children.length} 个子节点`);
+                    buildVisibleList(children, level + 1, result);
+                } else {
+                    // 修正：只在这里警告，当文件夹状态为“展开”但数据不一致时
+                    console.warn(`  ⚠️ 文件夹 ${node.path} 被标记为展开, 但 fileTreeMap 中没有子节点!`);
+                }
+            }
+            // 如果 !isExpanded (未展开)，则什么都不做，也不警告，这是正常行为。
         }
     }
 }
