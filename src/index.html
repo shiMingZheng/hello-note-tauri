@@ -4,10 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CheetahNote - 极速笔记</title>
-    <!-- [修复] 正确引入 vis-network -->
-	<script type="text/javascript" src="vendor/vis/vis-network.min.js"></script>
-    <link href="vendor/vis/vis-network.min.css" rel="stylesheet" type="text/css" />
-    <link href="vendor/vis/vis-network.min.css" rel="stylesheet" type="text/css" />
 	<link rel="stylesheet" href="css/themes.css">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
@@ -25,7 +21,6 @@
 		     <button id="sidebar-collapse-btn" class="toolbar-collapse-btn" title="折叠/展开侧边栏">◀</button>
             <button id="open-folder-btn" class="toolbar-icon-btn" title="打开文件夹">📂</button>
             <button id="theme-toggle-btn" class="toolbar-icon-btn" title="切换主题">🌙</button>
-            <button id="graph-view-btn" class="toolbar-icon-btn" title="关系图谱">🌐</button>
         </div>
         <!-- ✏️ 修改：原侧边栏 -->
         <aside class="sidebar">
@@ -128,10 +123,6 @@
         </main>
     </div>
 
-    <div id="graph-overlay" class="graph-overlay" style="display: none;">
-       <div id="graph-container"></div>
-       <button id="close-graph-btn" class="close-graph-btn">×</button>
-    </div>
 
     <div id="custom-confirm-dialog" class="custom-dialog-overlay" style="display: none;">
         <div class="custom-dialog">

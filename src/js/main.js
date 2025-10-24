@@ -28,7 +28,6 @@ import { initializeHomepage, loadPinnedNotes, loadHistory } from './homepage.js'
 
 import * as fileManager from './file-manager.js';
 import { uiActions } from './ui_actions.js';
-import { graphView } from './graph.js';
 import { WorkspaceManager } from './workspace.js';
 
 // ⭐ 新增：编辑器和插件系统
@@ -131,7 +130,7 @@ async function initApp() {
 
         // ⭐ 7. 初始化依赖“数据”和“编辑器”的模块
         sidebar.init();           
-        graphView.init();         
+          
         
         // 8. 绑定剩余的事件
         bindRootActions();

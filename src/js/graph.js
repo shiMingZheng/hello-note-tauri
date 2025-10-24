@@ -3,223 +3,103 @@
 
 import { appState } from './core/AppState.js';
 import { eventBus } from './core/EventBus.js';
-// [重构] 步骤 2: 导入封装好的 TauriAPI
-// 之前: const { invoke } = window.__TAURI__.core;
 import { TauriAPI } from './core/TauriAPI.js';
-import { tabManager } from './tab_manager.js';
+// import { tabManager } from './tab_manager.js'; // 关系图谱不再需要打开标签页
 
-console.log('📜 graph.js 开始加载...');
+console.log('📜 graph.js 开始加载 (关系图谱功能已移除)...');
 
-// [重构] 步骤 2: 在模块顶部缓存全局库
-// 这是在 ES 模块中处理非模块化第三方库 (如 vis.js) 的标准做法
-// 它将隐式的全局依赖 (window.vis) 变成了模块顶层的显式依赖
-const vis = window.vis; 
-let hasSubscribed = false;
+let hasSubscribed = false; // 保持这个变量，以防止重复初始化
+
 /**
- * 关系图谱类
+ * 关系图谱类 (功能已移除)
  */
 class Graph {
     constructor() {
-        this.graphContainer = null;
-        this.network = null;
-        this.graphData = null;
+        // 保留构造函数，但内容置空或简化
+        // this.graphContainer = null;
+        // this.network = null;
+        // this.graphData = null;
         this.init();
     }
-    
+
     /**
-     * 初始化图谱
+     * 初始化图谱 (简化)
      */
     init() {
-		if (hasSubscribed) {
-			console.warn('⚠️ graph.js 尝试重复订阅事件，已跳过');
-			return;
-		}
-	
-		hasSubscribed = true;
-        this.graphContainer = document.getElementById('graph-container');
-		
-        if (!this.graphContainer) {
-            console.error('❌ 关系图谱容器 #graph-container 未找到');
+        if (hasSubscribed) {
+            console.warn('⚠️ graph.js 尝试重复初始化 (关系图谱功能已移除)');
             return;
         }
+        hasSubscribed = true;
+        // 移除 graphContainer 的获取
+        // this.graphContainer = document.getElementById('graph-container');
+        // if (!this.graphContainer) {
+        //     console.error('❌ 关系图谱容器 #graph-container 未找到');
+        //     return;
+        // }
 
-        // 订阅事件
+        // 订阅事件 (简化，只保留日志)
         this.subscribeToEvents();
-        console.log('✅ 关系图谱已订阅事件');
+        console.log('✅ 关系图谱模块已加载 (功能已禁用)');
     }
 
     /**
-     * 订阅事件
+     * 订阅事件 (简化)
      */
     subscribeToEvents() {
-        // 订阅“打开关系图谱”事件（通常由侧边栏按钮触发）
+        // 订阅“打开关系图谱”事件，但什么都不做
         eventBus.on('graph:show', () => {
-            this.show();
+            console.log('ℹ️ 尝试显示关系图谱，但功能已移除。');
+            // this.show(); // 移除调用
         });
 
-        // 订阅“工作区打开”事件，以预加载数据
+        // 其他订阅可以保留，用于 needsRefresh 的日志，但实际功能移除
         eventBus.on('workspace:opened', () => {
-            this.loadData();
+            // this.loadData(); // 移除调用
+            console.log('ℹ️ 工作区已打开 (关系图谱无需预加载数据)');
         });
-
-        // 订阅“文件保存/重命名/删除”事件，以刷新数据
         eventBus.on('file:saved', () => this.needsRefresh());
         eventBus.on('file:renamed', () => this.needsRefresh());
         eventBus.on('file:deleted', () => this.needsRefresh());
     }
 
     /**
-     * 标记图谱数据需要刷新
+     * 标记图谱数据需要刷新 (简化)
      */
     needsRefresh() {
-        this.graphData = null; // 清空缓存，下次打开时将重新加载
-        console.log('🔄 关系图谱数据已标记为需要刷新');
+        // this.graphData = null; // 移除数据缓存清理
+        console.log('🔄 关系图谱数据已标记为需要刷新 (功能已移除)');
     }
 
     /**
-     * 显示图谱（打开弹窗）
+     * 显示图谱 (功能移除)
      */
     async show() {
-        if (!this.graphContainer) return;
-        
-        // TODO: 这里可以添加显示弹窗的逻辑 (例如 modal.show())
-        
-        // 确保数据已加载
-        if (!this.graphData) {
-            await this.loadData();
-        }
-
-        // 渲染图谱
-        if (this.graphData) {
-            this.render();
-        }
+        console.log('ℹ️ 尝试显示关系图谱，但功能已移除。');
+        // 所有原有逻辑移除
     }
 
     /**
-     * 从后端加载图谱数据
+     * 从后端加载图谱数据 (功能移除)
      */
     async loadData() {
-        console.log('🔄 正在加载关系图谱数据...');
-        if (!appState.rootPath) {
-            console.warn('⚠️ 无法加载图谱，rootPath 未设置');
-            return;
-        }
-
-        try {
-            // [重构] 步骤 2: 使用封装的 TauriAPI
-            // 之前: const data = await invoke('get_graph_data');
-            const data = await TauriAPI.links.getGraphData();
-            
-            this.graphData = data;
-            console.log(`✅ 关系图谱数据加载成功: ${data.nodes.length} 个节点, ${data.edges.length} 条边`);
-        } catch (error) {
-            console.error('❌ 加载关系图谱数据失败:', error);
-        }
+        console.log('ℹ️ 尝试加载关系图谱数据，但功能已移除。');
+        // 所有原有逻辑移除
     }
 
     /**
-     * 渲染图谱
+     * 渲染图谱 (功能移除)
      */
     render() {
-        console.log('🎨 正在渲染关系图谱...');
-        
-        // [重构] 步骤 2: 使用局部的 'vis' 常量
-        // 之前: if (!window.vis) {
-        if (!vis) {
-            console.error('❌ 渲染失败: vis.js 库未加载');
-            this.graphContainer.innerHTML = '错误: vis.js 库未加载';
-            return;
-        }
-
-        if (!this.graphData) {
-            console.warn('⚠️ 渲染被跳过：没有图谱数据');
-            return;
-        }
-
-        // 1. 创建数据集
-        // [重构] 步骤 2: 使用局部的 'vis' 常量
-        // 之前: const nodes = new window.vis.DataSet(
-        const nodes = new vis.DataSet(
-            this.graphData.nodes.map(n => ({
-                id: n.id,
-                label: n.label,
-                title: n.path
-            }))
-        );
-
-        // [重构] 步骤 2: 使用局部的 'vis' 常量
-        // 之前: const edges = new window.vis.DataSet(
-        const edges = new vis.DataSet(
-            this.graphData.edges.map(e => ({
-                from: e.source,
-                to: e.target
-            }))
-        );
-
-        // 2. 配置选项
-        const options = {
-            nodes: {
-                shape: 'dot',
-                size: 16,
-                font: {
-                    size: 14,
-                    color: '#333'
-                },
-                borderWidth: 2
-            },
-            edges: {
-                width: 1,
-                arrows: {
-                    to: { enabled: true, scaleFactor: 0.5 }
-                }
-            },
-            physics: {
-                forceAtlas2Based: {
-                    gravitationalConstant: -26,
-                    centralGravity: 0.005,
-                    springLength: 230,
-                    springConstant: 0.18
-                },
-                maxVelocity: 146,
-                solver: 'forceAtlas2Based',
-                timestep: 0.35,
-                stabilization: { iterations: 150 }
-            },
-            interaction: {
-                tooltipDelay: 200,
-                hideEdgesOnDrag: true
-            }
-        };
-
-        // 3. 创建网络
-        const data = { nodes: nodes, edges: edges };
-        
-        // [重构] 步骤 2: 使用局部的 'vis' 常量
-        // 之前: this.network = new window.vis.Network(this.graphContainer, data, options);
-        this.network = new vis.Network(this.graphContainer, data, options);
-
-        // 4. 绑定事件
-        this.network.on('click', (params) => {
-            if (params.nodes.length > 0) {
-                const nodeId = params.nodes[0];
-                const node = nodes.get(nodeId);
-                console.log('🖱️ 点击了图谱节点:', node.title);
-                if (node.title) {
-                    // 使用事件总线打开文件
-                    eventBus.emit('open-tab', node.title);
-                    // TODO: 关闭图谱弹窗
-                }
-            }
-        });
-        
-        console.log('✅ 关系图谱渲染完成');
+        console.log('ℹ️ 尝试渲染关系图谱，但功能已移除。');
+        // 所有原有逻辑移除
     }
 }
 
-// 创建单例
+// 创建单例，但它现在是一个空壳
 const graphView = new Graph();
 
 // ES Module 导出
 export { graphView };
 
-console.log('✅ graph.js 加载完成');
+console.log('✅ graph.js 加载完成 (关系图谱功能已移除)');

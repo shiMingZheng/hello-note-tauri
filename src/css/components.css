@@ -1185,48 +1185,6 @@ a.internal-link:hover {
     border-radius: 3px;
 }
 
-/* src/css/components.css */
-
-/* ========================================
-   关系图谱样式
-   ======================================== */
-.graph-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(30, 30, 30, 0.95);
-    z-index: 5000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-#graph-container {
-    width: 100%;
-    height: 100%;
-}
-
-.close-graph-btn {
-    position: absolute;
-    top: 20px;
-    right: 30px;
-    background: none;
-    border: none;
-    color: #fff;
-    font-size: 36px;
-    font-weight: 300;
-    cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.2s;
-}
-
-.close-graph-btn:hover {
-    opacity: 1;
-}
-
-/* src/css/components.css */
 
 /* ========================================
    搜索结果列表新布局样式
