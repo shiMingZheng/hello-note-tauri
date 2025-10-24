@@ -63,7 +63,7 @@ function renderHistory(history) {
     for (const date in groupedByDate) {
         html += `<div class="history-group"><h3>${date}</h3>`;
         groupedByDate[date].forEach(entry => {
-            const eventIcon = entry.event_type === 'created' ? '✨' : '📝';
+            const eventIcon = entry.event_type === 'created' ? '✨' : '📄';
             const eventText = entry.event_type === 'created' ? '新建' : '编辑';
             const time = entry.event_datetime.split(' ')[1] || '';
 
