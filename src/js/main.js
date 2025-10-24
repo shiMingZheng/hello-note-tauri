@@ -120,8 +120,23 @@ async function initApp() {
         // ⭐ 5. 实例化并启动 WorkspaceManager
         // (这会加载数据, 并使用已就绪的 tabManager 切换视图)
         const workspaceManager = new WorkspaceManager();
+		 // 订阅工作区相关事件 (移动到这里，确保实例存在)
+        workspaceManager.subscribeToEvents(); // 添加这一行来设置订阅
+
+        // 绑定“打开文件夹”按钮事件 (确保 domElements 已初始化)
+        if (domElements.openFolderBtn) {
+            domElements.openFolderBtn.addEventListener('click', () => {
+                console.log('📂 "打开文件夹"按钮被点击'); // 添加日志
+                eventBus.emit('workspace:select-new'); // 发布事件
+            });
+            console.log('✅ "打开文件夹"按钮事件已绑定');
+        } else {
+             console.warn('⚠️ 未找到 "打开文件夹" 按钮');
+        }
+		
         await workspaceManager.startup();
         console.log('✅ 工作区加载完毕');
+		
 
         // ⭐ 6. 【关键修复】最后初始化编辑器
         // 此时 startup() 应该已经切换了 Tab，使编辑器容器可见

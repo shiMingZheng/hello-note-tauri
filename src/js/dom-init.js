@@ -23,7 +23,7 @@ export const domElements = {
     // 工具栏
     openFolderBtn: null,
     themeToggleBtn: null,
-    graphViewBtn: null,
+    
     sidebarCollapseBtn: null,
     
     // 搜索相关
@@ -79,10 +79,6 @@ export const domElements = {
     customConfirmDialog: null,
     tagModalOverlay: null,
     
-    // 图谱
-    graphOverlay: null,
-    graphContainer: null,
-    closeGraphBtn: null,
     
     // 侧边栏章节
     backLinksList: null,
@@ -118,7 +114,6 @@ export function initializeDOMElements() {
         // 工具栏
         domElements.openFolderBtn = getElement('open-folder-btn');
         domElements.themeToggleBtn = getElement('theme-toggle-btn');
-        domElements.graphViewBtn = getElement('graph-view-btn');
         domElements.sidebarCollapseBtn = getElement('sidebar-collapse-btn');
         
         // 搜索
@@ -173,10 +168,6 @@ export function initializeDOMElements() {
         domElements.customConfirmDialog = getElement('custom-confirm-dialog');
         domElements.tagModalOverlay = getElement('tag-modal-overlay');
         
-        // 图谱
-        domElements.graphOverlay = getElement('graph-overlay');
-        domElements.graphContainer = getElement('graph-container');
-        domElements.closeGraphBtn = getElement('close-graph-btn');
         
         // 侧边栏章节
         domElements.backLinksList = getElement('backlinks-list');
