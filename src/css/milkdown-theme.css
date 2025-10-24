@@ -28,17 +28,25 @@
 
 /* ProseMirror 编辑器容器 */
 #milkdown-editor .ProseMirror {
-    width: 100%;
+	/* 编辑器容器需要相对定位，以便行号绝对定位 */
+    position: relative;
+    padding-left: 100px; /* 为行号留出空间 */
+    line-height: 1.8;   /* 确保行高一致 */
+    box-sizing: border-box;/* 推荐加上，避免边框影响布局 */
+
+
+    /* width: 100%;
     min-height: 100%;
-    outline: none;
+    outline: none;*/
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 
                  'Microsoft YaHei', sans-serif;
-    font-size: 14px;
-    line-height: 1.8;
+    font-size: 19px;
     word-wrap: break-word;
     white-space: pre-wrap; /* ⭐ 修复 ProseMirror 警告 */
 	cursor: text !important;
 }
+
+
 #milkdown-editor .ProseMirror * {
     cursor: text !important;
 }
@@ -476,3 +484,67 @@
     color: #4a90e2 !important;
     background-color: rgba(74, 144, 226, 0.1) !important;
 }
+
+/* ========================================
+   行号样式
+   ======================================== */
+
+/* 编辑器容器 - 必须是相对定位的参考点 */
+#milkdown-editor .ProseMirror {
+    position: relative;     /* ★★★ 必须，作为行号绝对定位的唯一参考 */
+    padding-left: 75px;     /* ★★★ 留出 45px 的左侧空间 ( gutter ) */
+    /* ... 其他 .ProseMirror 样式 ... */
+    line-height: 1.8;
+    box-sizing: border-box;
+}
+
+/* 行号 widget 容器 */
+#milkdown-editor .line-number {
+    position: absolute;
+    left: 0;                /* ★★★ 定位到 .ProseMirror padding区域的最左边 */
+    /* top: 0; (由 ProseMirror widget 插入位置决定大致垂直位置) */
+    width: 35px;            /* ★★★ 分配 35px 宽度给行号区域 */
+    padding-right: 5px;     /* ★★★ 在行号数字右侧留 5px 空白 */
+    text-align: right;      /* ★★★ 行号数字本身靠右 */
+    color: #aaa;
+    font-size: 0.85em;
+    font-family: monospace;
+    user-select: none;
+    pointer-events: none;
+    line-height: inherit;   /* 尝试继承行高 */
+    box-sizing: border-box;
+    /* background-color: rgba(0, 255, 0, 0.1); /* 调试用 */
+}
+
+/* 深色主题 */
+#milkdown-editor.theme-dark .line-number {
+    color: #666;
+}
+
+/* ProseMirror widget 通用调整 */
+.ProseMirror-widget {
+    display: inline-block;
+    vertical-align: baseline; /* 尝试基线对齐 */
+    line-height: inherit;
+    white-space: nowrap;
+    margin: 0;
+    padding: 0;
+}
+
+/* ★★★ 移除块级元素的相对定位，让行号不再相对于它们 */
+#milkdown-editor .ProseMirror > * {
+   /* position: relative;  <--- 移除这一行 */
+   margin-left: 0 !important;
+   padding-left: 0 !important;
+}
+
+/* 可选：微调垂直位置（如果 baseline 不够好） */
+
+#milkdown-editor .line-number {
+   transform: translateY(3px); /* 细微向下移动 */
+}
+
+
+/* ========================================
+   ... 文件末尾的其他样式 ...
+   ======================================== */

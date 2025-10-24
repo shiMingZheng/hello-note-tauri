@@ -15,6 +15,7 @@ import { appState } from './core/AppState.js';
 import { showError } from './ui-utils.js';
 import { eventBus } from './core/EventBus.js';
 import { themeManager } from './theme.js';
+import { lineNumbersPlugin } from './milkdown-linenumbers-plugin.js'; // <--- 导入行号插件
 
 console.log('📜 milkdown-editor.js 开始加载...');
 
@@ -100,6 +101,7 @@ class MilkdownEditorManager {
 				.use(createWikilinkPlugin((target) => {
 					this.handleWikilinkClick(target);
 				}))
+				.use(lineNumbersPlugin()) // <--- 在这里使用行号插件
 				.create();
 			
 			console.log('✅ Milkdown 编辑器初始化成功');
