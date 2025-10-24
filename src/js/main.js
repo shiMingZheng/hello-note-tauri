@@ -40,6 +40,7 @@ import { searchManager } from './search.js';  // ⭐ 新增
 import { contextMenuManager } from './context-menu.js';  // ⭐ 新增
 import { handleSaveFile, toggleViewMode, loadFileToEditor } from './editor.js';  // ⭐ 保留编辑器相关
 import { tabManager } from './tab_manager.js';
+import { outlineManager } from './outline.js'; // <--- 导入大纲管理器
 
 /**
  * 初始化 Milkdown 编辑器
@@ -109,6 +110,7 @@ async function initApp() {
         dragDropManager.init();
         initializeLinks();
         initializeHomepage(); // 初始化首页（欢迎页）
+		outlineManager.init(); // <--- 初始化大纲管理器
 
         // ⭐ 4. 【关键修复】实例化并初始化 TabManager
         // 必须在 workspaceManager.startup() 之前完成
@@ -134,8 +136,19 @@ async function initApp() {
              console.warn('⚠️ 未找到 "打开文件夹" 按钮');
         }
 		
+		      // 绑定大纲按钮事件
+         if (domElements.outlineBtn) { // <--- 使用 domElements (需要先添加)
+            domElements.outlineBtn.addEventListener('click', () => {
+                eventBus.emit('outline:toggle-visibility');
+            });
+            console.log('✅ 大纲按钮事件已绑定');
+        } else {
+             console.warn('⚠️ 未找到大纲按钮 (outlineBtn)');
+        }
+		
         await workspaceManager.startup();
         console.log('✅ 工作区加载完毕');
+		
 		
 
         // ⭐ 6. 【关键修复】最后初始化编辑器

@@ -1,7 +1,7 @@
 // src/js/milkdown-editor.js
 'use strict';
 
-import { Editor, rootCtx, defaultValueCtx, editorViewCtx } from '@milkdown/core';
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx,parserCtx } from '@milkdown/core';
 import { commonmark } from '@milkdown/preset-commonmark';
 import { gfm } from '@milkdown/preset-gfm';
 import { history } from '@milkdown/plugin-history';
@@ -16,7 +16,7 @@ import { showError } from './ui-utils.js';
 import { eventBus } from './core/EventBus.js';
 import { themeManager } from './theme.js';
 import { lineNumbersPlugin } from './milkdown-linenumbers-plugin.js'; // <--- 导入行号插件
-
+import { Slice } from '@milkdown/prose/model';             // <--- 导入 Slice 用于跳转
 console.log('📜 milkdown-editor.js 开始加载...');
 
 /**
@@ -89,6 +89,17 @@ class MilkdownEditorManager {
 					ctx.set(rootCtx, container);  // ⭐ 直接使用 container 变量
 					ctx.set(defaultValueCtx, '# 欢迎使用 CheetahNote\n\n开始编写您的笔记...');
 					
+					                   // 监听内容变化，用于触发大纲更新 (使用 Milkdown 的 listener 插件)
+                    ctx.get(listenerCtx).markdownUpdated((ctx, markdown, prevMarkdown) => {
+                        if (this.onContentChange) {
+                            this.onContentChange(markdown);
+                        }
+                        // 防抖处理，避免过于频繁地解析大纲
+                        clearTimeout(this.contentChangeTimer);
+                        this.contentChangeTimer = setTimeout(() => {
+                            this.parseAndEmitOutline();
+                        }, 500); // 500ms 后解析大纲
+                    });
 					// ... 其余配置代码保持不变
 				})
 				.use(nord)
@@ -105,6 +116,10 @@ class MilkdownEditorManager {
 				.create();
 			
 			console.log('✅ Milkdown 编辑器初始化成功');
+			           // 订阅编辑器跳转事件
+            eventBus.on('editor:scroll-to-pos', (pos) => this.scrollToPos(pos));
+            // 订阅大纲更新请求事件
+            eventBus.on('outline:request-update', () => this.parseAndEmitOutline());
 			
 			// 应用主题
 			
@@ -307,6 +322,65 @@ class MilkdownEditorManager {
             this.editor = null;
             this.currentContent = '';
             this.hasUnsavedChanges = false;
+        }
+    }
+	
+	   /**
+     * 解析当前编辑器内容并发出 outline:updated 事件
+     */
+    parseAndEmitOutline() {
+        if (!this.editor) return;
+ 
+        console.log('解析大纲...');
+        const outlineData = [];
+        try {
+            this.editor.action(ctx => {
+                const view = ctx.get(editorViewCtx);
+                if (!view) return;
+                const state = view.state;
+                state.doc.descendants((node, pos) => {
+                    if (node.type.name === 'heading') {
+                        outlineData.push({
+                            level: node.attrs.level,
+                            text: node.textContent.trim() || '空标题', // 处理空标题
+                            pos: pos // 存储节点起始位置
+                        });
+                    }
+                    // 返回 false 阻止深入标题内部（如果标题内不允许其他块）
+                    // 如果标题内可以嵌套其他块（不常见），则需要调整
+                    return node.type.name !== 'heading';
+                });
+            });
+            eventBus.emit('outline:updated', outlineData);
+        } catch (error) {
+            console.error('❌ 解析大纲失败:', error);
+            eventBus.emit('outline:updated', []); // 发送空数组表示失败
+        }
+    }
+ 
+    /**
+     * 滚动编辑器到指定位置
+     * @param {number} pos - ProseMirror 文档位置
+     */
+    scrollToPos(pos) {
+        if (!this.editor || typeof pos !== 'number') return;
+ 
+        try {
+            this.editor.action(ctx => {
+                const view = ctx.get(editorViewCtx);
+                if (!view) return;
+                const tr = view.state.tr;
+                // 创建一个指向目标位置的 TextSelection
+                const selection = view.state.TextSelection.create(tr.doc, pos + 1); // +1 移动到节点内部
+                tr.setSelection(selection);
+                tr.scrollIntoView(); // ProseMirror 的滚动方法
+                view.dispatch(tr);
+ 
+                // 确保视图获得焦点
+                view.focus();
+            });
+        } catch (error) {
+            console.error('❌ 滚动到位置失败:', pos, error);
         }
     }
 }

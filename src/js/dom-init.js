@@ -79,6 +79,10 @@ export const domElements = {
     customConfirmDialog: null,
     tagModalOverlay: null,
     
+	//大纲
+	outlineBtn: null,
+	outlinePopover: null, 
+    outlineList: null,
     
     // 侧边栏章节
     backLinksList: null,
@@ -168,6 +172,9 @@ export function initializeDOMElements() {
         domElements.customConfirmDialog = getElement('custom-confirm-dialog');
         domElements.tagModalOverlay = getElement('tag-modal-overlay');
         
+		domElements.outlineBtn = getElement('outline-btn'); // <--- 新增
+        domElements.outlinePopover = getElement('outline-popover'); // <--- 新增
+        domElements.outlineList = getElement('outline-list');       // <--- 新增
         
         // 侧边栏章节
         domElements.backLinksList = getElement('backlinks-list');
