@@ -17,6 +17,7 @@ import { eventBus } from './core/EventBus.js';
 import { themeManager } from './theme.js';
 import { lineNumbersPlugin } from './milkdown-linenumbers-plugin.js'; // <--- 导入行号插件
 import { Slice } from '@milkdown/prose/model';             // <--- 导入 Slice 用于跳转
+import { TextSelection } from '@milkdown/prose/state'; // <--- 新增这行导入
 console.log('📜 milkdown-editor.js 开始加载...');
 
 /**
@@ -364,23 +365,62 @@ class MilkdownEditorManager {
      */
     scrollToPos(pos) {
         if (!this.editor || typeof pos !== 'number') return;
- 
+
         try {
             this.editor.action(ctx => {
                 const view = ctx.get(editorViewCtx);
                 if (!view) return;
+
+                // 1. 创建并设置选区（移动光标）
                 const tr = view.state.tr;
-                // 创建一个指向目标位置的 TextSelection
-                const selection = view.state.TextSelection.create(tr.doc, pos + 1); // +1 移动到节点内部
+                // +1 移动到标题节点内部，或者保持 pos 如果希望光标在标题前
+                const targetPos = pos + 1;
+                // 确保 targetPos 在文档范围内
+                const resolvedPos = Math.min(targetPos, tr.doc.content.size - 1);
+                const selection = TextSelection.create(tr.doc, resolvedPos);
                 tr.setSelection(selection);
-                tr.scrollIntoView(); // ProseMirror 的滚动方法
+
+                // 2. ★★★ 获取目标位置的屏幕坐标 ★★★
+                //    在 dispatch 之前获取坐标，因为 dispatch 后 DOM 可能变化
+                const coords = view.coordsAtPos(resolvedPos);
+
+                // 3. 应用光标移动的事务
                 view.dispatch(tr);
- 
-                // 确保视图获得焦点
-                view.focus();
+
+                // 4. ★★★ 手动滚动编辑器容器 ★★★
+                const editorElement = view.dom.closest('#milkdown-editor'); // 获取可滚动的容器
+                if (editorElement && coords) {
+                    const editorRect = editorElement.getBoundingClientRect();
+                    // 计算需要滚动的距离
+                    // coords.top 是相对于 viewport 的位置
+                    // editorRect.top 也是相对于 viewport 的位置
+                    // editorElement.scrollTop 是当前已滚动距离
+                    // 目标 scrollTop = 当前 scrollTop + (目标元素顶部距视口顶部的距离 - 容器顶部距视口顶部的距离) - 一些偏移量（让目标行靠上一点）
+                    const offset = 50; // 向上偏移 50px
+                    const targetScrollTop = editorElement.scrollTop + (coords.top - editorRect.top) - offset;
+
+                    // 平滑滚动
+                    editorElement.scrollTo({
+                        top: Math.max(0, targetScrollTop), // 确保不小于0
+                        behavior: 'smooth'
+                    });
+                     console.log(`🌀 尝试滚动到: scrollTop=${targetScrollTop}`);
+                } else if (!coords) {
+                     console.warn('⚠️ 无法获取目标位置坐标');
+                     // 备用：尝试原始的 scrollIntoView
+                     view.dispatch(view.state.tr.scrollIntoView());
+                } else if (!editorElement) {
+                     console.warn('⚠️ 找不到可滚动的 #milkdown-editor 容器');
+                     // 备用：尝试原始的 scrollIntoView
+                     view.dispatch(view.state.tr.scrollIntoView());
+                }
+
+                // 5. 确保视图获得焦点 (可以移到滚动之后)
+                // view.focus(); // 如果滚动后焦点丢失，可以取消注释这行
             });
+            console.log(`✅ 光标移动到位置: ${pos}`); // 更新日志
         } catch (error) {
-            console.error('❌ 滚动到位置失败:', pos, error);
+            console.error('❌ 滚动/移动光标失败:', pos, error);
         }
     }
 }
