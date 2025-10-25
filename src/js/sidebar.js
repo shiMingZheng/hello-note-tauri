@@ -127,26 +127,38 @@ class Sidebar {
      */
     async handleTagClick(tagName) {
         console.log(`🏷️ 点击标签筛选: ${tagName}`);
-        
+
         try {
             appState.activeTagFilter = tagName;
-            
-            // 获取包含该标签的所有文件
-            const files = await invoke('get_files_by_tag', { tagName });
-            
-            console.log(`  找到 ${files.length} 个文件`);
-            
-            // 渲染筛选后的文件列表
-            this.renderFilteredFileList(files);
-            
+
+            // 获取包含该标签的所有文件 (注意：后端返回的是 Vec<String>，即路径列表)
+            // ★★★ 修改这里：获取文件信息列表 ★★★
+            const filesInfo = await invoke('get_files_by_tag', { tagName });
+            console.log(`  找到 ${filesInfo.length} 个文件`);
+
+            // ★★★ 修改这里：不再调用 renderFilteredFileList ★★★
+            // this.renderFilteredFileList(files);
+
+            // ★★★ 修改这里：调用 updateVirtualScrollData 进行筛选 ★★★
+            // 后端 get_files_by_tag 应该返回 [{path: string, title: string}, ...]
+            // 如果后端只返回路径 Vec<String>, 需要前端补充 title (从 appState.fileTreeMap 获取?)
+            // 假设后端已修改为返回 {path: string, title: string} 列表
+            updateVirtualScrollData(filesInfo); // <--- 传递文件信息列表
+
             // 显示"清除筛选"按钮
             if (domElements.clearFilterBtn) {
-                domElements.clearFilterBtn.style.display = 'block';
+                domElements.clearFilterBtn.style.display = 'inline-block'; // 改为 inline-block 或 block
             }
-            
+
             // 更新标签列表高亮
             this.updateTagListHighlight(tagName);
-            
+
+            // ★★★ 新增：隐藏标签弹窗 ★★★
+            if (domElements.tagsPopover) {
+                domElements.tagsPopover.style.display = 'none';
+            }
+
+
         } catch (error) {
             console.error('❌ 标签筛选失败:', error);
             showError('标签筛选失败: ' + error);
@@ -207,22 +219,27 @@ class Sidebar {
      */
     handleClearTagFilter() {
         console.log('🧹 清除标签筛选');
-        
+
         appState.activeTagFilter = null;
-        
+
         // 隐藏"清除筛选"按钮
         if (domElements.clearFilterBtn) {
             domElements.clearFilterBtn.style.display = 'none';
         }
-        
-        // 恢复完整文件树
-        updateVirtualScrollData();
-        
+
+        // ★★★ 修改这里：调用 updateVirtualScrollData 清除筛选 ★★★
+        updateVirtualScrollData(null); // <--- 传递 null 表示清除筛选
+
         // 清除标签列表高亮
         if (domElements.tagSidebarList) {
             const items = domElements.tagSidebarList.querySelectorAll('.tag-sidebar-item');
             items.forEach(item => item.classList.remove('active'));
         }
+
+        // ★★★ 新增：隐藏标签弹窗（如果它是开着的）★★★
+         if (domElements.tagsPopover && domElements.tagsPopover.style.display === 'block') {
+             domElements.tagsPopover.style.display = 'none';
+         }
     }
     
     /**

@@ -273,10 +273,11 @@ function buildVisibleList(nodes, level, result) {
 
 /**
  * 更新虚拟滚动数据源
- * @param {string[]} [filteredPaths=null] - 筛选的文件路径列表
+ * @param {Array<Object>|null} [filteredItems=null] - 筛选后的文件信息列表 [{path, title, is_dir, name, level}] 或 null 清除筛选
  */
-export function updateVirtualScrollData(filteredPaths = null) {
-      // ⭐ 防止短时间内重复调用
+export function updateVirtualScrollData(filteredItems = null) {
+    // ... (防抖代码保持不变) ...
+    // ⭐ 防止短时间内重复调用
     if (updateVirtualScrollData.lastCallTime) {
         const timeSinceLastCall = Date.now() - updateVirtualScrollData.lastCallTime;
         if (timeSinceLastCall < 50) {  // 50ms 内不重复执行
@@ -284,49 +285,50 @@ export function updateVirtualScrollData(filteredPaths = null) {
             return;
         }
     }
-	updateVirtualScrollData.lastCallTime = Date.now();
-	let visibleItems = [];
+    updateVirtualScrollData.lastCallTime = Date.now();
+	
+    let visibleItems = [];
 
-    if (filteredPaths) {
-        // 如果有筛选路径，只显示这些文件
-        const filteredNodes = [];
-        const pathSet = new Set(filteredPaths);
-
-        function findNodesByPaths(nodes) {
-            if (!nodes) return;
-            for (const node of nodes) {
-                if (pathSet.has(node.path)) {
-                    filteredNodes.push(node);
-                }
-                // 即便父目录不在Set中，也要继续查找其子目录
-                if (node.is_dir) {
-                    const children = appState.fileTreeMap.get(node.path);
-                    findNodesByPaths(children);
-                }
-            }
-        }
-        findNodesByPaths(appState.fileTreeRoot);
-        buildVisibleList(filteredNodes, 0, visibleItems);
+    if (filteredItems) {
+        console.log(`🔍 应用标签筛选: ${filteredItems.length} 项`);
+        // 如果有筛选列表，直接使用它构建 visibleItems
+        // 注意：filteredItems 需要包含 level 信息，如果后端不提供，这里需要设为 0
+        visibleItems = filteredItems.map(item => ({
+            ...item,
+            level: item.level ?? 0, // 如果没有 level，默认为 0
+            is_dir: item.is_dir ?? false // 确保 is_dir 存在
+        }));
 
     } else {
-        // 无筛选，构建完整的文件树视图
+        console.log('🌲 构建完整文件树视图');
+        // 无筛选，构建完整的文件树视图 (保持原有逻辑)
         buildVisibleList(appState.fileTreeRoot, 0, visibleItems);
     }
-    
+
     appState.virtualScroll.visibleItems = visibleItems;
-    
+
     const totalHeight = visibleItems.length * VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT;
     if (fileListSpacer) {
         fileListSpacer.style.height = `${totalHeight}px`;
+    } else {
+        console.warn('⚠️ fileListSpacer 未初始化'); // 添加警告
     }
-    
-    handleVirtualScroll();
-    
-        // ⭐ 只在必要时输出日志
+
+    // 重置滚动条到顶部，以便看到筛选结果
+    if (fileListContainer) {
+       fileListContainer.scrollTop = 0;
+       console.log('⬆️ 重置滚动条到顶部');
+    }
+
+
+    handleVirtualScroll(); // ★★★ 确保 handleVirtualScroll 在这里被调用 ★★★
+
+       // ⭐ 只在必要时输出日志
     if (visibleItems.length > 0) {
         console.log(`📊 虚拟滚动数据已更新: ${visibleItems.length} 项`);
     }
 }
+
 // [重构] 步骤 2: 添加事件订阅
 // 监听来自 tab_manager.js 的 'ui:updateVirtualScroll'
 eventBus.on('ui:updateVirtualScroll', () => {
