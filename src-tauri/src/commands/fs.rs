@@ -120,6 +120,8 @@ pub async fn read_file_content(root_path: String, relative_path: String) -> Resu
     fs::read_to_string(&absolute_path).map_err(|e| format!("读取文件失败: {}", e))
 }
 
+/* 修改 */
+/* 修改 */
 #[tauri::command]
 pub async fn save_file(
     root_path: String,
@@ -127,54 +129,92 @@ pub async fn save_file(
     content: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    
+    println!("💾 [fs::save_file] 开始保存: {}", relative_path);
+
     // ✅ Layer 1: 添加瞬时锁
     {
         let mut saving = SAVE_TRACKER.files_currently_saving.lock().unwrap();
         saving.insert(relative_path.clone());
+        println!("   [fs::save_file] Layer 1: 添加瞬时锁");
     }
-    
+
     let base_path = Path::new(&root_path);
     let absolute_path = to_absolute_path(base_path, Path::new(&relative_path));
-    
+
     // 执行写入
     fs::write(&absolute_path, &content).map_err(|e| format!("保存文件失败: {}", e))?;
-    
+    println!("   [fs::save_file] 文件写入磁盘成功");
+
     // ✅ Layer 3: 记录写入时间戳
     {
         if let Ok(meta) = metadata(&absolute_path) {
             if let Ok(modified) = meta.modified() {
                 let mut known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
                 known_times.insert(relative_path.clone(), modified);
+                println!("   [fs::save_file] Layer 3: 记录写入时间戳");
+            } else {
+                 println!("   [fs::save_file] Layer 3: 获取修改时间失败");
             }
+        } else {
+             println!("   [fs::save_file] Layer 3: 获取元数据失败");
         }
     }
-    
+
     // ✅ Layer 1: 释放瞬时锁
     {
         let mut saving = SAVE_TRACKER.files_currently_saving.lock().unwrap();
         saving.remove(&relative_path);
+        println!("   [fs::save_file] Layer 1: 释放瞬时锁");
     }
-    
-    // 异步更新索引 (这里会被 Layer 2 检查)
+
+    // --- 记录历史事件 (移到获取 db_pool_lock 之前) ---
+    println!("   [fs::save_file] 准备记录编辑历史..."); // 添加日志
+    // 确保 await 不在锁内
+    let _ = record_file_event(root_path.clone(), relative_path.clone(), "edited".to_string(), state.clone()).await;
+    println!("   [fs::save_file] 记录编辑历史完成 (或已尝试)"); // 添加日志
+
+
+    // --- 数据库链接更新 ---
+    let root_path_clone_for_links = root_path.clone();
+    let relative_path_clone_for_links = relative_path.clone();
+
+    // 在独立作用域内处理数据库连接和链接更新
+    { // <--- 开始新的作用域
+        let db_pool_lock = state.db_pool.lock().unwrap();
+        if let Some(db_pool) = db_pool_lock.as_ref() {
+            let mut conn = db_pool.get().map_err(|e| format!("获取数据库连接失败: {}", e))?;
+            println!("   [fs::save_file] 获取数据库连接成功 (用于链接更新)");
+
+            // ★★★ 更新双向链接 ★★★
+            println!("   [fs::save_file] 开始更新双向链接...");
+            if let Err(e) = update_links_for_file(&mut conn, &root_path_clone_for_links, &relative_path_clone_for_links) {
+                eprintln!("⚠️ [fs::save_file] 更新双向链接失败: {}", e);
+            } else {
+                println!("   [fs::save_file] 更新双向链接成功");
+            }
+        } else {
+            eprintln!("⚠️ [fs::save_file] 数据库连接池未初始化，无法更新链接");
+        }
+        // db_pool_lock 在这里自动 drop
+    } // <--- 结束新的作用域
+
+
+    // --- 异步更新索引 ---
+    // 这个操作不依赖上面的数据库连接，可以放在后面
+    println!("   [fs::save_file] 准备分发索引更新任务...");
     if let Err(e) = indexing_jobs::dispatch_update_job(
         root_path.clone(),
         relative_path.clone()
     ) {
-        eprintln!("⚠️ 分发索引任务失败: {}", e);
+        eprintln!("⚠️ [fs::save_file] 分发索引任务失败: {}", e);
+    } else {
+         println!("   [fs::save_file] 索引更新任务已分发");
     }
-    
-    let _ = record_file_event(root_path.clone(), relative_path.clone(), "edited".to_string(), state.clone()).await;
-    
-    // 链接更新代码保持不变
-    let db_pool_lock = state.db_pool.lock().unwrap();
-    if let Some(db_pool) = db_pool_lock.as_ref() {
-        let mut conn = db_pool.get().map_err(|e| e.to_string())?;
-        if let Err(e) = update_links_for_file(&mut conn, &root_path, &relative_path) {
-            eprintln!("⚠️ 更新链接失败: {}", e);
-        }
-    }
-    
+
+    // --- (记录历史事件已移到前面) ---
+
+
+    println!("✅ [fs::save_file] 保存完成: {}", relative_path);
     Ok(())
 }
 

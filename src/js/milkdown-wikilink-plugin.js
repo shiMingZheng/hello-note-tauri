@@ -26,8 +26,9 @@ function findWikilinks(doc) {
                 
                 decorations.push(
                     Decoration.inline(from, to, {
-                        class: 'milkdown-wikilink',
-                        'data-target': linkText
+                        // ★★★ 修改这里 ★★★
+						class: 'wikilink-decoration',
+						'data-target': linkText
                     })
                 );
             }

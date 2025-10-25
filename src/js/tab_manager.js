@@ -86,6 +86,32 @@ export class TabManager {
         
         console.log('✅ TabManager 已订阅所有标签页事件');
 	}
+	
+	 // ★★★ 新增 markTabAsSaved 方法 ★★★
+    /**
+     * 标记标签页为已保存状态（移除未保存标记）
+     * @param {string} filePath - 文件路径
+     */
+    markTabAsSaved(filePath) {
+        const tabEl = dynamicTabContainer.querySelector(`.tab-btn[data-file-path="${CSS.escape(filePath)}"]`);
+        if (tabEl) {
+            tabEl.classList.remove('unsaved'); // 假设 'unsaved' 是你用来标记未保存的类
+            // 如果标题中有 '*' 等标记，也在这里移除
+            // 例如: tabEl.textContent = tabEl.textContent.replace('*', '');
+            console.log(`💾 [TabManager] 标记为已保存: ${filePath}`);
+
+             // ★★★ 重要：找到对应的 tabData 并更新状态 ★★★
+             const tabData = this.findTabByPath(filePath);
+             if (tabData) {
+                 tabData.unsaved = false; // 假设你有这个状态
+             }
+             // ★★★ 因为 render() 可能依赖 tabData 状态，最好重新渲染 ★★★
+             // 或者你只更新特定 tab 的 UI，避免完全重绘
+             // this.render(); // 如果你的 render 逻辑不复杂，可以调用
+        } else {
+             console.warn(`[TabManager] markTabAsSaved: 未找到标签元素 ${filePath}`);
+        }
+    }
     /**
      * 打开标签页
      */

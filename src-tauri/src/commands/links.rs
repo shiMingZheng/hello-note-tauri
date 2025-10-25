@@ -16,24 +16,45 @@ pub struct LinkItem {
 }
 
 fn parse_wikilinks(content: &str) -> Vec<String> {
+    println!("  🔗 [parse_wikilinks] Received content snippet (debug): {:?}", content.get(..100)); // 保留日志
+
+    // ★★★ 新增：移除 Wikilink 前后的转义符 ★★★
+    // 将 "\\[\\[" 替换为 "[["，将 "\\]\\]" 替换为 "]]"
+    let cleaned_content = content.replace(r"\[\[", "[[").replace(r"\]\]", "]]");
+    println!("  🔗 [parse_wikilinks] Cleaned content snippet (debug): {:?}", cleaned_content.get(..100)); // 打印清理后的内容
+ 
     let re = Regex::new(r"\[\[([^\]]+)\]\]").unwrap();
-    re.captures_iter(content)
+ 
+    // ★★★ 修改：使用清理后的 cleaned_content 进行匹配 ★★★
+    let matches: Vec<String> = re.captures_iter(&cleaned_content) // 使用 cleaned_content
         .map(|cap| cap[1].trim().to_string())
-        .collect()
+        .collect();
+
+    println!("  🔗 [parse_wikilinks] Regex matches found: {:?}", matches); // 保留日志
+    matches
 }
 
+// file_path 应该是相对路径
 // file_path 应该是相对路径
 pub fn update_links_for_file(
     conn: &mut Connection,
     root_path: &str,
     relative_path: &str,
 ) -> Result<(), String> {
-    let absolute_path = to_absolute_path(Path::new(root_path), Path::new(relative_path));
-    let content = match std::fs::read_to_string(absolute_path) {
-        Ok(c) => c,
-        Err(_) => return Ok(()), // 文件可能还不存在，这是正常情况
-    };
+    println!("  🔗 [update_links] 开始处理文件: {}", relative_path); // 新增日志
 
+    let absolute_path = to_absolute_path(Path::new(root_path), Path::new(relative_path));
+    let content = match std::fs::read_to_string(&absolute_path) {
+        Ok(c) => c,
+        Err(e) => {
+            // ★★★ 如果读取失败，也应该记录日志 ★★★
+            eprintln!("  🔗 [update_links] 读取文件失败: {}: {}", relative_path, e);
+            // 文件可能还不存在或无法读取，不视为错误，直接返回
+            return Ok(());
+        }
+    };
+    // println!("  🔗 [update_links] 文件内容长度: {}", content.len()); // 可选日志
+ 
     let source_file_id: i64 = match conn
         .query_row(
             "SELECT id FROM files WHERE path = ?1",
@@ -41,54 +62,97 @@ pub fn update_links_for_file(
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| e.to_string())?
+        .map_err(|e| format!("查询源文件ID失败: {}", e))? // ★★★ 修改错误信息 ★★★
     {
-        Some(id) => id,
-        None => return Ok(()),
+        Some(id) => {
+            println!("  🔗 [update_links] 源文件 ID: {}", id); // 新增日志
+            id
+        },
+        None => {
+            println!("  🔗 [update_links] 警告: 未在数据库中找到源文件记录: {}", relative_path); // 新增日志
+            // 如果源文件记录不存在，则无法添加链接
+            return Ok(());
+        },
     };
-
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
+ 
+    let tx = conn.transaction().map_err(|e| format!("开启事务失败: {}", e))?; // ★★★ 修改错误信息 ★★★
     tx.execute(
         "DELETE FROM links WHERE source_file_id = ?1",
         params![source_file_id],
     )
-    .map_err(|e| e.to_string())?;
-
+    .map_err(|e| format!("删除旧链接失败: {}", e))?; // ★★★ 修改错误信息 ★★★
+    // println!("  🔗 [update_links] 已删除旧链接"); // 可选日志
+ 
     let linked_targets = parse_wikilinks(&content);
+    println!("  🔗 [update_links] 解析到 {} 个链接目标: {:?}", linked_targets.len(), linked_targets); // 新增日志
+ 
     if !linked_targets.is_empty() {
-        let mut title_stmt = tx.prepare("SELECT id FROM files WHERE title = ?1").map_err(|e| e.to_string())?;
-        let mut path_stmt = tx.prepare("SELECT id FROM files WHERE path LIKE ('%' || ?1)").map_err(|e| e.to_string())?;
-
+        let mut title_stmt = tx.prepare("SELECT id FROM files WHERE title = ?1").map_err(|e| format!("准备 title 查询失败: {}", e))?; // ★★★ 修改错误信息 ★★★
+        let mut path_stmt = tx.prepare("SELECT id FROM files WHERE path LIKE ('%' || ?1)").map_err(|e| format!("准备 path 查询失败: {}", e))?; // ★★★ 修改错误信息 ★★★
+ 
         for target in linked_targets {
+            println!("    🔗 [update_links] 正在处理目标: '{}'", target); // 新增日志
             let mut target_ids: Vec<i64> = Vec::new();
-            if let Ok(rows) = title_stmt.query_map(params![&target], |row| row.get(0)) {
-                for id in rows {
-                    if let Ok(id_val) = id {
-                        target_ids.push(id_val);
-                    }
-                }
-            }
-            if target_ids.is_empty() {
-                let path_pattern = format!("{}.md", &target);
-                if let Ok(rows) = path_stmt.query_map(params![&path_pattern], |row| row.get(0)) {
-                    for id in rows {
-                        if let Ok(id_val) = id {
-                            target_ids.push(id_val);
+
+            // 尝试按 title 查询
+            match title_stmt.query_map(params![&target], |row| row.get(0)) {
+                Ok(rows) => {
+                    for id_result in rows {
+                        match id_result {
+                            Ok(id_val) => target_ids.push(id_val),
+                            Err(e) => eprintln!("      🔗 [update_links] 读取 title 查询结果失败: {}", e), // 记录行读取错误
                         }
                     }
+                    println!("      🔗 [update_links] 按 title 查询到 {} 个 ID: {:?}", target_ids.len(), target_ids); // 新增日志
+                }
+                Err(e) => {
+                    eprintln!("      🔗 [update_links] 按 title 查询时出错: {}", e); // 记录查询错误
                 }
             }
+ 
+ 
+            // 如果按 title 找不到，尝试按 path 查询
+            if target_ids.is_empty() {
+                println!("      🔗 [update_links] 按 title 未找到，尝试按 path..."); // 新增日志
+                let path_pattern = format!("{}.md", &target);
+                println!("        🔗 [update_links] Path pattern: '%{}'", path_pattern); // 新增日志
+                match path_stmt.query_map(params![&path_pattern], |row| row.get(0)) {
+                   Ok(rows) => {
+                        for id_result in rows {
+                            match id_result {
+                                Ok(id_val) => target_ids.push(id_val),
+                                Err(e) => eprintln!("        🔗 [update_links] 读取 path 查询结果失败: {}", e), // 记录行读取错误
+                            }
+                        }
+                        println!("      🔗 [update_links] 按 path 查询到 {} 个 ID: {:?}", target_ids.len(), target_ids); // 新增日志
+                    }
+                    Err(e) => {
+                        eprintln!("      🔗 [update_links] 按 path 查询时出错: {}", e); // 记录查询错误
+                    }
+                }
+            }
+ 
+            // ★★★ 只有当精确找到一个目标时才插入 ★★★
             if target_ids.len() == 1 {
                 let target_file_id = target_ids[0];
+                println!("      🔗 [update_links] 找到唯一目标 ID: {}, 准备插入链接 {} -> {}", target_file_id, source_file_id, target_file_id); // 新增日志
                 tx.execute(
                     "INSERT OR IGNORE INTO links (source_file_id, target_file_id) VALUES (?1, ?2)",
                     params![source_file_id, target_file_id],
                 )
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| format!("插入链接失败 ({} -> {}): {}", source_file_id, target_file_id, e))?; // ★★★ 修改错误信息 ★★★
+            } else {
+                // ★★★ 记录为什么没有插入 ★★★
+                if target_ids.is_empty() {
+                    println!("      🔗 [update_links] 未找到目标 '{}' 的 ID，跳过插入", target);
+                } else {
+                    println!("      🔗 [update_links] 找到多个目标 '{}' 的 ID ({:?})，跳过插入", target, target_ids);
+                }
             }
         }
     }
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| format!("提交事务失败: {}", e))?; // ★★★ 修改错误信息 ★★★
+    println!("  🔗 [update_links] 事务提交成功"); // 新增日志
     Ok(())
 }
 

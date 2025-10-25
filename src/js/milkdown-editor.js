@@ -155,8 +155,8 @@ class MilkdownEditorManager {
             const maxDepth = 5;
             
             while (target && depth < maxDepth) {
-                if (target.classList && target.classList.contains('milkdown-wikilink')) {
-                    console.log('🖱️ 点击了 Wikilink');
+                if (target.classList && target.classList.contains('wikilink-decoration')) {
+					console.log('🖱️ 点击了 Wikilink');
                     
                     if (e.ctrlKey || e.metaKey) {
                         e.preventDefault();

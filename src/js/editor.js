@@ -122,6 +122,7 @@ async function handleSaveFile() {
         console.log('📝 [handleSaveFile] 从编辑器导出内容...');
         const content = milkdownEditor?.getMarkdown() || '';
         
+		console.log('📄 [handleSaveFile] 导出的 Markdown 内容 (片段):', content.substring(0, 100));
         console.log('✅ [handleSaveFile] 内容导出成功，长度:', content.length);
         
         // 2. 调用 Rust 后端保存
