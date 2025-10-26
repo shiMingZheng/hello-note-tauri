@@ -18,18 +18,34 @@
     <div class="container">
 	    <!-- 🆕 新增：最左侧工具栏 sync-workspace-btn-->
         <div class="app-toolbar">
-		     <button id="sidebar-collapse-btn" class="toolbar-collapse-btn" title="折叠/展开侧边栏">◀</button>
-            <button id="open-folder-btn" class="toolbar-icon-btn" title="打开文件夹">📂</button>
-            <button id="theme-toggle-btn" class="toolbar-icon-btn" title="切换主题">🌙</button>
+		     <button id="sidebar-collapse-btn" class="toolbar-collapse-btn" title="折叠/展开侧边栏">
+					<img src="assets/CarbonOpenPanelFilledLeft.svg" alt="" class="icon-img">
+			 </button>
+            <button id="open-folder-btn" class="toolbar-icon-btn" title="打开文件夹">
+				<img src="assets/PhFolderOpenFill.svg" alt="" class="icon-img">
+			</button>
+            <button id="theme-toggle-btn" class="toolbar-icon-btn" title="切换主题">
+				<img src="assets/IconamoonFileDocumentFill.svg" alt="" class="icon-img">
+			</button>
         </div>
         <!-- ✏️ 修改：原侧边栏 -->
         <aside class="sidebar">
             <div class="sidebar-header">
       
                 <div class="sidebar-header-actions">
-                    <button id="new-note-root-btn" class="icon-btn" title="新建笔记 (Ctrl+N)">📝</button>
-                    <button id="new-folder-root-btn" class="icon-btn" title="新建文件夹 (Ctrl+Shift+N)">📁</button>
-                    <button id="toggle-tags-btn" class="icon-btn" title="所有标签">🏷️</button>
+				    <button id="new-folder-root-btn" class="icon-btn" title="文件区">
+						<img src="assets/MaterialSymbolsFolder.svg" alt="" class="icon-img">
+					</button>
+
+					<button id="new-note-root-btn" class="icon-btn" title="新建笔记 (Ctrl+N)">
+						<img src="assets/TdesignFileAdd1Filled.svg" alt="" class="icon-img">
+					</button>
+					<button id="new-folder-root-btn" class="icon-btn" title="新建文件夹 (Ctrl+Shift+N)">
+						<img src="assets/WhhAddfolderalt.svg" alt="" class="icon-img">
+					</button>
+					<button id="toggle-tags-btn" class="icon-btn" title="查询标签">
+						<img src="assets/MdiTagSearch.svg" alt="" class="icon-img">
+					</button>
                     <button id="outline-btn" class="icon-btn" title="大纲">☰</button>
                 </div>
             </div>
@@ -37,7 +53,9 @@
 			<!-- ✏️ 搜索框始终显示，移除 style="display: none;" -->
 			<div class="search-box" id="search-box">
 				<div class="search-input-wrapper">
-					<span class="search-icon">🔍</span>
+					<span class="search-icon">
+					     <img src="assets/F7Search.svg" alt="" class="icon-img">
+					</span>
 					<input type="text" id="search-input" placeholder="搜索全部笔记" />
 					<button id="clear-search-btn" class="clear-search-btn" style="display: none;">✕</button>
 				</div>
@@ -71,7 +89,9 @@
             <div class="sidebar-section">
                 <div class="sidebar-section-header">
                     <h3>我的标签</h3>
-                    <button id="manage-tags-btn" class="icon-btn" title="管理标签">🏷️</button>
+                    <button id="manage-tags-btn" class="icon-btn" title="管理标签">
+					   <img src="assets/MdiTagPlus.svg" alt="" class="icon-img">
+					</button>
                 </div>
                 <ul id="current-file-tags-list" class="current-file-tags-list">
                     <li class="no-tags-info">未打开文件</li>

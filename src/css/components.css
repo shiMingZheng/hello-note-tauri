@@ -1647,3 +1647,35 @@ a.internal-link:hover {
 :root[data-theme="dark"] .outline-item-h1 {
     color: var(--text-primary);
 }
+
+/* 控制图标图片的大小和对齐 */
+.icon-img {
+    width: 20px; /* 或者你期望的宽度 */
+    height: 20px; /* 或者你期望的高度 */
+    vertical-align: middle; /* 尝试垂直居中对齐文本 */
+    margin-right: 4px; /* 在图标和文本之间添加一点间距 */
+    /* 如果你的按钮或列表项使用 flex 布局，可能需要调整对齐方式 */
+    /* 例如：align-self: center; */
+}
+
+/* 可能需要调整按钮内图标的样式 */
+.icon-btn .icon-img {
+    margin-right: 0; /* 按钮内通常只有图标，不需要右边距 */
+}
+
+/* 可能需要微调右键菜单列表项内图标的垂直对齐 */
+.context-menu ul li .icon-img {
+    vertical-align: text-bottom; /* 或其他值，根据视觉效果调整 */
+    margin-right: 6px;
+}
+
+/* 如果你的图标颜色需要根据主题变化 (仅适用于 SVG) */
+/*
+.icon-btn img.icon-img,
+.context-menu ul li img.icon-img {
+    filter: invert(var(--icon-invert-value, 0)); // 浅色主题为 0, 深色主题为 1
+}
+:root[data-theme="dark"] {
+    --icon-invert-value: 1;
+}
+*/
