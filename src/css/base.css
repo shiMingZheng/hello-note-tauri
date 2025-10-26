@@ -131,6 +131,7 @@ body,
     color: var(--text-primary);
 }
 
+
 :root[data-theme="dark"] .btn-secondary:hover {
     background: #3f3a33;
     color: var(--text-light);
@@ -161,6 +162,34 @@ body,
     color: var(--bg-primary);
     border-color: var(--primary-color);
 }
+
+/* src/css/base.css */
+
+:root[data-theme="dark"] .icon-img {
+    /* 尝试反转颜色并增加亮度 */
+    filter: invert(1) brightness(1.5); /* brightness 可以调整，1=不变, >1更亮, <1更暗 */
+
+    /* 可选：如果反转后颜色不对，可以尝试只增加亮度或对比度 */
+    /* filter: brightness(1.5); */
+    /* filter: contrast(8); */
+
+    /* 可选：稍微降低不透明度，让图标不那么刺眼 */
+     opacity: 0.85; 
+}
+
+/* 如果只想针对特定按钮的图标，可以使用更具体的选择器 */
+/* 例如只修改工具栏图标 */
+/*
+:root[data-theme="dark"] .app-toolbar .icon-img {
+    filter: invert(1) brightness(1.1);
+}*/
+:root[data-theme="dark"] #outline-btn {
+     filter: invert(1) brightness(1.1) ;
+}
+:root[data-theme="dark"] #add-new-note-tab-btn {
+     filter: invert(1) brightness(1.1) ;
+}
+
 
 /* 菜单和对话框 */
 :root[data-theme="dark"] .context-menu {
