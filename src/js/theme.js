@@ -53,11 +53,26 @@ class ThemeManager {
         this.currentTheme = theme;
         document.documentElement.setAttribute('data-theme', theme);
         
+        // --- 修改开始 ---
         // 更新按钮图标
         if (this.themeToggleBtn) {
-            this.themeToggleBtn.textContent = theme === 'light' ? '🌙' : '☀️';
+            const themeIconImg = this.themeToggleBtn.querySelector('img'); // 获取按钮内的 img 元素
+
+            if (themeIconImg) {
+                // 根据主题设置不同的图标源
+                themeIconImg.src = theme === 'light' ? 'assets/SolarMoonStarsBold.svg' : 'assets/IconoirSunLight.svg';
+                // themeIconImg.alt = theme === 'light' ? '切换深色' : '切换浅色'; // 可选：更新 alt 文本
+            } else {
+                console.warn('⚠️ 未找到主题切换按钮内的 img 元素');
+                // 如果找不到 img，可以保留或移除文本回退逻辑
+                this.themeToggleBtn.textContent = theme === 'light' ? '🌙' : '☀️';
+            }
             this.themeToggleBtn.title = theme === 'light' ? '切换到深色模式' : '切换到浅色模式';
+
+            // 移除或注释掉原来修改 textContent 的行 (如果上面没有保留回退逻辑)
+            // this.themeToggleBtn.textContent = theme === 'light' ? '🌙' : '☀️';
         }
+        // --- 修改结束 ---
         
         // 保存到 localStorage
         localStorage.setItem('cheetah_theme', theme);

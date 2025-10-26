@@ -196,7 +196,18 @@ function createFileTreeItem(item) {
     const isExpanded = appState.expandedFolders.has(item.path);
     
     // 根据实际展开状态选择图标和箭头
-    let icon = item.is_dir ? (isExpanded ? '📂' : '📁') : '📄';
+    //let icon = item.is_dir ? (isExpanded ? '📂' : '📁') : '📝';
+	// --- 修改开始 ---
+    let iconHtml; // 用一个变量来存储图标的 HTML
+    if (item.is_dir) {
+        // 如果是文件夹，根据展开状态选择不同的图标
+        const folderIconSrc = isExpanded ? 'assets/PhFolderOpenFill.svg' : 'assets/MaterialSymbolsFolder.svg';
+        iconHtml = `<img src="${folderIconSrc}" alt="文件夹" class="icon-img file-list-icon">`; // 添加 class 以便 CSS 控制
+    } else {
+        // 如果是文件
+        iconHtml ='📝'; //`<img src="assets/PepiconsPopFile.svg" alt="文件" class="icon-img file-list-icon">`;
+    }
+	
     const name = item.name.replace(/\\/g, '/').split('/').pop();
     
     const textSpan = document.createElement('span');
@@ -204,9 +215,14 @@ function createFileTreeItem(item) {
 
     if (item.is_dir) {
         const arrow = isExpanded ? '▼' : '▶';
-        textSpan.innerHTML = `<span class="folder-arrow">${arrow}</span>${icon} ${name}`;
+       // textSpan.innerHTML = `<span class="folder-arrow">${arrow}</span>${icon} ${name}`;
+		// --- 修改这里，使用 iconHtml ---
+        textSpan.innerHTML = `<span class="folder-arrow">${arrow}</span>${iconHtml} ${name}`;
     } else {
-        textSpan.textContent = `${icon} ${name}`;
+		
+        // --- 修改这里，使用 iconHtml ---
+         // 为了保持对齐，可以给文件图标前加一个占位符，或者通过 CSS 调整
+        textSpan.innerHTML = `<span class="file-icon-placeholder"></span>${iconHtml} ${name}`; // 添加占位符 span
     }
 
     li.appendChild(textSpan);

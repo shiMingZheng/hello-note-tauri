@@ -73,24 +73,48 @@ class SidebarControl {
     toggleCollapse(forceCollapse) {
         this.isSidebarCollapsed = forceCollapse !== undefined ? forceCollapse : !this.isSidebarCollapsed;
         
-        if (this.isSidebarCollapsed) {
-            // 折叠状态
-            this.sidebarEl.classList.add('collapsed');
-            this.collapseBtn.textContent = '▶';
-            this.collapseBtn.title = '展开侧边栏';
-        } else {
-            // 展开状态
-            this.sidebarEl.classList.remove('collapsed');
-            this.collapseBtn.textContent = '◀';
-            this.collapseBtn.title = '折叠侧边栏';
-            
-            // ✅ 展开后延迟触发虚拟滚动更新
-            setTimeout(() => {
+        // --- 修改开始 ---
+		const collapseIconImg = this.collapseBtn.querySelector('img'); // 获取按钮内的 img 元素
+	
+		if (!collapseIconImg) {
+			console.warn('⚠️ 未找到折叠按钮内的 img 元素');
+			// 如果找不到 img，回退到原来的文本方式（可选）
+			this.collapseBtn.textContent = this.isSidebarCollapsed ? '▶' : '◀';
+			// return; // 如果确定总是有 img，可以去掉回退逻辑
+		}
+	
+		if (this.isSidebarCollapsed) {
+			// 折叠状态
+			this.sidebarEl.classList.add('collapsed');
+			if (collapseIconImg) {
+				collapseIconImg.src = 'assets/CarbonOpenPanelFilledRight.svg'; // 设置为展开图标
+				// collapseIconImg.alt = '展开'; // 可选：更新 alt 文本
+			}
+			this.collapseBtn.title = '展开侧边栏';
+			// this.collapseBtn.textContent = '▶'; // 移除或注释掉这一行
+		} else {
+			// 展开状态
+			this.sidebarEl.classList.remove('collapsed');
+			if (collapseIconImg) {
+				collapseIconImg.src = 'assets/CarbonOpenPanelFilledLeft.svg'; // 设置为折叠图标
+				// collapseIconImg.alt = '折叠'; // 可选：更新 alt 文本
+			}
+			this.collapseBtn.title = '折叠侧边栏';
+			// this.collapseBtn.textContent = '◀'; // 移除或注释掉这一行
+	
+			// ✅ 展开后延迟触发虚拟滚动更新
+			setTimeout(() => {
 				console.log('🔄 侧边栏展开，重新初始化虚拟滚动...');
-				setupVirtualScroll();
-				updateVirtualScrollData();
+				// 注意：这里可能需要从 virtual-scroll.js 导入 setupVirtualScroll 和 updateVirtualScrollData
+				// 如果 sidebarControl.js 无法直接访问它们，可能需要通过 EventBus 或其他方式触发
+				// 假设可以直接调用（如果它们已导出并在某处初始化）：
+				// setupVirtualScroll();
+				// updateVirtualScrollData();
+				// 或者，如果 main.js 中处理，可以发布事件：
+				eventBus.emit('sidebar:expanded');
 			}, 350); // 等待 CSS 过渡动画完成（300ms + 50ms buffer）
-        }
+		}
+    // --- 修改结束 ---
         
         // 保存状态
         localStorage.setItem('sidebar_collapsed', this.isSidebarCollapsed);
