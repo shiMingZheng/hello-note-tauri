@@ -284,11 +284,11 @@ class MilkdownEditorManager {
     applyTheme(themeName) {
         console.log('🎨 应用编辑器主题:', themeName);
         
-        const editorContainer = document.querySelector('#milkdown-editor');
-        if (!editorContainer) return;
+        //const editorContainer = document.querySelector('#milkdown-editor');
+        //if (!editorContainer) return;
         
-        editorContainer.classList.remove('theme-light', 'theme-dark');
-        editorContainer.classList.add(`theme-${themeName}`);
+       // editorContainer.classList.remove('theme-light', 'theme-dark');
+        //editorContainer.classList.add(`theme-${themeName}`);
     }
 
     /**
