@@ -56,6 +56,12 @@ pub fn run() {
             commands::search::search_notes,
             commands::search::ensure_index_is_loaded,
             commands::search::release_index,
+			
+			// ⭐ 收藏命令
+            commands::favorites::favorite_note,
+            commands::favorites::unfavorite_note,
+            commands::favorites::get_favorited_notes,
+            commands::favorites::get_note_favorite_status, // ⭐ 查询状态
             
             // 标签管理命令
             commands::tags::add_tag_to_file,
@@ -88,6 +94,7 @@ pub fn run() {
             println!("🏢 支持多工作区管理");
             println!("🔄 异步索引队列已就绪"); // [新增]
             println!("⚠️ 请先选择或创建工作区");
+			println!("⭐ 收藏功能已添加"); // ⭐ 新增日志
 			
 			   // ⭐ 添加这段代码 - 强制打开开发者工具
 			#[cfg(debug_assertions)]

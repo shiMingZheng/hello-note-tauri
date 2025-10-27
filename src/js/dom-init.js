@@ -45,6 +45,8 @@ export const domElements = {
     renameItemBtn: null,
     pinNoteBtn: null,
     unpinNoteBtn: null,
+	favoriteNoteBtn: null,    // ⭐ 新增
+    unfavoriteNoteBtn: null,  // ⭐ 新增
     
     // 根目录操作按钮
     newNoteRootBtn: null,
@@ -73,7 +75,10 @@ export const domElements = {
     // 首页
     homepage: null,
     historyList: null,
-    pinnedNotesGrid: null,
+	// ⭐ 修改 ID
+    homepageGrid: null,
+    // ⭐ 新增按钮
+    showPinnedBtn: null,
     
     // 对话框
     customConfirmDialog: null,
@@ -83,6 +88,7 @@ export const domElements = {
 	outlineBtn: null,
 	outlinePopover: null, 
     outlineList: null,
+	
     
     // 侧边栏章节
     backLinksList: null,
@@ -138,6 +144,8 @@ export function initializeDOMElements() {
         domElements.renameItemBtn = getElement('rename-item-btn');
         domElements.pinNoteBtn = getElement('pin-note-btn');
         domElements.unpinNoteBtn = getElement('unpin-note-btn');
+		domElements.favoriteNoteBtn = getElement('favorite-note-btn'); // ⭐ 新增
+        domElements.unfavoriteNoteBtn = getElement('unfavorite-note-btn'); // ⭐ 新增
         
         // 根目录按钮
         domElements.newNoteRootBtn = getElement('new-note-root-btn');
@@ -166,7 +174,10 @@ export function initializeDOMElements() {
         // 首页
         domElements.homepage = getElement('homepage');
         domElements.historyList = getElement('history-list');
-        domElements.pinnedNotesGrid = getElement('pinned-notes-grid');
+		domElements.homepageGrid = getElement('homepage-grid'); // ⭐ 修改 ID
+        domElements.showPinnedBtn = getElement('show-pinned-btn'); // ⭐ 新增
+        domElements.showFavoritesBtn = getElement('show-favorites-btn'); // ⭐ 新增
+     
         
         // 对话框
         domElements.customConfirmDialog = getElement('custom-confirm-dialog');

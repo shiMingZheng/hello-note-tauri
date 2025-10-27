@@ -11,9 +11,9 @@ import { showError, showSuccessMessage, showCustomConfirm } from './ui-utils.js'
 import { TauriAPI, invoke } from './core/TauriAPI.js';
 import { eventBus } from './core/EventBus.js';
 import { domElements } from './dom-init.js';  // ⭐ 新增
-import { showContextMenu, hideContextMenu } from './context-menu.js';  // ⭐ 新增
 
 import { updateVirtualScrollData, VIRTUAL_SCROLL_CONFIG } from './virtual-scroll.js';
+import { showContextMenu, hideContextMenu, contextMenuManager } from './context-menu.js'; // ⭐ 引入 contextMenuManager
 
 console.log('📜 file-manager.js 开始加载...');
 // 在文件顶部导入需要的元素引用
@@ -61,16 +61,21 @@ async function refreshFileTree(relativePath = "") {
         return;
     }
 	// ⭐ 新增:如果是根目录刷新,先恢复展开状态。在 updateVirtualScrollData() 之前,确保 expandedFolders 状态已从 localStorage 恢复。
+    // ⭐ 新增: 如果是根目录刷新, 先恢复展开状态
     if (relativePath === "" && appState.expandedFolders.size === 0) {
         try {
             const expandedStr = localStorage.getItem('cheetah_expanded_folders');
             if (expandedStr) {
                 const expandedArray = JSON.parse(expandedStr);
-                appState.expandedFolders = new Set(expandedArray);
-                console.log('🔄 从 localStorage 恢复展开状态:', expandedArray);
+                // 过滤掉非字符串或空字符串
+                const validExpandedArray = expandedArray.filter(p => typeof p === 'string' && p.trim() !== '');
+                appState.expandedFolders = new Set(validExpandedArray);
+                console.log('🔄 从 localStorage 恢复展开状态:', validExpandedArray);
             }
         } catch (error) {
             console.warn('恢复展开状态失败:', error);
+            localStorage.removeItem('cheetah_expanded_folders'); // 清除损坏的数据
+            appState.expandedFolders = new Set(); // 重置为空 Set
         }
     }
 
@@ -237,6 +242,7 @@ async function toggleFolderLazy(folderPath) {
                     relativePath: folderPath 
                 });
                 appState.fileTreeMap.set(folderPath, children);
+
                 console.log(`✅ 成功加载 ${children.length} 个子节点`);
             } catch (error) {
                 console.error(`❌ 加载子节点失败:`, error);
@@ -503,6 +509,48 @@ function handleRenameItem() {
     });
 }
 
+// ⭐ 新增：处理收藏笔记
+async function handleFavoriteNote() {
+    hideContextMenu();
+    const target = appState.contextTarget;
+    if (!target || target.is_dir) {
+        console.warn('⚠️ 只能收藏笔记文件');
+        return;
+    }
+    const targetPath = target.path;
+
+    try {
+        await invoke('favorite_note', { relativePath: targetPath }); // ⭐ 调用新命令
+        showSuccessMessage(`已收藏笔记: ${target.name}`);
+        eventBus.emit('file:favorited', { path: targetPath }); // ⭐ 发布新事件
+         // ⭐ 更新缓存
+        contextMenuManager.favoriteStatusCache.set(targetPath, true);
+    } catch (error) {
+        showError("收藏失败: " + error);
+    }
+}
+
+// ⭐ 新增：处理取消收藏笔记
+async function handleUnfavoriteNote() {
+    hideContextMenu();
+    const target = appState.contextTarget;
+     // ⭐ 允许从首页收藏区取消收藏
+    if (!target || target.is_dir) {
+        console.warn('⚠️ 目标无效或为文件夹');
+        return;
+    }
+    const targetPath = target.path;
+
+    try {
+        await invoke('unfavorite_note', { relativePath: targetPath }); // ⭐ 调用新命令
+        showSuccessMessage(`已取消收藏: ${target.name}`);
+        eventBus.emit('file:unfavorited', { path: targetPath }); // ⭐ 发布新事件
+         // ⭐ 更新缓存
+         contextMenuManager.favoriteStatusCache.set(targetPath, false);
+    } catch (error) {
+        showError("取消收藏失败: " + error);
+    }
+}
 
 /**
  * 在根目录新建笔记 - 内联输入
@@ -564,14 +612,25 @@ async function handleCreateNoteInRoot() {
         }
     };
     
-    input.addEventListener('blur', () => {
-        setTimeout(() => {
-            if (inputWrapper.parentNode) {
-                inputWrapper.remove();
-            }
-        }, 200);
-    });
+    //input.addEventListener('blur', () => {
+    //    setTimeout(() => {
+    //        if (inputWrapper.parentNode) {
+    //            inputWrapper.remove();
+    //        }
+    //    }, 200);
+    //});
     
+	// ⭐ 添加外部点击监听器 (使用捕获阶段确保先执行)
+    document.addEventListener('click', handleOutsideClick, true);
+	// ⭐ 修改：监听 mousedown 而不是 blur，并且只在点击输入框外部时触发
+    const handleOutsideClick = (e) => {
+        // 检查点击事件的目标是否是输入框本身或其内部
+        if (!textSpan.contains(e.target)) {
+             console.log('🖱️ 点击输入框外部，尝试完成重命名');
+             // 延迟执行以避免与 keydown 事件冲突
+             setTimeout(finishRename, 50);
+        }
+    };
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -676,6 +735,8 @@ export {
     handlePinNote,
     handleUnpinNote,
     handleRenameItem,
+	handleFavoriteNote,    // ⭐ 导出
+    handleUnfavoriteNote,  // ⭐ 导出
     toggleFolderLazy  // 👈 确保有这一行
 };
 
@@ -686,6 +747,8 @@ eventBus.on('context-menu:delete-item', handleDeleteFile);
 eventBus.on('context-menu:rename-item', handleRenameItem);
 eventBus.on('context-menu:pin-note', handlePinNote);
 eventBus.on('context-menu:unpin-note', handleUnpinNote);
+eventBus.on('context-menu:favorite-note', handleFavoriteNote); // ⭐ 新增
+eventBus.on('context-menu:unfavorite-note', handleUnfavoriteNote); // ⭐ 新增
 
 // ⭐ 订阅根目录操作事件
 eventBus.on('root-action:create-note', handleCreateNoteInRoot);
@@ -717,6 +780,13 @@ eventBus.on('file:renamed', async (data) => {
     
     // 3. 刷新标签列表
     eventBus.emit('ui:refreshAllTags');
+	// 5. ⭐ 更新收藏状态缓存 (如果适用)
+    if (contextMenuManager.favoriteStatusCache.has(data.oldPath)) {
+        const status = contextMenuManager.favoriteStatusCache.get(data.oldPath);
+        contextMenuManager.favoriteStatusCache.delete(data.oldPath);
+        contextMenuManager.favoriteStatusCache.set(data.newPath, status);
+        console.log(`   收藏缓存已更新: ${data.oldPath} -> ${data.newPath}`);
+    }
 });
 
 eventBus.on('file:deleted', async (data) => {
@@ -734,6 +804,10 @@ eventBus.on('file:deleted', async (data) => {
     
     // 3. 刷新标签列表
     eventBus.emit('ui:refreshAllTags');
+	
+	// 5. ⭐ 清理收藏状态缓存
+    contextMenuManager.favoriteStatusCache.delete(data.path);
+    console.log(`   收藏缓存已清除: ${data.path}`);
 });
 
 // file-manager.js

@@ -4,6 +4,12 @@
 console.log('📜 ui-utils.js 开始加载...');
 import { domElements } from './dom-init.js';  // ⭐ 新增
 
+const overlay = domElements.customConfirmDialog;
+const dialogTitle = domElements.dialogTitle;
+const dialogMessage = domElements.dialogMessage;
+const confirmBtn = domElements.dialogConfirmBtn;
+const cancelBtn = domElements.dialogCancelBtn;
+
 
 // ========================================
 // Toast 通知系统
