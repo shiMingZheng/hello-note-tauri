@@ -1249,81 +1249,89 @@ a.internal-link:hover {
 /* ========================================
    编辑器组件（Milkdown 版本）
    ======================================== */
-/* src/css/components.css */
-/* src/css/components.css */
-
-/* ... (其他样式保持不变) ... */
-
-/* 内容区域 */
-#content-area {
-    flex-grow: 1; /* 占据 main-content 剩余空间 */
-    overflow: hidden; /* 内部滚动由子元素处理 */
-	display: flex; /* 保持 flex 容器 */
-    width: 100%;
-    position: relative; /* ⭐ 保持 relative，以防万一内部需要绝对定位的元素 */
-    /* background-color: yellow; */ /* Debug */
-}
-
-/* 标签页内容 */
-.tab-content {
-    /* --- ⭐⭐⭐ 醒目标记：确保默认隐藏且不占空间 --- */
-    display: none;      /* ⭐ 默认必须隐藏 */
-    width: 100%;
-    height: 100%; /* ⭐ 尝试添加 height 100% */
+/* 主内容区 */
+.main-content {
+    flex: 1;
+    display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* flex-shrink: 0; */ /* display:none 时不需要 */
-    /* position: relative; */ /* ⭐ 移除 position */
-    /* --- ⭐⭐⭐ 标记结束 --- */
-    /* background-color: rgba(0, 255, 0, 0.1); */ /* Debug */
+    background: var(--bg-primary);
 }
 
+/* 内容区域容器 */
+#content-area {
+    flex: 1;              /* ⭐ 使用 flex: 1 自动填充 */
+    display: flex;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+    /* ❌ 移除 height: 100% */
+}
+
+
+/* 标签页内容基础样式 */
+.tab-content {
+    display: none;        /* 默认隐藏 */
+    flex-direction: column;
+    width: 100%;
+    /* ❌ 移除 height: 100% */
+    overflow: hidden;
+}
+
+
+/* 激活的标签页 */
 .tab-content.active {
-    /* --- ⭐⭐⭐ 醒目标记：激活时强制显示为 flex 并填充 --- */
-    display: flex !important; /* ⭐ 使用 !important 强制覆盖 display: none */
-    flex-grow: 1;           /* ⭐ 让激活的 tab 填满 #content-area */
-    height: 100%;           /* ⭐ 确保有高度 */
-    /* --- ⭐⭐⭐ 标记结束 --- */
-    /* background-color: rgba(0, 0, 255, 0.1); */ /* Debug */
+    display: flex !important;  /* ⭐ 激活时显示 */
+    flex: 1;                   /* ⭐ 自动填充父容器 */
+    /* ❌ 移除 height: 100% */
 }
 
 
-/* 编辑器包装器 (继承 .tab-content 的 display) */
+/* 编辑器包装器 */
 #editor-wrapper {
-   /* display 由 .tab-content.active 控制 */
-   flex-grow: 1; /* 占据父容器 (.tab-content.active) 的剩余空间 */
-   overflow: hidden;
-   /* ⭐ 确保自身也是 flex 容器 */
-   display: flex;
-   flex-direction: column;
-   width: 100%;
-   /* height 由 flex-grow 控制 */
-   /* background-color: orange; */ /* Debug */
+    /* 作为 .tab-content，继承其 display 和 flex 设置 */
+    display: flex;
+    flex-direction: column;
+    /* ❌ 移除 height: 100% */
+    /* flex: 1 已由 .tab-content.active 提供 */
 }
+
+
 
 /* 编辑器容器 */
 .editor-container {
-    flex: 1; /* ⭐ 确保填充 editor-wrapper */
-    min-height: 0; /* ⭐ 允许 flex 子元素在父容器内正确计算高度 */
+    flex: 1;              /* ⭐ 填充 editor-wrapper */
+    min-height: 0;        /* ⭐ 关键：让 flex 子元素可以缩小和滚动 */
     width: 100%;
+    display: flex;
     position: relative;
-    display: flex; /* ⭐ 内部使用 Flex 布局 */
-    /* background-color: lightblue; */ /* Debug */
+    /* ❌ 移除 height: 100% */
 }
 
-/* Milkdown 编辑器本身的容器 */
+
+/* Milkdown 编辑器容器 */
 #milkdown-editor {
-    flex: 1; /* ⭐ 作为 flex item 填充 .editor-container */
-    min-height: 0; /* ⭐ 配合 flex: 1 */
+    flex: 1;              /* ⭐ 填充 editor-container */
+    min-height: 0;        /* ⭐ 关键：允许内部滚动 */
     width: 100%;
-    overflow-y: auto; /* 编辑器内部滚动 */
+    overflow-y: auto;
     padding: 20px;
     box-sizing: border-box;
-    /* background-color: lightcoral; */ /* Debug */
+    /* ❌ 移除 height: 100% */
 }
-
-
-/* ... (其他样式保持不变) ... */
+#milkdown-editor .ProseMirror {
+    position: relative;
+    padding-left: 75px;
+    line-height: 1.8;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+                 'Microsoft YaHei', sans-serif;
+    font-size: 19px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    cursor: text !important;
+    min-height: 100%; /* ⭐ 添加这行 */
+}
 
 
 /* ... (其他样式保持不变) ... */

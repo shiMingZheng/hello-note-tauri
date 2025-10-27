@@ -299,7 +299,9 @@ function renderHomepageGrid(notes, viewType) {
         // 点击事件
         card.addEventListener('click', async () => {
             if (await isFileExists(note.path)) {
-                eventBus.emit('open-tab', note.path);
+                 // ⭐ 使用 tabManager.openTab 方法直接打开
+			
+			eventBus.emit('open-tab', path);
             } else {
                 showError(`文件不存在: ${note.path}`);
                 // 如果文件不存在，从当前视图移除（取消置顶或取消收藏）
