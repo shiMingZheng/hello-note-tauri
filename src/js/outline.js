@@ -29,10 +29,13 @@ class OutlineManager {
         this.outlinePopover = domElements.outlinePopover; // 需要在 index.html 和 dom-init.js 添加
         this.outlineList = domElements.outlineList;     // 需要在 index.html 和 dom-init.js 添加
 
-        if (!this.outlinePopover || !this.outlineList) {
-            console.warn('⚠️ 大纲面板或列表元素未找到 (outlinePopover, outlineList)');
+        this.backButton = document.getElementById('outline-back-btn'); // 获取返回按钮
+
+        if (!this.outlinePopover || !this.outlineList || !this.backButton) { // 检查按钮是否存在
+            console.warn('⚠️ 大纲面板、列表或返回按钮元素未找到');
             return;
         }
+
 
         // 监听事件
         eventBus.on('outline:toggle-visibility', () => this.toggleVisibility());
@@ -47,6 +50,14 @@ class OutlineManager {
                  eventBus.emit('outline:request-update');
             }
         });
+		// --- 添加返回按钮事件监听 ---
+        this.backButton.addEventListener('click', () => {
+            this.hide(); // 点击返回按钮时隐藏大纲面板
+            // 隐藏大纲后面板会自动显示文件列表（因为它是默认视图）
+            // 不需要显式操作 file-view-container
+            console.log('◀️ 点击了大纲返回按钮');
+        });
+
 
         // 点击大纲项跳转
         this.outlineList.addEventListener('click', (e) => {
@@ -151,6 +162,25 @@ class OutlineManager {
         this.outlinePopover.style.display = 'none';
         this.isVisible = false;
         console.log('⬇️ 隐藏大纲面板');
+		// 确保文件视图容器是可见的（如果之前被标签视图隐藏了）
+        if (domElements.fileViewContainer) {
+             domElements.fileViewContainer.style.display = 'block'; // 或者 'flex' 取决于你的布局
+		}
+		if (domElements.searchResultsList) {
+            // 如果搜索结果当前是显示的，也需要隐藏
+            if(domElements.searchResultsList.style.display === 'block'){
+               domElements.searchResultsList.style.display = 'none';
+            }
+        }
+         // 如果标签筛选视图是激活的，也隐藏它
+         // (或者由 sidebar.js 的 handleClearTagFilter 处理)
+        if (domElements.tagsPopover && domElements.tagsPopover.style.display === 'block') {
+            // 可以选择在这里隐藏标签视图，或者依赖其他逻辑
+            // domElements.tagsPopover.style.display = 'none';
+            // eventBus.emit('sidebar:clear-tag-filter'); // 更好的方式是触发清除筛选事件
+        }
+
+
     }
 }
 

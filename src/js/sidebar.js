@@ -9,6 +9,7 @@ import { domElements } from './dom-init.js';
 import { showError } from './ui-utils.js';
 import { updateVirtualScrollData } from './virtual-scroll.js';
 import { handleFileListClick, handleFileListContextMenu } from './file-manager.js';
+import { outlineManager } from './outline.js'; // 导入 outlineManager
 
 
 console.log('📜 sidebar.js 开始加载...');
@@ -32,8 +33,12 @@ class Sidebar {
         
         // 绑定标签弹窗切换按钮
         if (domElements.toggleTagsBtn) {
-            domElements.toggleTagsBtn.addEventListener('click', () => this.handleToggleTagsPopover());
+            domElements.toggleTagsBtn.addEventListener('click', () => {
+				outlineManager.hide(); // <--- 添加这行
+				this.handleToggleTagsPopover();
+			})
         }
+		
         
         // 绑定清除标签筛选按钮
         if (domElements.clearFilterBtn) {
@@ -67,6 +72,34 @@ class Sidebar {
 		
 		console.log(`🏷️ 标签面板${isVisible ? '隐藏' : '显示'}`);
 	}
+	
+	// --- 在这里添加新的方法 ---
+    /**
+     * 隐藏标签弹窗 (如果它当前是可见的)
+     */
+    hideTagsPopover() {
+        // 检查 DOM 元素是否存在以及是否可见
+        if (domElements.tagsPopover && domElements.tagsPopover.style.display === 'block') {
+            domElements.tagsPopover.style.display = 'none';
+            this.isTagsPopoverVisible = false; // 更新状态
+            console.log('🏷️ 标签面板已隐藏');
+
+            // 隐藏标签弹窗后，通常应该显示文件列表视图
+            // 确保文件列表是可见的
+            if (domElements.fileViewContainer) {
+                 domElements.fileViewContainer.style.display = 'block'; // 或 'flex'
+            }
+             // 如果搜索结果当前是显示的，也需要隐藏
+            if (domElements.searchResultsList && domElements.searchResultsList.style.display === 'block') {
+                domElements.searchResultsList.style.display = 'none';
+            }
+
+            // 如果之前有标签筛选，隐藏标签弹窗时可以选择清除筛选
+            // if (appState.activeTagFilter) {
+            //    this.handleClearTagFilter(); // 或者发布一个清除筛选的事件
+            // }
+        }
+    }
     
     /**
      * 刷新所有标签列表

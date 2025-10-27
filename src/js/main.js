@@ -42,6 +42,7 @@ import { handleSaveFile, toggleViewMode, loadFileToEditor } from './editor.js'; 
 import { tabManager } from './tab_manager.js';
 import { outlineManager } from './outline.js'; // <--- 导入大纲管理器
 
+
 /**
  * 初始化 Milkdown 编辑器
  */
@@ -139,6 +140,7 @@ async function initApp() {
 		      // 绑定大纲按钮事件
          if (domElements.outlineBtn) { // <--- 使用 domElements (需要先添加)
             domElements.outlineBtn.addEventListener('click', () => {
+				sidebar.hideTagsPopover(); //隐藏标签
                 eventBus.emit('outline:toggle-visibility');
             });
             console.log('✅ 大纲按钮事件已绑定');
@@ -193,12 +195,16 @@ async function initApp() {
 function bindRootActions() {
     if (domElements.newNoteRootBtn) {
         domElements.newNoteRootBtn.addEventListener('click', () => {
+			outlineManager.hide(); // <--- 添加这行
+			sidebar.hideTagsPopover(); // <--- 添加这行，隐藏标签弹窗
             eventBus.emit('root-action:create-note');
         });
     }
     
     if (domElements.newFolderRootBtn) {
         domElements.newFolderRootBtn.addEventListener('click', () => {
+			outlineManager.hide(); // <--- 添加这行
+			sidebar.hideTagsPopover(); // <--- 添加这行，隐藏标签弹窗
             eventBus.emit('root-action:create-folder');
         });
     }

@@ -1579,17 +1579,18 @@ a.internal-link:hover {
 .outline-popover {
     position: absolute; /* 相对于 sidebar 定位 */
     top: 50px;          /* 位于头部下方，可调整 */
-    left: 10px;
+    left: 0px;
     right: 10px;
     background-color: var(--bg-sidebar);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: 2px;
     box-shadow: var(--shadow-md);
     z-index: 100;
     padding: 10px 0; /* 上下内边距，左右由列表项控制 */
-    max-height: 40%;  /* 限制最大高度，可调整 */
+    max-height: 80%;  /* 限制最大高度，可调整 */
     overflow-y: auto;
     font-size: 13px;
+	width: 100%;
 }
 
 .outline-list {
@@ -1679,3 +1680,25 @@ a.internal-link:hover {
     --icon-invert-value: 1;
 }
 */
+
+/* src/css/components.css */
+
+.outline-back-btn {
+    padding: 4px 6px; /* 调整内边距使按钮更小 */
+    font-size: 16px;  /* 调整字体大小 */
+    /* 可以添加更多样式，例如移除边框、调整颜色等 */
+    border: none;
+    background: none;
+}
+.outline-popover .sidebar-section-header {
+    display: flex;
+    justify-content: space-between; /* 让元素分布在两端和中间 */
+    align-items: center;
+    padding: 5px 10px; /* 调整内边距 */
+    border-bottom: 1px solid var(--border-color); /* 保持分隔线 */
+}
+ .outline-popover .sidebar-section-header h3 {
+    margin: 0; /* 移除标题的默认外边距 */
+    text-align: center; /* 尝试居中标题 */
+    flex-grow: 1; /* 让标题占据剩余空间 */
+}
