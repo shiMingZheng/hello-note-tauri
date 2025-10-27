@@ -904,8 +904,37 @@
     gap: 10px;
 }
 
+#content-area {
+    position: relative;
+    flex-grow: 1;
+    overflow: hidden;
+	display: flex; /* [关键] 让 #content-area 成为 flex 容器，使其子元素可以拉伸 */
+
+}
+
+/* 修改旧的页签内容样式 */
+.tab-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    flex-direction: column;
+}
+.tab-content.active {
+    display: flex;
+}
 
 
+/* [核心修复] 修改 main-content 的布局 */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column; /* 确保子元素垂直排列 */
+    background: var(--bg-primary);
+    overflow: hidden;
+}
 
 /* src/css/components.css */
 
@@ -1001,10 +1030,22 @@
    [修复] 编辑器全屏布局样式
    ======================================== */
 
-
+/* 确保 #editor-wrapper 在激活时是一个能撑满父容器的 flex 纵向布局 
+#editor-wrapper.tab-content.active {
+    display: flex;
+    flex-direction: column;
+}
+*/
 /* 确保 .tag-bar 高度固定，不被压缩 */
 .tag-bar {
     flex-shrink: 0;
+}
+
+/* [核心修改] 将 editor-container 设为相对定位的容器 */
+.editor-container {
+    position: relative; /* 成为内部绝对定位元素的参照物 */
+    width: 100%;
+    height: 100%;
 }
 
 
@@ -1249,87 +1290,11 @@ a.internal-link:hover {
 /* ========================================
    编辑器组件（Milkdown 版本）
    ======================================== */
-/* src/css/components.css */
-/* src/css/components.css */
-
-/* ... (其他样式保持不变) ... */
-
-/* 内容区域 */
-#content-area {
-    flex-grow: 1; /* 占据 main-content 剩余空间 */
-    overflow: hidden; /* 内部滚动由子元素处理 */
-	display: flex; /* 保持 flex 容器 */
-    width: 100%;
-    position: relative; /* ⭐ 保持 relative，以防万一内部需要绝对定位的元素 */
-    /* background-color: yellow; */ /* Debug */
-}
-
-/* 标签页内容 */
-.tab-content {
-    /* --- ⭐⭐⭐ 醒目标记：确保默认隐藏且不占空间 --- */
-    display: none;      /* ⭐ 默认必须隐藏 */
-    width: 100%;
-    height: 100%; /* ⭐ 尝试添加 height 100% */
-    flex-direction: column;
-    overflow: hidden;
-    /* flex-shrink: 0; */ /* display:none 时不需要 */
-    /* position: relative; */ /* ⭐ 移除 position */
-    /* --- ⭐⭐⭐ 标记结束 --- */
-    /* background-color: rgba(0, 255, 0, 0.1); */ /* Debug */
-}
-
-.tab-content.active {
-    /* --- ⭐⭐⭐ 醒目标记：激活时强制显示为 flex 并填充 --- */
-    display: flex !important; /* ⭐ 使用 !important 强制覆盖 display: none */
-    flex-grow: 1;           /* ⭐ 让激活的 tab 填满 #content-area */
-    height: 100%;           /* ⭐ 确保有高度 */
-    /* --- ⭐⭐⭐ 标记结束 --- */
-    /* background-color: rgba(0, 0, 255, 0.1); */ /* Debug */
-}
-
-
-/* 编辑器包装器 (继承 .tab-content 的 display) */
 #editor-wrapper {
-   /* display 由 .tab-content.active 控制 */
-   flex-grow: 1; /* 占据父容器 (.tab-content.active) 的剩余空间 */
-   overflow: hidden;
-   /* ⭐ 确保自身也是 flex 容器 */
-   display: flex;
-   flex-direction: column;
-   width: 100%;
-   /* height 由 flex-grow 控制 */
-   /* background-color: orange; */ /* Debug */
+    display: none; /* 由 JS 控制显示 */
+    flex-grow: 1;
+    overflow: hidden;
 }
-
-/* 编辑器容器 */
-.editor-container {
-    flex: 1; /* ⭐ 确保填充 editor-wrapper */
-    min-height: 0; /* ⭐ 允许 flex 子元素在父容器内正确计算高度 */
-    width: 100%;
-    position: relative;
-    display: flex; /* ⭐ 内部使用 Flex 布局 */
-    /* background-color: lightblue; */ /* Debug */
-}
-
-/* Milkdown 编辑器本身的容器 */
-#milkdown-editor {
-    flex: 1; /* ⭐ 作为 flex item 填充 .editor-container */
-    min-height: 0; /* ⭐ 配合 flex: 1 */
-    width: 100%;
-    overflow-y: auto; /* 编辑器内部滚动 */
-    padding: 20px;
-    box-sizing: border-box;
-    /* background-color: lightcoral; */ /* Debug */
-}
-
-
-/* ... (其他样式保持不变) ... */
-
-
-/* ... (其他样式保持不变) ... */
-
-
-/* ... (其他样式保持不变) ... */
 
 .editor-header {
     display: flex;
@@ -1383,7 +1348,10 @@ a.internal-link:hover {
     position: relative;
 }
 
-
+/* 移除旧的 textarea 和预览区样式 */
+.markdown-editor {
+    display: none; /* 不再使用 */
+}
 
 .html-preview {
     display: none; /* 保留用于兼容性 */
@@ -1455,18 +1423,15 @@ a.internal-link:hover {
 /* ========================================
    编辑器全屏布局
    ======================================== */
-.milkdown-container { /* 这个可能是 #milkdown-editor 元素上的类 */
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    position: relative;
-    /* flex: 1; */ /* Flex 属性应该在 .editor-container 上 */
-    /* min-height: 0; */
-}   
-
 #editor-wrapper.tab-content.active {
     display: flex;
     flex-direction: column;
+}
+
+/* 确保编辑器容器占满空间 */
+.milkdown-container {
+    flex: 1;
+    min-height: 0; /* 重要：允许 flex 子元素缩小 */
 }
 
 /* ========================================
@@ -1737,175 +1702,3 @@ a.internal-link:hover {
     text-align: center; /* 尝试居中标题 */
     flex-grow: 1; /* 让标题占据剩余空间 */
 }
-
-/* src/css/components.css */
-
-/* ⭐ 修改：首页 Section Header 样式，增加 space-between 支持 */
-.homepage-section-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 15px; /* 调整 Header 和下方内容的间距 */
-}
-.homepage-section-header.space-between {
-    justify-content: space-between; /* 应用分散对齐 */
-}
-
-/* ⭐ 修改：调整切换按钮组样式 */
-.homepage-view-toggle {
-    display: inline-flex; /* 保持 flex 布局 */
-    /* 移除边框和圆角，让按钮看起来更独立 */
-    /* border: 1px solid var(--border-color); */
-    /* border-radius: 6px; */
-    /* overflow: hidden; */
-    gap: 10px; /* ⭐ 在按钮之间添加间距 */
-}
-
-.view-toggle-btn {
-    padding: 6px 14px;
-    border: 1px solid var(--border-color); /* ⭐ 给每个按钮单独加边框 */
-    border-radius: 6px; /* ⭐ 给每个按钮单独加圆角 */
-    background-color: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
-    /* 移除右边框分隔线 */
-    /* border-right: 1px solid var(--border-color); */
-}
-
-/* .view-toggle-btn:last-child {
-    border-right: none;
-} */
-
-.view-toggle-btn.active {
-    background-color: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color); /* ⭐ 激活时边框颜色也变 */
-}
-
-.view-toggle-btn:hover:not(.active) {
-    background-color: var(--hover-bg);
-    color: var(--text-primary);
-    border-color: var(--text-primary); /* ⭐ 悬停时边框颜色改变 */
-}
-
-
-/* ⭐ 新增：置顶/收藏网格包装器样式 (带框) */
-.homepage-grid-wrapper {
-    background-color: var(--bg-secondary); /* 使用次要背景色 */
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 15px; /* 内边距，比卡片间距稍小或相等 */
-    min-height: 150px; /* 给一个最小高度，避免空状态时太扁 */
-    /* 可以添加阴影等效果 */
-     box-shadow: var(--shadow-sm);
-}
-
-/* 调整网格本身的样式（移除外边距，因为包装器有内边距） */
-#homepage-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); /* 可以让卡片稍微小一点 */
-    gap: 12px; /* 内部卡片间距 */
-    margin-top: 0; /* 移除之前的外边距 */
-}
-
-/* 调整卡片样式 (移除边框，因为包装器有边框了) */
-.homepage-note-card {
-    background-color: var(--bg-primary); /* 卡片用主背景色 */
-    border-radius: 6px; /* 稍微小一点的圆角 */
-    padding: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    /* border: 1px solid var(--border-color); */ /* 移除卡片边框 */
-    overflow: hidden;
-     box-shadow: 0 1px 3px rgba(0,0,0,0.08); /* 加一点卡片阴影 */
-}
-.homepage-note-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md); /* 悬停阴影加强 */
-    /* border-color: var(--primary-color); */ /* 边框移除，悬停效果改为阴影 */
-}
-
-/* 空状态消息样式调整 */
-.homepage-grid-wrapper .empty-message {
-    grid-column: 1 / -1;
-    text-align: center;
-    padding: 30px 15px; /* 增加空状态的内边距 */
-    color: var(--text-secondary);
-    font-size: 13px;
-    margin: 0;
-}
-
-
-/* ⭐ 新增：最近笔记列表包装器样式 (与 grid wrapper 类似但可区分) */
-.homepage-list-wrapper {
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 15px;
-     box-shadow: var(--shadow-sm);
-}
-
-/* 调整历史列表样式 */
-#history-list {
-     margin-top: 0;
-     padding: 0; /* 移除默认内边距 */
-}
-
-/* 调整历史记录项样式 (移除背景和边框，由包装器提供) */
-.history-item {
-    background-color: transparent; /* 背景透明 */
-    border-radius: 4px;
-    padding: 8px 0px; /* 调整内边距 */
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: background-color 0.2s; /* 悬停效果改为背景 */
-    border: none; /* 移除边框 */
-    overflow: hidden;
-}
-.history-item:hover {
-    background-color: var(--hover-bg); /* 使用悬停背景色 */
-    box-shadow: none; /* 移除阴影 */
-    /* border-color: var(--primary-color); */ /* 移除边框效果 */
-}
-.history-item:last-child {
-    margin-bottom: 0; /* 移除最后一项的下边距 */
-}
-
-/* --- 深色主题适配 --- */
-
-:root[data-theme="dark"] .view-toggle-btn {
-    color: var(--text-secondary);
-    border-color: var(--border-color);
-}
-:root[data-theme="dark"] .view-toggle-btn.active {
-    background-color: var(--primary-color);
-    color: var(--bg-primary); /* 使用主背景色以确保对比度 */
-    border-color: var(--primary-color);
-}
- :root[data-theme="dark"] .view-toggle-btn:hover:not(.active) {
-    background-color: var(--hover-bg);
-    color: var(--text-primary);
-    border-color: var(--text-primary);
-}
-
-:root[data-theme="dark"] .homepage-grid-wrapper,
-:root[data-theme="dark"] .homepage-list-wrapper {
-    background-color: var(--bg-secondary);
-    border-color: var(--border-color);
-}
-
-:root[data-theme="dark"] .homepage-note-card {
-    background-color: var(--bg-primary);
-     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-:root[data-theme="dark"] .homepage-note-card:hover {
-    box-shadow: var(--shadow-md);
-}
-
-:root[data-theme="dark"] .history-item:hover {
-    background-color: var(--hover-bg);
-}
-
-/* ... 其他样式 ... */

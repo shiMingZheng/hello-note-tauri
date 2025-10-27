@@ -312,10 +312,7 @@ class Sidebar {
         }
         
         try {
-            //const tags = await invoke('get_file_tags', { relativePath: filePath });
-			// --- ⭐⭐⭐ 醒目标记：修复 Rust 命令名 ---
-            const tags = await invoke('get_tags_for_file', { relativePath: filePath }); // 使用正确的命令名
-            // --- ⭐⭐⭐ 标记结束 ---
+            const tags = await invoke('get_file_tags', { relativePath: filePath });
             appState.currentFileTags = tags.sort();
             
             this.updateCurrentFileTagsUI(filePath);
@@ -341,22 +338,5 @@ export {
 export const refreshAllTagsList = () => sidebar.refreshAllTagsList();
 export const updateCurrentFileTagsUI = (filePath) => sidebar.updateCurrentFileTagsUI(filePath);
 export const loadFileTags = (filePath) => sidebar.loadFileTags(filePath);
-
-
-
-// --- ⭐⭐⭐ 醒目标记：添加事件监听器 ---
-eventBus.on('ui:updateFileTags', (filePath) => {
-    // --- ⭐⭐⭐ 醒目标记：修复 Rust 命令名 ---
-    console.log(`🏷️ [sidebar.js] 收到 ui:updateFileTags 事件: ${filePath}`);
-    // 调用 sidebar 实例的方法来加载和更新标签 UI
-    sidebar.loadFileTags(filePath); // loadFileTags 内部会调用 updateCurrentFileTagsUI
-});
-
-// ⭐ 添加监听器以刷新“所有标签”列表 (当标签被添加/删除/重命名时)
-eventBus.on('ui:refreshAllTags', () => {
-     console.log('🏷️ [sidebar.js] 收到 ui:refreshAllTags 事件');
-     sidebar.refreshAllTagsList();
-});
-// --- ⭐⭐⭐ 标记结束 ---
 
 console.log('✅ sidebar.js 加载完成');

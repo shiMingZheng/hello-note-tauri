@@ -4,7 +4,6 @@
 import { appState } from './core/AppState.js';
 import { eventBus } from './core/EventBus.js';
 import { IS_TAURI_APP,getCurrentWindow } from './core/TauriAPI.js';
-import { domElements } from './dom-init.js';
 
 
 console.log('📜 tab_manager.js 开始加载...');
@@ -25,29 +24,15 @@ export class TabManager {
      * 初始化标签页管理器
      */
     init() {
-		// --- 醒目标记：获取元素 ---
-        dynamicTabContainer = domElements.dynamicTabContainer;
-        homeTabBtn = domElements.tabHome;
-        addNewNoteTabBtn = domElements.addNewNoteTabBtn;
-        mainHeaderActions = domElements.mainHeaderActions;
-        editorWrapperEl = domElements.editorWrapper; // 编辑器包装器
-        homepageEl = domElements.homepage;         // 首页内容区
-
-        // 添加检查确保元素获取成功
-        if (!dynamicTabContainer) console.error("❌ TabManager init: dynamicTabContainer not found");
-        if (!homeTabBtn) console.error("❌ TabManager init: homeTabBtn not found");
-        if (!addNewNoteTabBtn) console.error("❌ TabManager init: addNewNoteTabBtn not found");
-        if (!mainHeaderActions) console.error("❌ TabManager init: mainHeaderActions not found");
-        if (!editorWrapperEl) console.error("❌ TabManager init: editorWrapperEl not found");
-        if (!homepageEl) console.error("❌ TabManager init: homepageEl not found");
-        // ---  标记结束 ---
+        dynamicTabContainer = document.getElementById('dynamic-tab-container');
+        homeTabBtn = document.getElementById('tab-home');
+        addNewNoteTabBtn = document.getElementById('add-new-note-tab-btn');
+        mainHeaderActions = document.getElementById('main-header-actions');
+        editorWrapperEl = document.getElementById('editor-wrapper');
+        homepageEl = document.getElementById('homepage');
         
         homeTabBtn.addEventListener('click', () => this.switchToTab('home'));
         addNewNoteTabBtn.addEventListener('click', () => this.handleAddNewNote());
-		
-
-		
-		
 		
 		
 		// ✅ 订阅外部事件
@@ -167,62 +152,53 @@ export class TabManager {
      * 切换到指定标签页
      */
     switchToTab(tabId) {
-        console.log(` MGR: Switching to tab: ${tabId}`);
         this.activeTab = tabId;
         appState.activeFilePath = (tabId === 'home') ? null : tabId;
-        this.render(); // 先渲染按钮
-
-        // --- ⭐⭐⭐ 醒目标记：严格使用 classList 控制显示 ---
-        // 确保元素存在再操作
-        if (domElements.homepage) {
-            // 移除可能存在的内联 display 样式
-            domElements.homepage.style.display = '';
-            // 通过 class 控制显示/隐藏
-            domElements.homepage.classList.toggle('active', tabId === 'home');
-            console.log(`   Homepage active class set to: ${tabId === 'home'}`);
-        } else {
-             console.warn("   switchToTab: domElements.homepage is null");
-        }
-        if (domElements.editorWrapper) {
-             // 移除可能存在的内联 display 样式
-             domElements.editorWrapper.style.display = '';
-             // 通过 class 控制显示/隐藏
-            domElements.editorWrapper.classList.toggle('active', tabId !== 'home');
-            console.log(`   EditorWrapper active class set to: ${tabId !== 'home'}`);
-        } else {
-            console.warn("   switchToTab: domElements.editorWrapper is null");
-        }
-        // --- ⭐⭐⭐ 标记结束 ---
-
-
-        // 控制顶部按钮的显示 (mainHeaderActions 可以继续用 style.display)
-        if (domElements.mainHeaderActions) {
-            domElements.mainHeaderActions.style.display = (tabId !== 'home' && !(this.findTabByPath(tabId)?.isNew)) ? 'flex' : 'none';
-             console.log(`   MainHeaderActions display set to: ${domElements.mainHeaderActions.style.display}`);
-        } else {
-             console.warn("   switchToTab: domElements.mainHeaderActions is null");
-        }
-
-
-        // 加载文件或更新侧边栏 (保持不变)
+        this.render();
+        
         if (tabId === 'home') {
-             eventBus.emit('ui:updateFileTags', null);
-             eventBus.emit('ui:updateBacklinks', null);
+            homepageEl.style.display = 'flex';
+            editorWrapperEl.style.display = 'none';
+            mainHeaderActions.style.display = 'none';
+            
+            // [重构] 步骤 1: 将全局函数调用改为事件发布
+           
+            eventBus.emit('ui:updateFileTags', null);
+            
+            // [重构] 步骤 1: 将全局函数调用改为事件发布
+            
+            eventBus.emit('ui:updateBacklinks', null);
         } else {
-             eventBus.emit('editor:load-file', tabId); // 加载文件内容
-             const tabData = this.findTabByPath(tabId);
-             if (tabData && tabData.isNew) {
-                 eventBus.emit('ui:updateFileTags', null);
-                 eventBus.emit('ui:updateBacklinks', null);
-             } else {
-                 eventBus.emit('ui:updateFileTags', tabId);
-                 eventBus.emit('ui:updateBacklinks', tabId);
-             }
-        }
+            homepageEl.style.display = 'none';
+            editorWrapperEl.style.display = 'flex';
+            
+            const tabData = this.findTabByPath(tabId);
+			eventBus.emit('editor:load-file', tabId);
+            if (tabData && tabData.isNew) {
+                mainHeaderActions.style.display = 'none';
+                appState.activeFilePath = null;
+              
+                
+                // [重构] 步骤 1: 将全局函数调用改为事件发布
+                eventBus.emit('ui:updateFileTags', null);
+                
+                // [重构] 步骤 1: 将全局函数调用改为事件发布
+                eventBus.emit('ui:updateBacklinks', null);
+            } else {
+                mainHeaderActions.style.display = 'flex';
+                
+			
+                // [重构] 步骤 1: 将全局函数调用改为事件发布
+                eventBus.emit('ui:updateFileTags', tabId);
 
+                // [重构] 步骤 1: 将全局函数调用改为事件发布
+                eventBus.emit('ui:updateBacklinks', tabId);
+            }
+        }
+        
         eventBus.emit('ui:updateVirtualScroll');
+        
         this.updateWindowTitle();
-         console.log(` MGR: Tab switch complete for ${tabId}`);
     }
 
     /**
@@ -299,45 +275,28 @@ export class TabManager {
      * 渲染标签页
      */
     render() {
-        // --- ⭐⭐⭐ 醒目标记：使用 domElements ---
-        if (!domElements.dynamicTabContainer || !domElements.tabHome) {
-             console.error("❌ TabManager render: dynamicTabContainer or tabHome not found in domElements");
-             return; // 无法渲染
-        }
-        domElements.dynamicTabContainer.innerHTML = '';
-        domElements.tabHome.classList.toggle('active', this.activeTab === 'home');
-        // --- ⭐⭐⭐ 标记结束 ---
-
+        dynamicTabContainer.innerHTML = '';
+        homeTabBtn.classList.toggle('active', this.activeTab === 'home');
+        
         this.openTabs.forEach(tabData => {
             const tabEl = document.createElement('button');
             tabEl.className = 'tab-btn dynamic-tab-item';
-             // ⭐ 添加未保存标记 (如果需要)
-             tabEl.textContent = `${tabData.title}${tabData.unsaved ? '*' : ''}`;
-            // tabEl.textContent = tabData.title;
+            tabEl.textContent = tabData.title;
             tabEl.title = tabData.path;
             tabEl.dataset.filePath = tabData.path;
             tabEl.classList.toggle('active', this.activeTab === tabData.path);
-             tabEl.classList.toggle('unsaved', !!tabData.unsaved); // 添加 unsaved 类
-
+            
             const closeBtn = document.createElement('span');
             closeBtn.className = 'close-tab-btn';
             closeBtn.textContent = '×';
             closeBtn.onclick = (e) => {
                 e.stopPropagation();
-                 // ⭐ 关闭前检查未保存状态 (可选)
-                 if (tabData.unsaved) {
-                     // 可以在这里提示用户保存
-                     // const confirmed = confirm("有未保存的更改，确定要关闭吗？");
-                     // if (!confirmed) return;
-                 }
                 this.closeTab(tabData.path);
             };
-
+            
             tabEl.appendChild(closeBtn);
             tabEl.addEventListener('click', () => this.switchToTab(tabData.path));
-            // --- ⭐⭐⭐ 醒目标记：使用 domElements ---
-            domElements.dynamicTabContainer.appendChild(tabEl);
-            // --- ⭐⭐⭐ 标记结束 ---
+            dynamicTabContainer.appendChild(tabEl);
         });
     }
 

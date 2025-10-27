@@ -75,24 +75,7 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         println!("✅ 'indexed' 字段添加完成！");
     }
 
-	// === ⭐ 新增迁移：为 files 表添加 is_favorite 字段 ===
-    let mut stmt_fav = conn.prepare("PRAGMA table_info(files)")?;
-    let has_is_favorite = stmt_fav.query_map([], |row| {
-        let column_name: String = row.get(1)?;
-        Ok(column_name)
-    })?.any(|col| col.as_deref() == Ok("is_favorite"));
-
-    if !has_is_favorite {
-        println!("🔀 迁移数据库：正在为 'files' 表添加 'is_favorite' 字段...");
-        conn.execute(
-            "ALTER TABLE files ADD COLUMN is_favorite INTEGER DEFAULT 0",
-            [],
-        )?;
-        println!("✅ 'is_favorite' 字段添加完成！");
-        // 添加索引
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_files_favorite ON files (is_favorite);", [])?;
-         println!("✅ 'idx_files_favorite' 索引创建完成！");
-    }
+	
 
     Ok(())
 }

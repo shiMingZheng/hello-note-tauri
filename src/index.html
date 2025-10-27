@@ -104,8 +104,6 @@
 			     <li id="rename-item-btn" class="context-menu-btn">重命名</li>
                 <li id="pin-note-btn">📌 置顶笔记</li>
                 <li id="unpin-note-btn" style="display: none;">📌 取消置顶</li>
-				<li id="favorite-note-btn">⭐ 收藏笔记</li> 
-				<li id="unfavorite-note-btn" style="display: none;">⭐ 取消收藏</li>
                 <li id="new-note-btn">📄 新建笔记</li>
                 <li id="new-folder-btn">📁 新建文件夹</li>
                 <li id="delete-file-btn">🗑️ 删除</li>
@@ -129,17 +127,9 @@
             <div id="content-area">
                 <div id="homepage" class="tab-content active">
                     <div class="homepage-section">
-                        <div class="homepage-section-header">
-                            <div class="homepage-view-toggle">
-                                <button id="show-pinned-btn" class="view-toggle-btn active" data-view="pinned">📌 置顶</button>
-                                <button id="show-favorites-btn" class="view-toggle-btn" data-view="favorites">⭐ 收藏</button>
-                            </div>
-                        </div>
-                        <div class="homepage-grid-wrapper">
-                                <div id="homepage-grid" class="pinned-notes-grid">
-                        </div>
+                        <h3>📌 置顶笔记</h3>
+                        <div id="pinned-notes-grid" class="pinned-notes-grid"></div>
                     </div>
-
                     <hr class="section-divider">
                     <div class="homepage-section">
                         <h3>最近的笔记</h3>

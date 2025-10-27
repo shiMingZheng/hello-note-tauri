@@ -24,8 +24,7 @@ import { TabManager } from './tab_manager.js';
 import { initializeLinks } from './links.js';
 import { tagModal } from './tag_modal.js';
 import { sidebar } from './sidebar.js';
-// ⭐ 修改：导入 loadHomepageGrid 替代 loadPinnedNotes
-import { initializeHomepage, loadHomepageGrid, loadHistory } from './homepage.js';
+import { initializeHomepage, loadPinnedNotes, loadHistory } from './homepage.js';
 
 import * as fileManager from './file-manager.js';
 import { uiActions } from './ui_actions.js';
