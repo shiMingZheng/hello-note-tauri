@@ -15,28 +15,12 @@ console.log('📜 editor.js 开始加载...');
 // 编辑器相关函数（Milkdown）
 // ========================================
 
-// ⭐ 立即订阅事件（在函数定义之前）
-eventBus.on('editor:load-file', async (filePath) => {
-    console.log('📥 [editor.js] 收到 editor:load-file 事件:', filePath);
-    // 先检查函数是否已定义
-    if (typeof loadFileToEditor === 'function') {
-        await loadFileToEditor(filePath);
-    } else {
-        console.error('❌ loadFileToEditor 函数尚未定义！');
-    }
-});
+/**
+ * 加载文件到编辑器
+ * @param {string} relativePath - 文件相对路径
+ */
+// src/js/editor.js
 
-eventBus.on('editor:save', async () => {
-    console.log('💾 [editor.js] 收到 editor:save 事件');
-    await handleSaveFile();
-});
-
-eventBus.on('editor:toggle-view', () => {
-    console.log('👁️ [editor.js] 收到 editor:toggle-view 事件');
-    toggleViewMode();
-});
-
-console.log('📜 editor.js 完成订阅...');
 /**
  * 加载文件到编辑器
  * @param {string} relativePath - 文件相对路径 (或 "untitled-..." 标识符)
@@ -193,6 +177,30 @@ function toggleViewMode() {
     
     console.log(`🔄 切换视图模式: ${newMode}`);
 }
+
+// ========================================
+// 事件订阅（新增）
+// ========================================
+
+// 订阅文件加载事件
+eventBus.on('editor:load-file', async (filePath) => {
+    console.log('📥 [editor.js] 收到 editor:load-file 事件:', filePath);
+    await loadFileToEditor(filePath);
+});
+
+// 订阅保存事件
+eventBus.on('editor:save', async () => {
+    console.log('💾 [editor.js] 收到 editor:save 事件');
+    await handleSaveFile();
+});
+
+// 订阅视图切换事件
+eventBus.on('editor:toggle-view', () => {
+    console.log('👁️ [editor.js] 收到 editor:toggle-view 事件');
+    toggleViewMode();
+});
+
+console.log('✅ editor.js 已订阅编辑器事件');
 
 // ========================================
 // ES Module 导出（供内部模块使用）
