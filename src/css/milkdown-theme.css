@@ -1,8 +1,7 @@
-/* src/css/milkdown-theme.css */
-/* CheetahNote - Milkdown 编辑器主题样式 (使用 html[data-theme] 控制) */
+/* src/css/milkdown-theme.css (重构优化版) */
 
 /* ========================================
-   编辑器容器基础样式 (保持不变)
+   1. 编辑器基础样式 (Container Basics)
    ======================================== */
 #milkdown-editor {
     width: 100%;
@@ -35,7 +34,6 @@
     word-wrap: break-word;
     white-space: pre-wrap;
     cursor: text !important;
-    /* 移除这里的默认背景色或颜色，由主题规则控制 */
 }
 
 #milkdown-editor .ProseMirror * {
@@ -43,155 +41,96 @@
 }
 
 /* ========================================
-   浅色主题样式 - 使用 html[data-theme="light"]
+   2. 编辑器内容基础样式 (主题自适应)
+   (合并 light 和 dark 的重复结构样式)
    ======================================== */
-html[data-theme="light"] #milkdown-editor .ProseMirror {
-    background-color: var(--bg-primary); /* 使用全局浅色背景 */
-    color: var(--text-primary);        /* 使用全局浅色文字 */
-}
 
 /* 标题 */
-html[data-theme="light"] #milkdown-editor h1 {
+#milkdown-editor h1 {
     font-size: 28px; font-weight: 600; margin: 24px 0 16px; padding-bottom: 8px;
     border-bottom: 2px solid var(--border-color); color: var(--text-primary);
 }
-html[data-theme="light"] #milkdown-editor h2 {
+#milkdown-editor h2 {
     font-size: 24px; font-weight: 600; margin: 20px 0 14px; color: var(--text-primary);
 }
-html[data-theme="light"] #milkdown-editor h3 {
+#milkdown-editor h3 {
     font-size: 20px; font-weight: 600; margin: 16px 0 12px; color: var(--text-primary);
 }
-html[data-theme="light"] #milkdown-editor h4,
-html[data-theme="light"] #milkdown-editor h5,
-html[data-theme="light"] #milkdown-editor h6 {
+#milkdown-editor h4,
+#milkdown-editor h5,
+#milkdown-editor h6 {
     font-weight: 600; margin: 12px 0 10px; color: var(--text-primary);
 }
 
 /* 段落 */
-html[data-theme="light"] #milkdown-editor p {
+#milkdown-editor p {
     margin: 0 0 16px; line-height: 1.8;
 }
 
 /* 代码 */
-html[data-theme="light"] #milkdown-editor code {
+#milkdown-editor code {
     background-color: var(--bg-secondary); color: var(--danger-color); padding: 2px 6px;
     border-radius: 3px; font-family: 'Consolas', 'Monaco', monospace; font-size: 90%;
 }
-html[data-theme="light"] #milkdown-editor pre {
+#milkdown-editor pre {
     background-color: var(--bg-secondary); padding: 16px; border-radius: 6px;
     overflow-x: auto; margin: 16px 0; border: 1px solid var(--border-color);
 }
-html[data-theme="light"] #milkdown-editor pre code {
+#milkdown-editor pre code {
     background: none; padding: 0; color: var(--text-primary);
 }
 
 /* 引用 */
-html[data-theme="light"] #milkdown-editor blockquote {
+#milkdown-editor blockquote {
     border-left: 4px solid var(--primary-color); padding-left: 16px;
     color: var(--text-secondary); margin: 16px 0; font-style: italic;
 }
 
 /* 列表 */
-html[data-theme="light"] #milkdown-editor ul,
-html[data-theme="light"] #milkdown-editor ol {
+#milkdown-editor ul,
+#milkdown-editor ol {
     margin: 16px 0; padding-left: 24px;
 }
-html[data-theme="light"] #milkdown-editor li { margin-bottom: 8px; }
+#milkdown-editor li { margin-bottom: 8px; }
 
 /* 表格 */
-html[data-theme="light"] #milkdown-editor table { border-collapse: collapse; width: 100%; margin: 16px 0; }
-html[data-theme="light"] #milkdown-editor th,
-html[data-theme="light"] #milkdown-editor td { border: 1px solid var(--border-color); padding: 8px 12px; text-align: left; }
-html[data-theme="light"] #milkdown-editor th { background-color: var(--bg-secondary); font-weight: 600; }
+#milkdown-editor table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+#milkdown-editor th,
+#milkdown-editor td { border: 1px solid var(--border-color); padding: 8px 12px; text-align: left; }
+#milkdown-editor th { background-color: var(--bg-secondary); font-weight: 600; }
 
 /* 链接 */
-html[data-theme="light"] #milkdown-editor a { color: var(--primary-color); text-decoration: none; }
-html[data-theme="light"] #milkdown-editor a:hover { text-decoration: underline; }
+#milkdown-editor a { color: var(--primary-color); text-decoration: none; }
+#milkdown-editor a:hover { text-decoration: underline; }
 
 /* 分割线 */
-html[data-theme="light"] #milkdown-editor hr { border: none; border-top: 2px solid var(--border-color); margin: 24px 0; }
+#milkdown-editor hr { border: none; border-top: 2px solid var(--border-color); margin: 24px 0; }
 
 /* 任务列表 */
-html[data-theme="light"] #milkdown-editor input[type="checkbox"] { margin-right: 8px; }
+#milkdown-editor input[type="checkbox"] { margin-right: 8px; }
 
+/* 损坏链接 (已在 Wikilink 区域合并) */
+#milkdown-editor .internal-link-broken {
+    color: var(--danger-color); text-decoration: line-through;
+    background-color: rgba(231, 76, 60, 0.1); padding: 1px 4px;
+    border-radius: 3px; cursor: not-allowed;
+}
 
 /* ========================================
-   深色主题样式 - 使用 html[data-theme="dark"]
+   3. 编辑器根元素颜色 (Theme Root Colors)
    ======================================== */
+html[data-theme="light"] #milkdown-editor .ProseMirror {
+    background-color: var(--bg-primary); 
+    color: var(--text-primary);        
+}
+
 html[data-theme="dark"] #milkdown-editor .ProseMirror {
-    background-color: var(--bg-primary); /* 使用全局深色背景 */
-    color: var(--text-primary);        /* 使用全局深色文字 */
+    background-color: var(--bg-primary); 
+    color: var(--text-primary);        
 }
-
-/* 标题 */
-html[data-theme="dark"] #milkdown-editor h1,
-html[data-theme="dark"] #milkdown-editor h2,
-html[data-theme="dark"] #milkdown-editor h3,
-html[data-theme="dark"] #milkdown-editor h4,
-html[data-theme="dark"] #milkdown-editor h5,
-html[data-theme="dark"] #milkdown-editor h6 {
-    color: var(--text-primary);
-    border-bottom-color: var(--border-color);
-}
-html[data-theme="dark"] #milkdown-editor h1 {
-    font-size: 28px; font-weight: 600; margin: 24px 0 16px; padding-bottom: 8px;
-    border-bottom-width: 2px;
-}
-html[data-theme="dark"] #milkdown-editor h2 { font-size: 24px; font-weight: 600; margin: 20px 0 14px; }
-html[data-theme="dark"] #milkdown-editor h3 { font-size: 20px; font-weight: 600; margin: 16px 0 12px; }
-html[data-theme="dark"] #milkdown-editor h4, html[data-theme="dark"] #milkdown-editor h5, html[data-theme="dark"] #milkdown-editor h6 {
-    font-weight: 600; margin: 12px 0 10px;
-}
-
-/* 段落 */
-html[data-theme="dark"] #milkdown-editor p {
-    margin: 0 0 16px; line-height: 1.8;
-}
-
-/* 代码 */
-html[data-theme="dark"] #milkdown-editor code {
-    background-color: var(--bg-secondary); color: var(--danger-color); padding: 2px 6px;
-    border-radius: 3px; font-family: 'Consolas', 'Monaco', monospace; font-size: 90%;
-}
-html[data-theme="dark"] #milkdown-editor pre {
-    background-color: var(--bg-secondary); padding: 16px; border-radius: 6px;
-    overflow-x: auto; margin: 16px 0; border: 1px solid var(--border-color);
-}
-html[data-theme="dark"] #milkdown-editor pre code {
-    color: var(--text-primary); background: none; padding: 0;
-}
-
-/* 引用 */
-html[data-theme="dark"] #milkdown-editor blockquote {
-    border-left: 4px solid var(--primary-color); padding-left: 16px;
-    color: var(--text-secondary); margin: 16px 0; font-style: italic;
-}
-
-/* 列表 */
-html[data-theme="dark"] #milkdown-editor ul,
-html[data-theme="dark"] #milkdown-editor ol {
-    margin: 16px 0; padding-left: 24px;
-}
-html[data-theme="dark"] #milkdown-editor li { margin-bottom: 8px; }
-
-/* 表格 */
-html[data-theme="dark"] #milkdown-editor table { border-collapse: collapse; width: 100%; margin: 16px 0; }
-html[data-theme="dark"] #milkdown-editor th,
-html[data-theme="dark"] #milkdown-editor td { border: 1px solid var(--border-color); padding: 8px 12px; text-align: left; }
-html[data-theme="dark"] #milkdown-editor th { background-color: var(--bg-secondary); font-weight: 600; }
-
-/* 链接 */
-html[data-theme="dark"] #milkdown-editor a { color: var(--primary-color); text-decoration: none; }
-html[data-theme="dark"] #milkdown-editor a:hover { text-decoration: underline; }
-
-/* 分割线 */
-html[data-theme="dark"] #milkdown-editor hr { border: none; border-top: 2px solid var(--border-color); margin: 24px 0; }
-
-/* 任务列表 */
-html[data-theme="dark"] #milkdown-editor input[type="checkbox"] { margin-right: 8px; }
 
 /* ========================================
-   Wikilink 双向链接样式 (使用 html[data-theme])
+   4. Wikilink 双向链接样式
    ======================================== */
 /* 浅色 */
 html[data-theme="light"] #milkdown-editor .wikilink-decoration {
@@ -227,21 +166,9 @@ html[data-theme="dark"] #milkdown-editor .wikilink-decoration:hover::after {
     pointer-events: none; z-index: 1000; margin-bottom: 4px;
 }
 
-/* 损坏链接 */
-#milkdown-editor .internal-link-broken {
-    color: var(--danger-color); text-decoration: line-through;
-    background-color: rgba(231, 76, 60, 0.1); padding: 1px 4px;
-    border-radius: 3px; cursor: not-allowed;
-}
 
 /* ========================================
-   光标和选择样式 (保持不变)
-   ======================================== */
-#milkdown-editor .ProseMirror-focused { outline: none; }
-#milkdown-editor ::selection { background-color: rgba(74, 144, 226, 0.3); }
-
-/* ========================================
-   占位符样式 (使用 html[data-theme])
+   5. 占位符 (Placeholder) 样式
    ======================================== */
 html[data-theme="light"] #milkdown-editor .ProseMirror p.is-empty:first-child::before {
     content: '开始编写您的笔记...'; color: #999; pointer-events: none;
@@ -253,20 +180,21 @@ html[data-theme="dark"] #milkdown-editor .ProseMirror p.is-empty:first-child::be
 }
 
 /* ========================================
-   滚动条样式 (使用 html[data-theme])
+   6. 滚动条 (Scrollbar) 样式
    ======================================== */
 #milkdown-editor::-webkit-scrollbar { width: 8px; }
+
 html[data-theme="light"] #milkdown-editor::-webkit-scrollbar-track { background: transparent; }
 html[data-theme="light"] #milkdown-editor::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 4px; }
 html[data-theme="light"] #milkdown-editor::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+
 html[data-theme="dark"] #milkdown-editor::-webkit-scrollbar-track { background: rgba(255, 248, 240, 0.05); }
 html[data-theme="dark"] #milkdown-editor::-webkit-scrollbar-thumb { background: rgba(255, 248, 240, 0.2); border-radius: 4px; }
 html[data-theme="dark"] #milkdown-editor::-webkit-scrollbar-thumb:hover { background: rgba(255, 248, 240, 0.35); }
 
 /* ========================================
-   行号样式 (使用 html[data-theme])
+   7. 行号 (Line Number) 样式
    ======================================== */
-/* 基础样式 */
 #milkdown-editor .line-number {
     position: absolute; left: 0; width: 35px; padding-right: 5px; text-align: right;
     font-size: 0.85em; font-family: monospace; user-select: none; pointer-events: none;
@@ -277,7 +205,16 @@ html[data-theme="light"] #milkdown-editor .line-number { color: #aaa; }
 /* 深色 */
 html[data-theme="dark"] #milkdown-editor .line-number { color: var(--text-secondary); opacity: 0.7; }
 
-/* 移除块级元素的相对定位 */
+
+/* ========================================
+   8. 杂项/修复 (Misc / Fixes)
+   ======================================== */
+
+/* 光标和选择 */
+#milkdown-editor .ProseMirror-focused { outline: none; }
+#milkdown-editor ::selection { background-color: rgba(74, 144, 226, 0.3); }
+
+/* 移除块级元素的相对定位 (行号插件需要) */
 #milkdown-editor .ProseMirror > * {
    margin-left: 0 !important;
    padding-left: 0 !important;

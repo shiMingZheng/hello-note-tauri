@@ -630,7 +630,7 @@
     padding: 10px 0; 
     max-height: 80%;  
     overflow-y: auto;
-    font-size: 13px;
+    font-size: 15px;
 	width: 100%;
 }
 
@@ -666,13 +666,14 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: var(--text-secondary);
+    color: var(--text-primary); /* ✅ 调深了字体颜色 (原为 --text-secondary) */
     transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .outline-item:hover {
     background-color: var(--hover-bg);
     color: var(--text-primary);
+	font-weight: 600;
 }
 
 .outline-item-h1 {
