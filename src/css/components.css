@@ -404,6 +404,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     position: relative;
+	min-height: 200px; /* ✅ 添加最小高度 */
     height: 100%;
     background: var(--bg-sidebar);
 }
@@ -475,6 +476,27 @@
     font-size: 13px;
     outline: none;
     box-sizing: border-box;
+}
+
+/* 拖拽中的项 */
+.dragging {
+    opacity: 0.5;
+    background: var(--primary-color-light);
+}
+
+/* 可放置目标 */
+.drag-over {
+    background: var(--primary-color-light) !important;
+    border-left: 3px solid var(--primary-color);
+}
+
+/* 拖拽悬停光标 */
+.file-list-container {
+    cursor: default;
+}
+
+.dragging {
+    cursor: grabbing !important;
 }
 
 /* 悬浮效果 - 仅改变背景和阴影 (虚拟滚动兼容) */

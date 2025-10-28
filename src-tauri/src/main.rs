@@ -15,6 +15,7 @@ mod indexing_jobs; // [新增] 导入索引任务模块
 use crate::database::DbPool;
 use crate::indexing_jobs::ControlSignal; // [新增]
 
+
 pub struct AppState {
     search_index: Mutex<Option<Arc<tantivy::Index>>>,
     current_path: Mutex<Option<String>>,
@@ -49,7 +50,8 @@ pub fn run() {
             commands::fs::delete_item,
             commands::fs::delete_folder,
             commands::fs::rename_item,
-            
+            commands::fs::move_item,
+			
             // 搜索命令
             commands::search::initialize_index_command,
             commands::search::index_files,

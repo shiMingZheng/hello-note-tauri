@@ -22,6 +22,63 @@ pub struct FileNode {
     has_children: bool,
 }
 
+#[tauri::command]
+pub async fn move_item(
+    root_path: String,
+    source_path: String,
+    target_dir: String,
+) -> Result<serde_json::Value, String> {
+    use std::path::{Path, PathBuf};
+    use std::fs;
+
+    // 构建完整路径
+    let source_full = PathBuf::from(&root_path).join(&source_path);
+    let target_dir_full = PathBuf::from(&root_path).join(&target_dir);
+    
+    // 获取文件/文件夹名称
+    let item_name = source_full
+        .file_name()
+        .ok_or("无法获取文件名")?
+        .to_str()
+        .ok_or("文件名编码错误")?;
+    
+    // 构建目标路径
+    let target_full = target_dir_full.join(item_name);
+    
+    // 检查源路径是否存在
+    if !source_full.exists() {
+        return Err(format!("源路径不存在: {:?}", source_full));
+    }
+    
+    // 检查目标目录是否存在
+    if !target_dir_full.exists() {
+        return Err(format!("目标目录不存在: {:?}", target_dir_full));
+    }
+    
+    // 检查目标路径是否已存在
+    if target_full.exists() {
+        return Err(format!("目标位置已存在同名文件: {}", item_name));
+    }
+    
+    // 执行移动
+    fs::rename(&source_full, &target_full)
+        .map_err(|e| format!("移动失败: {}", e))?;
+    
+    // 构建新的相对路径
+    let new_relative_path = PathBuf::from(&target_dir)
+        .join(item_name)
+        .to_str()
+        .ok_or("路径转换失败")?
+        .replace("\\", "/");  // 统一使用 /
+    
+    Ok(serde_json::json!({
+        "success": true,
+        "old_path": source_path,
+        "new_path": new_relative_path,
+        "message": format!("已移动到 {}", target_dir)
+    }))
+}
+
 /// 递归收集文件夹下的所有 .md 文件的相对路径
 /// [FIX] This function should now return Vec<String> and standardize paths
 fn collect_markdown_files(

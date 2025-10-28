@@ -86,6 +86,13 @@ export function setupVirtualScroll() {
     console.log('✅ 虚拟滚动已设置');
 	// 🆕 添加点击事件委托
 	fileListElement.addEventListener('click', (e) => {
+		 // ✅ 拖拽期间忽略点击事件
+		if (dragDropManager.isDragging) {
+			console.log('⏸️ 拖拽中，忽略点击事件');
+			e.preventDefault();
+			e.stopPropagation();
+			return;
+		}
 		const li = e.target.closest('li');
 		if (!li) return;
 		if (li.querySelector('.rename-input')) return;
@@ -167,6 +174,11 @@ function handleVirtualScroll() {
  * @param {number} endIndex - 结束索引
  */
 function renderVisibleItems(startIndex, endIndex) {
+	// ✅ 拖拽期间禁止重新渲染 DOM
+    if (dragDropManager.isDragging) {
+        console.log('⏸️ 拖拽中，跳过虚拟滚动渲染');
+        return;
+    }
     const { visibleItems } = appState.virtualScroll;
     const fragment = document.createDocumentFragment();
     
