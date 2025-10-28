@@ -101,9 +101,11 @@
 
         <div id="context-menu" class="context-menu">
             <ul>
-			     <li id="rename-item-btn" class="context-menu-btn">重命名</li>
+			    <li id="rename-item-btn" class="context-menu-btn">🖊 重命名</li>
                 <li id="pin-note-btn">📌 置顶笔记</li>
                 <li id="unpin-note-btn" style="display: none;">📌 取消置顶</li>
+				<li id="favorite-note-btn">⭐ 收藏</li>
+				<li id="unfavorite-note-btn" style="display: none;">取消收藏</li>
                 <li id="new-note-btn">📄 新建笔记</li>
                 <li id="new-folder-btn">📁 新建文件夹</li>
                 <li id="delete-file-btn">🗑️ 删除</li>
@@ -127,8 +129,22 @@
             <div id="content-area">
                 <div id="homepage" class="tab-content active">
                     <div class="homepage-section">
-                        <h3>📌 置顶笔记</h3>
-                        <div id="pinned-notes-grid" class="pinned-notes-grid"></div>
+                        <!-- ✅ 新增 Tab 切换栏 -->
+						<div class="homepage-header">
+							<div class="homepage-tabs">
+								<button id="pinned-tab" class="homepage-tab active">📌 置顶</button>
+								<button id="favorited-tab" class="homepage-tab">⭐ 收藏</button>
+							</div>
+						</div>
+						<!-- 置顶内容区 (默认显示) -->
+						<div id="pinned-section" class="homepage-content-section">
+							<div id="pinned-notes-grid" class="pinned-notes-grid"></div>
+						</div>
+						
+						<!-- 收藏内容区 (默认隐藏) -->
+						<div id="favorited-section" class="homepage-content-section" style="display:none;">
+							<div id="favorited-notes-grid" class="pinned-notes-grid"></div>
+						</div>
                     </div>
                     <hr class="section-divider">
                     <div class="homepage-section">

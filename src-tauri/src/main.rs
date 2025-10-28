@@ -78,7 +78,12 @@ pub fn run() {
             commands::links::get_backlinks,
             commands::links::get_graph_data,
             commands::path_utils::migrate_paths_to_relative,
-            commands::history::get_history
+            commands::history::get_history,
+			commands::pins::favorite_note,      // ✅ 新增
+			commands::pins::unfavorite_note,    // ✅ 新增
+			commands::pins::get_favorited_notes,// ✅ 新增
+			commands::pins::is_favorited,      // ✅ 新增
+			commands::pins::is_pinned
         ])
         .setup(|app| {
             println!("🚀 CheetahNote 正在启动...");

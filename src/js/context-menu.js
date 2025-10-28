@@ -85,6 +85,20 @@ class ContextMenuManager {
                 window.eventBus?.emit('context-menu:unpin-note', appState.contextTarget);
             });
         }
+		 // ✅ 新增: 收藏按钮绑定
+		if (domElements.favoriteNoteBtn) {
+			domElements.favoriteNoteBtn.addEventListener('click', () => {
+				this.hide();
+				window.eventBus?.emit('context-menu:favorite-note', appState.contextTarget);
+			});
+		}
+		
+		if (domElements.unfavoriteNoteBtn) {
+			domElements.unfavoriteNoteBtn.addEventListener('click', () => {
+				this.hide();
+				window.eventBus?.emit('context-menu:unfavorite-note', appState.contextTarget);
+			});
+		}
     }
     
     /**
@@ -128,21 +142,39 @@ class ContextMenuManager {
         if (domElements.renameItemBtn) domElements.renameItemBtn.style.display = 'block';
         if (domElements.pinNoteBtn) domElements.pinNoteBtn.style.display = 'none';
         if (domElements.unpinNoteBtn) domElements.unpinNoteBtn.style.display = 'none';
-        
+        if(domElements.favoriteNoteBtn)domElements.favoriteNoteBtn.style.display = 'none';      // ✅ 新增
+        if(domElements.unfavoriteNoteBtn)domElements.unfavoriteNoteBtn.style.display = 'none';    // ✅ 新增
+		
         // 根据来源和类型显示菜单项
-        if (fileItem.from === 'pinned-section') {
-            // 置顶区域的笔记
-            if (domElements.unpinNoteBtn) domElements.unpinNoteBtn.style.display = 'block';
-        } else if (fileItem.is_dir) {
-            // 文件夹
-            if (domElements.newNoteBtn) domElements.newNoteBtn.style.display = 'block';
-            if (domElements.newFolderBtn) domElements.newFolderBtn.style.display = 'block';
-            if (domElements.deleteFileBtn) domElements.deleteFileBtn.style.display = 'block';
-        } else {
-            // 普通文件
-            if (domElements.pinNoteBtn) domElements.pinNoteBtn.style.display = 'block';
-            if (domElements.deleteFileBtn) domElements.deleteFileBtn.style.display = 'block';
-        }
+        // 根据来源和类型显示菜单项
+		if (fileItem.from === 'pinned-section') {
+			// 置顶区域的笔记:只显示取消置顶
+			if (domElements.unpinNoteBtn) domElements.unpinNoteBtn.style.display = 'block';
+			
+			// ✅ 新增:在置顶区域也查询收藏状态
+			this.updateFavoriteButtons(fileItem.path);
+			
+		} else if (fileItem.from === 'favorited-section') {
+			// ✅ 新增:收藏区域的笔记:只显示取消收藏
+			if (domElements.unfavoriteNoteBtn) domElements.unfavoriteNoteBtn.style.display = 'block';
+			
+			// 也可以显示置顶按钮
+			this.updatePinButtons(fileItem.path);
+			
+		} else if (fileItem.is_dir) {
+			// 文件夹
+			if (domElements.newNoteBtn) domElements.newNoteBtn.style.display = 'block';
+			if (domElements.newFolderBtn) domElements.newFolderBtn.style.display = 'block';
+			if (domElements.deleteFileBtn) domElements.deleteFileBtn.style.display = 'block';
+		} else {
+			// 普通文件:显示置顶和收藏按钮
+			if (domElements.deleteFileBtn) domElements.deleteFileBtn.style.display = 'block';
+			
+			// ✅ 查询置顶状态
+			this.updatePinButtons(fileItem.path);
+			// ✅ 查询收藏状态
+			this.updateFavoriteButtons(fileItem.path);
+		}
     }
     
     /**
@@ -153,6 +185,46 @@ class ContextMenuManager {
             domElements.contextMenu.classList.remove('visible');
         }
     }
+	/**
+	* 更新置顶按钮显示状态
+	*/
+	async updatePinButtons(filePath) {
+		try {
+			const { invoke } = await import('./core/TauriAPI.js');
+			const isPinned = await invoke('is_pinned', { relativePath: filePath });
+
+			if (domElements.pinNoteBtn) {
+				domElements.pinNoteBtn.style.display = isPinned ? 'none' : 'block';
+			}
+			if (domElements.unpinNoteBtn) {
+				domElements.unpinNoteBtn.style.display = isPinned ? 'block' : 'none';
+			}
+		} catch (error) {
+			console.warn('查询置顶状态失败:', error);
+		}
+	}
+	
+	/**
+	* 更新收藏按钮显示状态
+	*/
+	async updateFavoriteButtons(filePath) {
+		try {
+			const { invoke } = await import('./core/TauriAPI.js');
+			const isFavorited = await invoke('is_favorited', { relativePath: filePath });
+
+			if (domElements.favoriteNoteBtn) {
+				domElements.favoriteNoteBtn.style.display = isFavorited ? 'none' : 'block';
+			}
+			if (domElements.unfavoriteNoteBtn) {
+				domElements.unfavoriteNoteBtn.style.display = isFavorited ? 'block' : 'none';
+			}
+		} catch (error) {
+			console.warn('查询收藏状态失败:', error);
+			// 出错时默认显示"收藏"按钮
+			if (domElements.favoriteNoteBtn) domElements.favoriteNoteBtn.style.display = 'block';
+			if (domElements.unfavoriteNoteBtn) domElements.unfavoriteNoteBtn.style.display = 'none';
+		}
+	}
 }
 
 // 创建单例

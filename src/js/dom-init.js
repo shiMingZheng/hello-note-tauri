@@ -74,6 +74,12 @@ export const domElements = {
     homepage: null,
     historyList: null,
     pinnedNotesGrid: null,
+	// 首页 - 收藏功能
+	pinnedTab: null,
+	favoritedTab: null,
+	pinnedSection: null,
+	favoritedSection: null,
+	favoritedNotesGrid: null,
     
     // 对话框
     customConfirmDialog: null,
@@ -138,6 +144,8 @@ export function initializeDOMElements() {
         domElements.renameItemBtn = getElement('rename-item-btn');
         domElements.pinNoteBtn = getElement('pin-note-btn');
         domElements.unpinNoteBtn = getElement('unpin-note-btn');
+		domElements.favoriteNoteBtn = getElement('favorite-note-btn');
+		domElements.unfavoriteNoteBtn = getElement('unfavorite-note-btn');
         
         // 根目录按钮
         domElements.newNoteRootBtn = getElement('new-note-root-btn');
@@ -167,6 +175,12 @@ export function initializeDOMElements() {
         domElements.homepage = getElement('homepage');
         domElements.historyList = getElement('history-list');
         domElements.pinnedNotesGrid = getElement('pinned-notes-grid');
+		// 首页 - 收藏功能
+		domElements.pinnedTab = getElement('pinned-tab');
+		domElements.favoritedTab = getElement('favorited-tab');
+		domElements.pinnedSection = getElement('pinned-section');
+		domElements.favoritedSection = getElement('favorited-section');
+		domElements.favoritedNotesGrid = getElement('favorited-notes-grid');
         
         // 对话框
         domElements.customConfirmDialog = getElement('custom-confirm-dialog');

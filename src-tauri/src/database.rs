@@ -74,7 +74,22 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         )?;
         println!("✅ 'indexed' 字段添加完成！");
     }
-
+    
+	
+	// === 迁移 5: 为 files 表添加 is_favorited 字段 ===
+	let mut stmt = conn.prepare("PRAGMA table_info(files)")?;
+	let column_exists = stmt.query_map([], |row| {
+		let column_name: String = row.get(1)?;
+		Ok(column_name)
+	})?.any(|col| col.as_deref() == Ok("is_favorited"));
+	if !column_exists {
+	println!("🔀 迁移数据库:正在为 'files' 表添加 'is_favorited' 字段...");
+	conn.execute(
+	"ALTER TABLE files ADD COLUMN is_favorited INTEGER DEFAULT 0",
+	[],
+	)?;
+	println!("✅ 'is_favorited' 字段添加完成!");
+	}
 	
 
     Ok(())
@@ -121,7 +136,7 @@ pub fn init_database(app_data_dir: &Path) -> Result<DbPool> {
         CREATE INDEX IF NOT EXISTS idx_files_pinned ON files (is_pinned);
         CREATE INDEX IF NOT EXISTS idx_files_is_dir ON files (is_dir);
 		CREATE INDEX IF NOT EXISTS idx_files_indexed ON files (indexed);
-
+		CREATE INDEX IF NOT EXISTS idx_files_favorited ON files (is_favorited);
         CREATE TABLE IF NOT EXISTS tags (
             id      INTEGER PRIMARY KEY,
             name    TEXT NOT NULL UNIQUE

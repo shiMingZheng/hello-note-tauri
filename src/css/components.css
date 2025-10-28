@@ -275,12 +275,6 @@
 }
 
 
-.file-list li.active {
-    background-color: #e0eaf6; /* 使用一个柔和的蓝色背景 */
-     color: #3b82f6;            /* 字体颜色也变为蓝色 */
-     font-weight: 500;           /* 字体稍微加粗 */
-
-}
 
 .file-list li.folder {
     font-weight: 500;
@@ -290,6 +284,52 @@
      font-weight: 400;
 }
 
+
+/* ========================================
+   侧边栏文件列表悬浮效果，不使用 transform (虚拟滚动兼容)
+   ======================================== */
+
+
+/* ✅ 悬浮效果 - 仅改变背景和阴影 */
+.file-list li:hover {
+    background-color: var(--hover-bg);
+    box-shadow: inset 3px 0 0 var(--primary-color);  /* ✅ 内阴影作为左侧色条 */
+    color: var(--text-primary);
+    /* ❌ 移除: transform: translateX(4px) - 会影响布局 */
+    /* ❌ 移除: padding-left 变化 - 会影响布局 */
+}
+
+/* ✅ 文件夹特殊悬浮效果 */
+.file-list li.folder:hover {
+    background: linear-gradient(to right, 
+        rgba(74, 144, 226, 0.08) 0%, 
+        transparent 100%
+    );
+    box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+/* ✅ 文件特殊悬浮效果 */
+.file-list li.file:hover {
+    background: linear-gradient(to right, 
+        rgba(16, 185, 129, 0.06) 0%, 
+        transparent 100%
+    );
+    box-shadow: inset 3px 0 0 #10b981;
+}
+/* ✅ 激活/选中状态 */
+.file-list li.active,
+.file-list li.selected {
+    background-color: rgba(74, 144, 226, 0.1);
+    color: var(--primary-color);
+    font-weight: 550;
+    box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+/* ✅ 文件名文字悬浮效果 */
+.file-list li:hover .item-name {
+    color: var(--text-primary);
+    font-weight: 550;
+}
 
 .file-list-container::-webkit-scrollbar {
     width: 8px;
@@ -682,12 +722,12 @@
 
 /* 为首页的每个区域（置顶、最近）提供统一的内边距 */
 .homepage-section {
-    padding: 25px 40px;
+    padding: 25px 25px;
 }
 
 /* 统一控制两个区域的标题字体大小和样式 */
 .homepage-section h3 {
-    font-size: 18px;
+    font-size: 30px;
     color: var(--text-primary);
     margin: 0 0 20px 0; /* 移除顶部外边距，增加底部外边距 */
 }
@@ -696,7 +736,7 @@
 .section-divider {
     border: none;
     border-top: 1px solid var(--border-color);
-    margin: 0 40px;
+    margin: 0 20px;
 }
 
 /* --- 置顶笔记网格样式 --- */
@@ -1670,19 +1710,6 @@ a.internal-link:hover {
     margin-right: 6px;
 }
 
-/* 如果你的图标颜色需要根据主题变化 (仅适用于 SVG) */
-/*
-.icon-btn img.icon-img,
-.context-menu ul li img.icon-img {
-    filter: invert(var(--icon-invert-value, 0)); // 浅色主题为 0, 深色主题为 1
-}
-:root[data-theme="dark"] {
-    --icon-invert-value: 1;
-}
-*/
-
-/* src/css/components.css */
-
 .outline-back-btn {
     padding: 4px 6px; /* 调整内边距使按钮更小 */
     font-size: 16px;  /* 调整字体大小 */
@@ -1702,3 +1729,58 @@ a.internal-link:hover {
     text-align: center; /* 尝试居中标题 */
     flex-grow: 1; /* 让标题占据剩余空间 */
 }
+
+/* ========================================
+   首页 Tab 切换按钮优化
+   ======================================== */
+
+.homepage-header {
+    margin-bottom: 30px;
+    padding: 0;
+}
+
+.homepage-tabs {
+    display: flex;
+    gap: 30px;  /* ✅ 更大的间距 */
+    background: var(--bg-secondary);  /* ✅ 整体背景 */
+    padding: 8px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* ✅ 按钮样式 - 更大更突出 */
+.homepage-tab {
+    padding: 14px 28px;           /* ✅ 更大的内边距 */
+    font-size: 16px;              /* ✅ 更大的字体 */
+    font-weight: 600;
+    border: 2px solid transparent;
+    background: transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 140px;             /* ✅ 更宽的按钮 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.homepage-tab:hover {
+    background: rgba(255, 255, 255, 0.5);
+    color: var(--text-primary);
+   
+}
+
+
+/* ✅ 置顶按钮激活状态 - 简约灰色 */
+.homepage-tab.active {
+    background: #e9ecef; /* 主要修改这里 (一个淡灰色) */
+    color: #333; /* 文字颜色需要改成深色才能看清 */
+    border-color: #ced4da; /* 相应修改边框色 */
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.1), /* 相应修改阴影色 (一个通用的淡阴影) */
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+

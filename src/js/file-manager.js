@@ -660,6 +660,48 @@ async function handleCreateFolderInRoot() {
     });
 }
 
+// ============================================
+// 收藏功能处理函数
+// ============================================
+
+/**
+ * 处理收藏笔记
+ */
+async function handleFavoriteNote() {
+    hideContextMenu();
+    
+    const targetPath = appState.contextTarget.path;
+    
+    try {
+        await invoke('favorite_note', { relativePath: targetPath });
+        showSuccessMessage('已添加到收藏');
+        eventBus.emit('file:favorited', targetPath);
+        console.log('⭐ 笔记已收藏:', targetPath);
+    } catch (error) {
+        console.error('❌ 收藏失败:', error);
+        showError('收藏失败: ' + error);
+    }
+}
+
+/**
+ * 处理取消收藏笔记
+ */
+async function handleUnfavoriteNote() {
+    hideContextMenu();
+    
+    const targetPath = appState.contextTarget.path;
+    
+    try {
+        await invoke('unfavorite_note', { relativePath: targetPath });
+        showSuccessMessage('已取消收藏');
+        eventBus.emit('file:unfavorited', targetPath);
+        console.log('⭐ 已取消收藏:', targetPath);
+    } catch (error) {
+        console.error('❌ 取消收藏失败:', error);
+        showError('取消收藏失败: ' + error);
+    }
+}
+
 // ES Module 导出
 export {
     handleCreateNoteInRoot,
@@ -676,7 +718,9 @@ export {
     handlePinNote,
     handleUnpinNote,
     handleRenameItem,
-    toggleFolderLazy  // 👈 确保有这一行
+    toggleFolderLazy,  // 👈 确保有这一行
+	handleFavoriteNote,      // ✅ 新增
+    handleUnfavoriteNote,   // ✅ 新增
 };
 
 // ⭐ 订阅右键菜单事件
