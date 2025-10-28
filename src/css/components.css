@@ -533,8 +533,11 @@
 
 /* 文件名文字悬浮效果 */
 .file-list li:hover .item-name {
+	display: flex;
+	align-items: center; /* ✅ 垂直居中 */
     color: var(--text-primary);
     font-weight: 550;
+	cursor: default
 }
 
 /* 滚动条样式 */
