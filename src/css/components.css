@@ -1,8 +1,58 @@
-/* src/css/components.css */
+/* src/css/components.css (重构优化版) */
 
 /* ========================================
-   侧边栏组件
+   1. 应用布局 (App Layout)
    ======================================== */
+
+/* 1.1. 最左侧工具栏 */
+.app-toolbar {
+    width: 50px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* 工具栏折叠按钮 - 始终可见 */
+.toolbar-collapse-btn {
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all var(--transition-speed);
+    margin-bottom: 8px; /* 与其他按钮分隔 */
+}
+
+.toolbar-icon-btn {
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: background-color var(--transition-speed);
+}
+
+.toolbar-icon-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* 1.2. 侧边栏容器 (Sidebar) */
 .sidebar {
     width: 260px;
     min-width: 200px;
@@ -15,7 +65,7 @@
     transition: width 0.05s ease, opacity 0.05s ease; /* ✅ 添加过渡动画 */
 }
 
-/* ✅ 侧边栏折叠状态 */
+/* 侧边栏折叠状态 (合并重复定义) */
 .sidebar.collapsed {
     width: 0 !important;
     min-width: 0;
@@ -24,6 +74,11 @@
     border-right: none;
     pointer-events: none; /* 折叠时禁用点击 */
 }
+
+.sidebar.collapsed > * {
+    display: none;
+}
+
 /* 侧边栏拖动手柄 */
 .sidebar-resize-handle {
     position: absolute;
@@ -60,30 +115,139 @@
     opacity: 1;
 }
 
+/* 1.3. 主内容区 (Main Content) */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column; /* 确保子元素垂直排列 */
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+/* 1.4. 主内容区头部 (多页签) */
+.main-header {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    flex-shrink: 0;
+}
+
+.static-tabs, .dynamic-tabs {
+    display: flex;
+}
+
+.dynamic-tabs {
+    overflow-x: auto;
+    display: flex; 
+    align-items: center; 
+	justify-content: flex-start; 
+}
+.dynamic-tabs::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+    position: relative;
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    background-color: var(--bg-primary);
+    border-bottom-color: var(--primary-color);
+    font-weight: 500;
+}
+
+.dynamic-tab-item {
+    padding-right: 30px; /* 为关闭按钮留出空间 */
+}
+
+.close-tab-btn {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+.close-tab-btn:hover {
+    background-color: #ddd;
+    color: #333;
+}
+.tab-btn.active .close-tab-btn {
+    color: var(--text-primary);
+}
+
+.add-tab-btn {
+    margin-left: 4px; 
+    margin-right: 8px;
+    flex-shrink: 0; 
+}
+
+/* 头部右侧动作按钮 */
+.main-header-actions {
+    margin-left: auto; /* 将按钮推到最右侧 */
+    display: flex;
+    gap: 10px;
+}
+
+/* 头部伸缩占位 */
+.header-spacer {
+    flex-grow: 1; /* 这个元素将占据所有可用的多余空间 */
+}
+
+/* 1.5. 主内容区 - 页签内容 */
+#content-area {
+    position: relative;
+    flex-grow: 1;
+    overflow: hidden;
+	display: flex; /* [关键] 让 #content-area 成为 flex 容器 */
+}
+
+/* 页签内容面板 */
+.tab-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    flex-direction: column;
+}
+
+/* 激活的页签内容 (合并重复定义) */
+.tab-content.active {
+    display: flex;
+}
+
+
+/* ========================================
+   2. 侧边栏组件 (Sidebar Components)
+   ======================================== */
+
+/* 2.1. 侧边栏头部 */
 .sidebar-header {
     padding: 10px 15px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 10px; /* 新增间距 */
-}
-
-.sidebar-collapse-btn:hover {
-    background-color: var(--hover-bg);
-    color: var(--text-primary);
-}
-/* 侧边栏折叠状态 */
-.sidebar.collapsed {
-    width: 0 !important;
-    min-width: 0;
-    opacity: 0;
-    overflow: hidden;
-    border-right: none;
-}
-
-.sidebar.collapsed > * {
-    display: none;
+    gap: 10px; 
 }
 
 .sidebar-title {
@@ -93,94 +257,76 @@
     white-space: nowrap;
 }
 
-.sidebar-actions {
-    padding: 15px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.sidebar-collapse-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-primary);
 }
 
-/* ========================================
-   搜索框组件
-   ======================================== */
-/* 修改搜索框样式 */
-/* 搜索框组件 - 始终显示 */
+/* 侧边栏头部动作区 (合并重复定义) */
+.sidebar-header-actions {
+    display: flex;
+    gap: 4px;
+}
+
+/* 侧边栏头部图标按钮 (合并重复定义) */
+.icon-btn {
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px; /* 最终使用 14px */
+    padding: 6px 8px;   /* 最终使用带边框的 padding */
+    line-height: 1;
+    transition: all 0.2s;
+}
+
+.icon-btn:hover {
+    background: #f0f0f0;
+    border-color: #999;
+}
+
+.icon-btn:active {
+    transform: scale(0.95);
+}
+
+/* 2.2. 搜索框 */
 .search-box {
     padding: 10px 15px;
     border-bottom: 1px solid var(--border-color);
-    display: block; /* 明确设置为 block */
-}
-.file-list .item-name {
-    display: inline-flex;
-    align-items: center;
-    flex: 1;
-    overflow: visible; /* 关键:允许输入框溢出显示 */
-}
-
-/* 删除 .search-box.active 样式 */
-
-.search-box.active {
-    display: block;
+    display: block; 
 }
 
 .search-input-wrapper {
     position: relative;
     display: flex;
     align-items: center;
-    /* 修正：使用更适合浅色背景的边框和背景 */
     background: #ffffff;
     border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 0 10px;
     transition: all var(--transition-speed);
-	color: var(--text-primary); /* 使用变量 */
-	caret-color: var(--text-primary); /* 使用变量 */
+	color: var(--text-primary); 
+	caret-color: var(--text-primary); 
 }
 
 .search-input-wrapper:hover,
 .search-input-wrapper:focus-within {
-    /* 修正：移除透明背景，直接使用边框颜色高亮 */
     background: #ffffff;
     border-color: var(--primary-color);
 }
 
 .search-icon {
-    /* 修正：使用次要文字颜色 */
     color: var(--text-secondary);
     margin-right: 8px;
     font-size: 14px;
 }
 
+/* 搜索输入框 (合并重复定义，使用变量版本) */
 #search-input {
     flex: 1;
     background: transparent;
     border: none;
-    /* 修正：使用主要文字颜色 */
-	color: var(--text-primary);
-    padding: 8px 0;
-    font-size: 14px;
-    outline: none;
-}
-
-.clear-search-btn {
-    background: transparent;
-    border: none;
-    /* 修正：使用次要文字颜色 */
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 4px;
-    font-size: 14px;
-    transition: color var(--transition-speed);
-}
-
-.clear-search-btn:hover {
-    /* 修正：悬停时使用主要文字颜色 */
-    color: var(--text-primary);
-}
-
-#search-input {
-    flex: 1;
-    background: transparent;
-    border: none;
-	color: #000000;
+	color: var(--text-primary); /* 使用变量 */
     padding: 8px 0;
     font-size: 14px;
     outline: none;
@@ -191,10 +337,11 @@
     opacity: 1;
 }
 
+/* 清除按钮 (合并重复定义，使用变量版本) */
 .clear-search-btn {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary); /* 使用变量 */
     cursor: pointer;
     padding: 4px;
     font-size: 14px;
@@ -202,13 +349,56 @@
 }
 
 .clear-search-btn:hover {
-    color: var(--text-light);
+    color: var(--text-primary); /* 使用变量 */
 }
 
+/* 2.3. 搜索结果浮层 */
+.search-results {
+    position: absolute;
+    top: 98px; /* 根据你的布局微调，确保在搜索框下方 */
+    left: 10px;
+    right: 10px;
+    background-color: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+    max-height: 400px;
+    overflow-y: auto;
+}
 
-/* ========================================
-   文件列表组件
-   ======================================== */
+.search-results li {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.search-results li:last-child {
+    border-bottom: none;
+}
+
+.search-results li:hover {
+    background-color: #e9ecef;
+}
+
+.search-result-title {
+    color: var(--text-primary); 
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.search-result-snippet {
+    color: var(--text-secondary); 
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.search-result-snippet b {
+    color: var(--text-primary); 
+    font-weight: 600;
+}
+
+/* 2.4. 文件列表 */
 .file-list-container {
     flex: 1;
     overflow-y: auto;
@@ -217,9 +407,140 @@
     height: 100%;
     background: var(--bg-sidebar);
 }
-/* ... .file-list-container 样式之后 ... */
 
-/* [新增] “我的标签”列表样式 */
+.file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.file-list li {
+    cursor: pointer;
+    padding: 0 15px;
+    transition: background-color 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+}
+
+.file-list li.folder {
+    font-weight: 500;
+}
+
+.file-list li.file {
+     font-weight: 400;
+}
+
+/* 文件/文件夹名称 */
+.file-list .item-name {
+    display: inline-flex;
+    align-items: center;
+    flex: 1;
+    overflow: visible; /* 允许输入框溢出显示 */
+}
+
+/* 文件夹展开指示器 */
+.folder-arrow {
+    display: inline-block;
+    width: 14px;
+    margin-right: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    transition: color 0.2s ease;
+    user-select: none;
+}
+
+.item-name:hover .folder-arrow {
+    color: var(--primary-color);
+}
+
+/* 文件项左侧对齐 (为没有箭头的文件添加占位) */
+#file-list li.file .item-name {
+    padding-left: 20px; /* 14px(箭头) + 6px(间距) */
+}
+
+/* 文件重命名输入框 */
+.rename-input {
+    flex: 1;
+    min-width: 100px;
+    max-width: calc(100% - 30px);
+    padding: 2px 6px;
+    margin-left: 5px;
+    border: 1px solid var(--primary-color);
+    border-radius: 4px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    box-sizing: border-box;
+}
+
+/* 悬浮效果 - 仅改变背景和阴影 (虚拟滚动兼容) */
+.file-list li:hover {
+    background-color: var(--hover-bg);
+    box-shadow: inset 3px 0 0 var(--primary-color);  /* ✅ 内阴影作为左侧色条 */
+    color: var(--text-primary);
+}
+
+.file-list li.folder:hover {
+    background: linear-gradient(to right, 
+        rgba(74, 144, 226, 0.08) 0%, 
+        transparent 100%
+    );
+    box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+.file-list li.file:hover {
+    background: linear-gradient(to right, 
+        rgba(16, 185, 129, 0.06) 0%, 
+        transparent 100%
+    );
+    box-shadow: inset 3px 0 0 #10b981;
+}
+
+/* 激活/选中状态 */
+.file-list li.active,
+.file-list li.selected {
+    background-color: rgba(74, 144, 226, 0.1);
+    color: var(--primary-color);
+    font-weight: 550;
+    box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+/* 文件名文字悬浮效果 */
+.file-list li:hover .item-name {
+    color: var(--text-primary);
+    font-weight: 550;
+}
+
+/* 滚动条样式 */
+.file-list-container::-webkit-scrollbar {
+    width: 8px;
+}
+.file-list-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+.file-list-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+.file-list-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* 虚拟滚动占位 */
+#file-list-spacer {
+    width: 1px;
+}
+
+/* 2.5. 侧边栏通用区块 */
+.sidebar-actions {
+    padding: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .sidebar-section-header {
     display: flex;
     justify-content: space-between;
@@ -235,6 +556,7 @@
     color: var(--text-primary);
 }
 
+/* 2.6. 侧边栏 - 当前文件标签 */
 .current-file-tags-list {
     padding: 0 15px 10px;
     list-style: none;
@@ -256,150 +578,289 @@
     color: var(--text-secondary);
 }
 
-/* ... 文件末尾的其他样式 ... */
-
-.file-list {
+/* 2.7. 侧边栏 - 反向链接 */
+.backlinks-list {
     list-style: none;
-    margin: 0;
-    padding: 0;
+    padding: 0 15px 15px;
+    font-size: 13px;
+    max-height: 150px; /* 限制一个最大高度 */
+    overflow-y: auto;
 }
 
-.file-list li {
+.backlinks-list li {
+    padding: 4px 0;
     cursor: pointer;
-    padding: 0 15px;
-    transition: background-color 0.15s ease;
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    user-select: none;
 }
 
-
-
-.file-list li.folder {
-    font-weight: 500;
-}
-
-.file-list li.file {
-     font-weight: 400;
-}
-
-
-/* ========================================
-   侧边栏文件列表悬浮效果，不使用 transform (虚拟滚动兼容)
-   ======================================== */
-
-
-/* ✅ 悬浮效果 - 仅改变背景和阴影 */
-.file-list li:hover {
-    background-color: var(--hover-bg);
-    box-shadow: inset 3px 0 0 var(--primary-color);  /* ✅ 内阴影作为左侧色条 */
-    color: var(--text-primary);
-    /* ❌ 移除: transform: translateX(4px) - 会影响布局 */
-    /* ❌ 移除: padding-left 变化 - 会影响布局 */
-}
-
-/* ✅ 文件夹特殊悬浮效果 */
-.file-list li.folder:hover {
-    background: linear-gradient(to right, 
-        rgba(74, 144, 226, 0.08) 0%, 
-        transparent 100%
-    );
-    box-shadow: inset 3px 0 0 var(--primary-color);
-}
-
-/* ✅ 文件特殊悬浮效果 */
-.file-list li.file:hover {
-    background: linear-gradient(to right, 
-        rgba(16, 185, 129, 0.06) 0%, 
-        transparent 100%
-    );
-    box-shadow: inset 3px 0 0 #10b981;
-}
-/* ✅ 激活/选中状态 */
-.file-list li.active,
-.file-list li.selected {
-    background-color: rgba(74, 144, 226, 0.1);
+.backlinks-list li:hover {
     color: var(--primary-color);
-    font-weight: 550;
-    box-shadow: inset 3px 0 0 var(--primary-color);
 }
 
-/* ✅ 文件名文字悬浮效果 */
-.file-list li:hover .item-name {
-    color: var(--text-primary);
-    font-weight: 550;
-}
-
-.file-list-container::-webkit-scrollbar {
-    width: 8px;
-}
-
-.file-list-container::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.file-list-container::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-}
-
-.file-list-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-}
-
-#file-list-spacer {
-    width: 1px;
-}
-
-/* ========================================
-   按钮组件
-   ======================================== */
-.btn-primary,
-.btn-secondary,
-.btn-danger {
-    padding: 8px 16px;
-    border: none;
+/* 2.8. 侧边栏 - “所有标签”浮层 */
+.tags-popover {
+    position: absolute;
+    top: 50px; /* 位于头部下方 */
+    left: 10px;
+    right: 10px;
+    background-color: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-speed);
-    width: 100%;
-}
-
-.btn-primary {
-    background: var(--primary-color);
-    color: white;
-}
-
-.btn-primary:hover {
-    background: #3a7bc8;
-    transform: translateY(-1px);
     box-shadow: var(--shadow-md);
+    z-index: 100;
+    padding: 10px;
+    max-height: 300px; /* 限制最大高度 */
+    overflow-y: auto;
 }
 
-.btn-secondary {
-    background: var(--bg-secondary);
+/* 2.9. 侧边栏 - 大纲 (Outline) 浮层 */
+.outline-popover {
+    position: absolute; 
+    top: 50px;         
+    left: 0px;
+    right: 10px;
+    background-color: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+    padding: 10px 0; 
+    max-height: 80%;  
+    overflow-y: auto;
+    font-size: 13px;
+	width: 100%;
+}
+
+.outline-popover .sidebar-section-header {
+    display: flex;
+    justify-content: space-between; 
+    align-items: center;
+    padding: 5px 10px; 
+    border-bottom: 1px solid var(--border-color); 
+}
+ .outline-popover .sidebar-section-header h3 {
+    margin: 0; 
+    text-align: center; 
+    flex-grow: 1; 
+}
+
+.outline-back-btn {
+    padding: 4px 6px; 
+    font-size: 16px;  
+    border: none;
+    background: none;
+}
+
+.outline-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.outline-item {
+    padding: 6px 15px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-secondary);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.outline-item:hover {
+    background-color: var(--hover-bg);
     color: var(--text-primary);
 }
 
-.btn-secondary:hover {
-    background: #e9ecef;
+.outline-item-h1 {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.outline-item-h2 {
+    font-weight: 500;
 }
 
-.btn-danger {
-    background: var(--danger-color);
-    color: white;
+.outline-empty {
+    padding: 10px 15px;
+    color: var(--text-secondary);
+    font-style: italic;
 }
 
-.btn-danger:hover {
-    background: #c0392b;
-}
 
 /* ========================================
-   欢迎屏幕组件
+   3. 主内容区 - 首页 (Homepage)
    ======================================== */
+#homepage {
+    overflow-y: auto;
+    padding: 0; 
+}
+
+/* 3.1. 首页 Tab 切换 */
+.homepage-header {
+    margin-bottom: 30px;
+    padding: 0;
+}
+
+.homepage-tabs {
+    display: flex;
+    gap: 30px;  
+    background: var(--bg-secondary);  
+    padding: 8px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.homepage-tab {
+    padding: 14px 28px;           
+    font-size: 16px;              
+    font-weight: 600;
+    border: 2px solid transparent;
+    background: transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 140px;             
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.homepage-tab:hover {
+    background: rgba(255, 255, 255, 0.5);
+    color: var(--text-primary);
+}
+
+.homepage-tab.active {
+    background: #e9ecef; 
+    color: #333; 
+    border-color: #ced4da; 
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.1), 
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* 3.2. 首页通用区块 */
+.homepage-section {
+    padding: 25px 25px;
+}
+
+.homepage-section h3 {
+    font-size: 30px;
+    color: var(--text-primary);
+    margin: 0 0 20px 0; 
+}
+
+/* 分割线 (合并重复定义) */
+.section-divider {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 0 20px;
+}
+
+/* 3.3. 首页 - 置顶笔记 (合并重复定义) */
+.pinned-notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 15px;
+}
+
+.pinned-note-card {
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.pinned-note-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary-color);
+}
+
+.pinned-note-card h4 {
+    margin: 0;
+    color: var(--text-primary);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pinned-notes-grid .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+/* 3.4. 首页 - 最近笔记 */
+.history-list {
+    margin-top: 0;
+}
+
+.history-group {
+    margin-bottom: 25px;
+}
+
+.history-group h3 {
+    font-size: 16px;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.history-item {
+    background-color: var(--bg-secondary);
+    border-radius: 6px;
+    padding: 12px 15px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    border: 1px solid transparent; 
+    overflow: hidden; 
+}
+
+.history-item:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary-color);
+}
+
+.history-item-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.event-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.file-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    color: #333;
+}
+
+.time {
+    font-size: 11px;
+    color: #999;
+    flex-shrink: 0;
+}
+
+/* 3.5. 旧版欢迎页 (保留) */
 .welcome-section {
     padding: 60px 40px;
     text-align: center;
@@ -470,8 +931,279 @@
 }
 
 /* ========================================
-   右键菜单组件
+   4. 主内容区 - 编辑器 (Editor)
    ======================================== */
+
+/* 4.1. 编辑器外壳 */
+#editor-wrapper {
+    display: none; /* 由 JS 控制显示 */
+    flex-grow: 1;
+    overflow: hidden;
+    /* .tab-content.active (display: flex) 已在布局区定义 */
+}
+
+/* 4.2. 编辑器头部 */
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+#file-title {
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.editor-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.mode-btn,
+.save-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    background: white;
+    color: var(--text-primary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+}
+
+.mode-btn:hover,
+.save-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.mode-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* 4.3. 编辑器标签栏 */
+.tag-bar {
+    display: flex;
+    align-items: center;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0; /* 确保高度固定 */
+}
+
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.tag-item {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.remove-tag-btn {
+    background: none;
+    border: none;
+    color: white;
+    margin-left: 4px;
+    padding: 0;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.remove-tag-btn:hover {
+    opacity: 1;
+}
+
+.tag-input {
+    border: none;
+    background: transparent;
+    outline: none;
+    padding: 1px;
+    font-size: 13px;
+    color: var(--text-primary);
+    flex-grow: 1;
+    min-width: 100px;
+}
+
+/* 4.4. Milkdown 编辑器容器 */
+.editor-container {
+    position: relative; /* 成为内部绝对定位元素的参照物 */
+    width: 100%;
+    height: 100%;
+}
+
+.milkdown-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    flex: 1; /* 占满剩余空间 */
+    min-height: 0; /* 允许 flex 子元素缩小 */
+}
+
+/* 4.5. 旧版预览区样式 (保留) */
+.markdown-editor {
+    display: none; /* 不再使用 */
+}
+
+.html-preview {
+    display: none; /* 保留用于兼容性 */
+    width: 100%;
+    height: 100%;
+    padding: 20px;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+/* 预览区 Markdown 样式 */
+.html-preview h1 {
+    font-size: 28px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border-color);
+}
+.html-preview h2 {
+    font-size: 24px;
+    margin-bottom: 14px;
+    margin-top: 20px;
+}
+.html-preview h3 {
+    font-size: 20px;
+    margin-bottom: 12px;
+    margin-top: 16px;
+}
+.html-preview p {
+    margin-bottom: 16px;
+    line-height: 1.8;
+}
+.html-preview code {
+    background: var(--bg-secondary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 90%;
+}
+.html-preview pre {
+    background: var(--bg-secondary);
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+}
+.html-preview blockquote {
+    border-left: 4px solid var(--primary-color);
+    padding-left: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+.html-preview ul,
+.html-preview ol {
+    margin-bottom: 16px;
+    padding-left: 24px;
+}
+.html-preview li {
+    margin-bottom: 8px;
+}
+
+/* 4.6. 内部链接样式 (编辑器内) */
+a.internal-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    background-color: rgba(74, 144, 226, 0.1);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+a.internal-link:hover {
+    text-decoration: underline;
+    background-color: rgba(74, 144, 226, 0.2);
+}
+
+.internal-link-broken {
+    color: var(--danger-color);
+    text-decoration: line-through;
+    background-color: rgba(231, 76, 60, 0.1);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+
+/* ========================================
+   5. 通用组件 (Common Components)
+   ======================================== */
+
+/* 5.1. 标准按钮 */
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    width: 100%;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+}
+.btn-primary:hover {
+    background: #3a7bc8;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+.btn-secondary:hover {
+    background: #e9ecef;
+}
+
+.btn-danger {
+    background: var(--danger-color);
+    color: white;
+}
+.btn-danger:hover {
+    background: #c0392b;
+}
+
+/* 5.2. 图标图片 (Icon Images) */
+.icon-img {
+    width: 20px; 
+    height: 20px; 
+    vertical-align: middle; 
+    margin-right: 4px; 
+}
+.icon-btn .icon-img {
+    margin-right: 0; 
+}
+
+/* 5.3. 右键菜单 */
 .context-menu {
     position: fixed;
     background: white;
@@ -504,6 +1236,11 @@
     background: var(--bg-secondary);
 }
 
+.context-menu ul li .icon-img {
+    vertical-align: text-bottom;
+    margin-right: 6px;
+}
+
 .context-menu ul li#delete-file-btn {
     color: var(--danger-color);
 }
@@ -512,10 +1249,7 @@
     background-color: #ffeef0;
 }
 
-
-/* ========================================
-   自定义对话框组件
-   ======================================== */
+/* 5.4. 自定义对话框 (Dialog) */
 .custom-dialog-overlay {
     position: fixed;
     top: 0;
@@ -572,9 +1306,7 @@
     gap: 10px;
 }
 
-/* ========================================
-   Toast 提示组件
-   ======================================== */
+/* 5.5. Toast 提示 */
 .success-toast {
     position: fixed;
     top: 20px;
@@ -589,398 +1321,7 @@
     font-weight: 500;
 }
 
-/* ========================================
-   标签组件样式
-   ======================================== */
-.tag-bar {
-    display: flex;
-    align-items: center;
-    padding: 8px 20px;
-    border-bottom: 1px solid var(--border-color);
-    background-color: var(--bg-secondary);
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.tag-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.tag-item {
-    display: inline-flex;
-    align-items: center;
-    background-color: var(--primary-color);
-    color: white;
-    padding: 3px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.remove-tag-btn {
-    background: none;
-    border: none;
-    color: white;
-    margin-left: 4px;
-    padding: 0;
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    opacity: 0.7;
-    transition: opacity 0.2s;
-}
-
-.remove-tag-btn:hover {
-    opacity: 1;
-}
-
-.tag-input {
-    border: none;
-    background: transparent;
-    outline: none;
-    padding: 1px;
-    font-size: 13px;
-    color: var(--text-primary);
-    flex-grow: 1;
-    min-width: 100px;
-}
-
-
-/* 新增 .sidebar-header-actions 样式 */
-.sidebar-header-actions {
-    display: flex;
-    gap: 8px;
-}
-
-/* 新增图标按钮样式 */
-.icon-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 18px; /* 调整图标大小 */
-    padding: 4px;
-    line-height: 1;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-}
-
-.icon-btn:hover {
-    background-color: #e0e0e0;
-}
-
-
-/* src/css/components.css - 在文件末尾添加 */
-
-/* ========================================
-   主内容区页签样式
-   ======================================== */
-.main-tabs {
-    display: flex;
-    padding: 10px 20px 0;
-    border-bottom: 1px solid var(--border-color);
-    background-color: var(--bg-secondary);
-    flex-shrink: 0; /* 防止页签栏在 flex 布局中被压缩 */
-}
-
-.tab-btn {
-    padding: 8px 16px;
-    border: none;
-    background: none;
-    cursor: pointer;
-    font-size: 14px;
-    color: var(--text-secondary);
-    border-bottom: 2px solid transparent;
-}
-
-.tab-btn.active {
-    color: var(--primary-color);
-    border-bottom-color: var(--primary-color);
-    font-weight: 600;
-}
-
-
-.tab-content.active {
-    display: flex; /* [核心修复] 当有 .active 类时，显示为 flex 布局 */
-    flex-direction: column; /* 让内部元素垂直排列 */
-}
-
-/* ========================================
-   新首页样式
-   ======================================== */
- /* src/css/components.css */
-
-/* ========================================
-   新首页样式 (已更新)
-   ======================================== */
-#homepage {
-    overflow-y: auto;
-    /* 移除父容器的内边距，交由子容器控制，以确保对齐 */
-    padding: 0; 
-}
-
-/* 为首页的每个区域（置顶、最近）提供统一的内边距 */
-.homepage-section {
-    padding: 25px 25px;
-}
-
-/* 统一控制两个区域的标题字体大小和样式 */
-.homepage-section h3 {
-    font-size: 30px;
-    color: var(--text-primary);
-    margin: 0 0 20px 0; /* 移除顶部外边距，增加底部外边距 */
-}
-
-/* 调整分割线的外边距，使其与内容区的内边距对齐 */
-.section-divider {
-    border: none;
-    border-top: 1px solid var(--border-color);
-    margin: 0 20px;
-}
-
-/* --- 置顶笔记网格样式 --- */
-.pinned-notes-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 15px;
-}
-
-.pinned-note-card {
-    background-color: var(--bg-secondary);
-    border-radius: 8px;
-    padding: 15px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: 1px solid var(--border-color);
-    overflow: hidden;
-}
-
-.pinned-note-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-md);
-    border-color: var(--primary-color);
-}
-
-.pinned-note-card h4 {
-    margin: 0;
-    color: var(--text-primary);
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.pinned-notes-grid .empty-state {
-    grid-column: 1 / -1;
-    text-align: center;
-    padding: 20px;
-    color: var(--text-secondary);
-    font-size: 13px;
-}
-
-/* --- 最近笔记列表样式 (保持不变) --- */
-.history-list {
-    margin-top: 0; /* 移除多余的间距 */
-}
-
-/*.homepage-header {
-    padding-bottom: 20px;
-    border-bottom: 1px solid var(--border-color);
-}*/
-
-
-.history-group {
-    margin-bottom: 25px;
-}
-
-.history-group h3 {
-    font-size: 16px;
-    color: var(--text-primary);
-    margin-bottom: 10px;
-}
-
-/* src/css/components.css */
-
-/* --- 最近笔记列表样式 (已更新) --- */
-.history-list {
-    margin-top: 0;
-}
-
-.history-group {
-    margin-bottom: 25px;
-}
-
-.history-item {
-    background-color: var(--bg-secondary);
-    border-radius: 6px;
-    padding: 12px 15px;
-    margin-bottom: 10px;
-    cursor: pointer;
-    transition: box-shadow 0.2s, border-color 0.2s;
-    border: 1px solid transparent; /* 添加一个透明边框以便悬停时变色 */
-    overflow: hidden; /* 确保内容不会溢出卡片 */
-}
-
-.history-item:hover {
-    box-shadow: var(--shadow-md);
-    border-color: var(--primary-color);
-}
-
-/* [核心修改] 使用 Flexbox 实现单行布局 */
-.history-item-content {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 0;
-}
-
-.event-icon {
-    font-size: 14px;
-    flex-shrink: 0;
-}
-
-.file-title {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-weight: 500;
-    color: #333;
-}
-
-.time {
-    font-size: 11px;
-    color: #999;
-    flex-shrink: 0;
-}
-
-/* src/css/components.css */
-
-/* ========================================
-   新主头部和多页签样式
-   ======================================== */
-
-.main-header {
-    display: flex;
-    align-items: center;
-    padding: 0 10px;
-    border-bottom: 1px solid var(--border-color);
-    background-color: var(--bg-secondary);
-    flex-shrink: 0;
-}
-
-.static-tabs, .dynamic-tabs {
-    display: flex;
-}
-
-.dynamic-tabs {
-    /*flex-grow: 1;*/
-    overflow-x: auto;
-    display: flex; /* [修改] 确保内部元素水平排列 */
-    align-items: center; /* [修改] 垂直居中对齐 */
-	justify-content: flex-start; /* [新增] 确保内部元素从左侧开始排列 */
-    /* ... */
-}
-.dynamic-tabs::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
-}
-
-.tab-btn {
-    padding: 8px 16px;
-    border: none;
-    background: none;
-    cursor: pointer;
-    font-size: 14px;
-    color: var(--text-secondary);
-    border-bottom: 3px solid transparent;
-    white-space: nowrap;
-    position: relative;
-}
-
-.tab-btn.active {
-    color: var(--primary-color);
-    background-color: var(--bg-primary);
-    border-bottom-color: var(--primary-color);
-    font-weight: 500;
-}
-
-.dynamic-tab-item {
-    padding-right: 30px; /* 为关闭按钮留出空间 */
-}
-
-.close-tab-btn {
-    position: absolute;
-    top: 50%;
-    right: 6px;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    border-radius: 50%;
-    font-size: 16px;
-    line-height: 1;
-    padding: 2px 4px;
-    cursor: pointer;
-    color: var(--text-secondary);
-}
-.close-tab-btn:hover {
-    background-color: #ddd;
-    color: #333;
-}
-.tab-btn.active .close-tab-btn {
-    color: var(--text-primary);
-}
-
-/* 确保“+”按钮在页签容器末尾，而不是紧挨着最后一个页签 */
-/* [修改] 调整“+”按钮的 margin       margin-right: 8px;*/
-.add-tab-btn {
-    margin-left: 4px; 
-    margin-right: 8px;
-    flex-shrink: 0; 
-}
-.main-header-actions {
-    margin-left: auto; /* 将按钮推到最右侧 */
-    display: flex;
-    gap: 10px;
-}
-
-#content-area {
-    position: relative;
-    flex-grow: 1;
-    overflow: hidden;
-	display: flex; /* [关键] 让 #content-area 成为 flex 容器，使其子元素可以拉伸 */
-
-}
-
-/* 修改旧的页签内容样式 */
-.tab-content {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: none;
-    flex-direction: column;
-}
-.tab-content.active {
-    display: flex;
-}
-
-
-/* [核心修复] 修改 main-content 的布局 */
-.main-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column; /* 确保子元素垂直排列 */
-    background: var(--bg-primary);
-    overflow: hidden;
-}
-
-/* src/css/components.css */
-
-/* ========================================
-   标签管理弹窗样式
-   ======================================== */
+/* 5.6. 标签管理弹窗 (Tag Modal) */
 .tag-modal {
     background: white;
     border-radius: 8px;
@@ -1064,418 +1405,10 @@
     justify-content: flex-end;
     gap: 10px;
 }
-/* src/css/components.css */
-
-/* ========================================
-   [修复] 编辑器全屏布局样式
-   ======================================== */
-
-/* 确保 #editor-wrapper 在激活时是一个能撑满父容器的 flex 纵向布局 
-#editor-wrapper.tab-content.active {
-    display: flex;
-    flex-direction: column;
-}
-*/
-/* 确保 .tag-bar 高度固定，不被压缩 */
-.tag-bar {
-    flex-shrink: 0;
-}
-
-/* [核心修改] 将 editor-container 设为相对定位的容器 */
-.editor-container {
-    position: relative; /* 成为内部绝对定位元素的参照物 */
-    width: 100%;
-    height: 100%;
-}
-
-
-
-
-/* [新增] 添加 spacer 样式 */
-.header-spacer {
-    flex-grow: 1; /* 这个元素将占据所有可用的多余空间 */
-}
-
-/* src/css/components.css */
-
-/* ... .sidebar-header-actions 样式之后 ... */
-
-/* [新增] “所有标签”浮层样式 */
-.tags-popover {
-    position: absolute;
-    top: 50px; /* 位于头部下方 */
-    left: 10px;
-    right: 10px;
-    background-color: var(--bg-sidebar);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    box-shadow: var(--shadow-md);
-    z-index: 100;
-    padding: 10px;
-    max-height: 300px; /* 限制最大高度 */
-    overflow-y: auto;
-}
-
-/* src/css/components.css */
-
-/* ... 在文件末尾添加以下样式 ... */
-
-/* ========================================
-   首页置顶功能样式
-   ======================================== */
-.pinned-notes-section {
-    padding: 20px 40px 0;
-}
-
-.pinned-notes-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 15px;
-    margin-top: 15px;
-}
-
-.pinned-note-card {
-    background-color: var(--bg-secondary);
-    border-radius: 8px;
-    padding: 15px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: 1px solid var(--border-color);
-    overflow: hidden;
-}
-
-.pinned-note-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-md);
-    border-color: var(--primary-color);
-}
-
-.pinned-note-card h4 {
-    color: var(--text-primary);
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.pinned-notes-grid .empty-state {
-    grid-column: 1 / -1; /* 占据整行 */
-    text-align: center;
-    padding: 20px;
-    color: var(--text-secondary);
-    font-size: 13px;
-}
-
-.section-divider {
-    border: none;
-    border-top: 1px solid var(--border-color);
-    margin: 25px 40px;
-}
-
-/* src/css/components.css, 在文件末尾添加 */
-
-/* ========================================
-   反向链接列表样式
-   ======================================== */
-.backlinks-list {
-    list-style: none;
-    padding: 0 15px 15px;
-    font-size: 13px;
-    max-height: 150px; /* 限制一个最大高度 */
-    overflow-y: auto;
-}
-
-.backlinks-list li {
-    padding: 4px 0;
-    cursor: pointer;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.backlinks-list li:hover {
-    color: var(--primary-color);
-}
-
-/* src/css/components.css, 在文件末尾添加 */
-
-/* ========================================
-   内部链接样式
-   ======================================== */
-a.internal-link {
-    color: var(--primary-color);
-    text-decoration: none;
-    background-color: rgba(74, 144, 226, 0.1);
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-weight: 500;
-}
-
-a.internal-link:hover {
-    text-decoration: underline;
-    background-color: rgba(74, 144, 226, 0.2);
-}
-
-.internal-link-broken {
-    color: var(--danger-color);
-    text-decoration: line-through;
-    background-color: rgba(231, 76, 60, 0.1);
-    padding: 1px 4px;
-    border-radius: 3px;
-}
 
 
 /* ========================================
-   搜索结果列表新布局样式
-   ======================================== */
-.search-results {
-    /* 移除旧的文件列表样式继承 */
-    position: absolute;
-    top: 98px; /* 根据你的布局微调，确保在搜索框下方 */
-    left: 10px;
-    right: 10px;
-    background-color: var(--bg-sidebar);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    box-shadow: var(--shadow-md);
-    z-index: 100;
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.search-results li {
-    border-bottom: 1px solid var(--border-color);
-}
-
-.search-results li:last-child {
-    border-bottom: none;
-}
-
-.search-results li:hover {
-    /* 修正：使用一个清晰可见的浅灰色作为悬停背景 */
-    background-color: #e9ecef;
-}
-
-
-.search-result-title {
-    /* 修正：使用主要文字颜色 */
-    color: var(--text-primary); 
-    font-weight: 500;
-    margin-bottom: 4px;
-}
-
-.search-result-snippet {
-    /* 修正：使用次要文字颜色，形成视觉层次 */
-    color: var(--text-secondary); 
-    font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.search-result-snippet b {
-    /* 修正：高亮部分使用更醒目的主要文字颜色 */
-    color: var(--text-primary); 
-    font-weight: 600;
-}
-/* src/css/components.css */
-
-/* ========================================
-   文件重命名输入框样式
-   ======================================== */
-.rename-input {
-    flex: 1;
-    min-width: 100px;
-    max-width: calc(100% - 30px);
-    padding: 2px 6px;
-    margin-left: 5px;
-    border: 1px solid var(--primary-color);
-    border-radius: 4px;
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    font-family: inherit;
-    font-size: 13px;
-    outline: none;
-    box-sizing: border-box;
-}
-/* ========================================
-   在根目录下新建文件和文件夹样式
-   ======================================== */
-
-.sidebar-header-actions {
-    display: flex;
-    gap: 4px;
-}
-
-.icon-btn {
-    padding: 6px 8px;
-    background: transparent;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s;
-}
-
-.icon-btn:hover {
-    background: #f0f0f0;
-    border-color: #999;
-}
-
-.icon-btn:active {
-    transform: scale(0.95);
-}
-
-/* ========================================
-   编辑器组件（Milkdown 版本）
-   ======================================== */
-#editor-wrapper {
-    display: none; /* 由 JS 控制显示 */
-    flex-grow: 1;
-    overflow: hidden;
-}
-
-.editor-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-}
-
-#file-title {
-    color: var(--text-primary);
-    font-size: 18px;
-    font-weight: 500;
-}
-
-.editor-actions {
-    display: flex;
-    gap: 10px;
-}
-
-.mode-btn,
-.save-btn {
-    padding: 6px 12px;
-    border: 1px solid var(--border-color);
-    background: white;
-    color: var(--text-primary);
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all var(--transition-speed);
-}
-
-.mode-btn:hover,
-.save-btn:hover {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-.mode-btn.active {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-/* ⭐ Milkdown 编辑器容器 */
-.milkdown-container {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    position: relative;
-}
-
-/* 移除旧的 textarea 和预览区样式 */
-.markdown-editor {
-    display: none; /* 不再使用 */
-}
-
-.html-preview {
-    display: none; /* 保留用于兼容性 */
-    width: 100%;
-    height: 100%;
-    padding: 20px;
-    overflow-y: auto;
-    box-sizing: border-box;
-}
-
-/* 预览区 Markdown 样式（保留用于传统预览模式） */
-.html-preview h1 {
-    font-size: 28px;
-    margin-bottom: 16px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid var(--border-color);
-}
-
-.html-preview h2 {
-    font-size: 24px;
-    margin-bottom: 14px;
-    margin-top: 20px;
-}
-
-.html-preview h3 {
-    font-size: 20px;
-    margin-bottom: 12px;
-    margin-top: 16px;
-}
-
-.html-preview p {
-    margin-bottom: 16px;
-    line-height: 1.8;
-}
-
-.html-preview code {
-    background: var(--bg-secondary);
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 90%;
-}
-
-.html-preview pre {
-    background: var(--bg-secondary);
-    padding: 16px;
-    border-radius: 6px;
-    overflow-x: auto;
-    margin-bottom: 16px;
-}
-
-.html-preview blockquote {
-    border-left: 4px solid var(--primary-color);
-    padding-left: 16px;
-    color: var(--text-secondary);
-    margin-bottom: 16px;
-}
-
-.html-preview ul,
-.html-preview ol {
-    margin-bottom: 16px;
-    padding-left: 24px;
-}
-
-.html-preview li {
-    margin-bottom: 8px;
-}
-
-/* ========================================
-   编辑器全屏布局
-   ======================================== */
-#editor-wrapper.tab-content.active {
-    display: flex;
-    flex-direction: column;
-}
-
-/* 确保编辑器容器占满空间 */
-.milkdown-container {
-    flex: 1;
-    min-height: 0; /* 重要：允许 flex 子元素缩小 */
-}
-
-/* ========================================
-   响应式调整
+   6. 响应式调整 (Responsive)
    ======================================== */
 @media (max-width: 768px) {
     .milkdown-container {
@@ -1488,96 +1421,8 @@ a.internal-link:hover {
 }
 
 /* ========================================
-   最左侧工具栏
+   7. 主题适配 (Theme Adapts)
    ======================================== */
-.app-toolbar {
-    width: 50px;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 12px 0;
-    gap: 4px;
-    flex-shrink: 0;
-}
-
-.toolbar-icon-btn {
-    width: 26px;
-    height: 26px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    transition: background-color var(--transition-speed);
-}
-
-.toolbar-icon-btn:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-}
-
-/* 深色主题适配 */
-:root[data-theme="dark"] .toolbar-icon-btn:hover {
-    background-color: var(--hover-bg);
-}
-/* ========================================
-   最左侧工具栏
-   ======================================== */
-.app-toolbar {
-    width: 50px;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 12px 0;
-    gap: 4px;
-    flex-shrink: 0;
-}
-
-/* ✅ 工具栏折叠按钮 - 始终可见 */
-.toolbar-collapse-btn {
-    width: 36px;
-    height: 36px;
-    background: none;
-    border: 1px solid var(--border-color);
-    cursor: pointer;
-    font-size: 16px;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    transition: all var(--transition-speed);
-    margin-bottom: 8px; /* 与其他按钮分隔 */
-}
-
-.toolbar-collapse-btn:hover {
-    background-color: var(--hover-bg);
-    border-color: var(--primary-color);
-}
-
-.toolbar-icon-btn {
-    width: 36px;
-    height: 36px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    transition: background-color var(--transition-speed);
-}
-
-.toolbar-icon-btn:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-}
 
 /* 深色主题适配 */
 :root[data-theme="dark"] .toolbar-icon-btn:hover,
@@ -1590,197 +1435,18 @@ a.internal-link:hover {
     color: var(--text-primary);
 }
 
-
-/* ========================================
-   文件夹展开指示器
-   ======================================== */
-.folder-arrow {
-    display: inline-block;
-    width: 14px;
-    margin-right: 6px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    transition: color 0.2s ease;
-    user-select: none;
-}
-
-.item-name:hover .folder-arrow {
-    color: var(--primary-color);
-}
-
-/* 文件项左侧对齐(为没有箭头的文件添加占位) */
-#file-list li.file .item-name {
-    padding-left: 20px; /* 14px(箭头) + 6px(间距) */
-}
-
-/* ========================================
-   大纲 Popover 样式
-   ======================================== */
-.outline-popover {
-    position: absolute; /* 相对于 sidebar 定位 */
-    top: 50px;          /* 位于头部下方，可调整 */
-    left: 0px;
-    right: 10px;
-    background-color: var(--bg-sidebar);
-    border: 1px solid var(--border-color);
-    border-radius: 2px;
-    box-shadow: var(--shadow-md);
-    z-index: 100;
-    padding: 10px 0; /* 上下内边距，左右由列表项控制 */
-    max-height: 80%;  /* 限制最大高度，可调整 */
-    overflow-y: auto;
-    font-size: 13px;
-	width: 100%;
-}
-
-.outline-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.outline-item {
-    padding: 6px 15px;
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--text-secondary);
-    transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.outline-item:hover {
-    background-color: var(--hover-bg);
-    color: var(--text-primary);
-}
-
-/* 可以为不同级别的标题添加不同样式 */
-.outline-item-h1 {
-    font-weight: 600;
-    color: var(--text-primary);
-}
-.outline-item-h2 {
-    font-weight: 500;
-}
-/* ... 可以添加 h3, h4 等样式 ... */
-
-.outline-empty {
-    padding: 10px 15px;
-    color: var(--text-secondary);
-    font-style: italic;
-}
-
-/* 深色主题适配 */
+/* 大纲深色主题 */
 :root[data-theme="dark"] .outline-popover {
     background-color: var(--bg-sidebar);
     border-color: var(--border-color);
 }
-
 :root[data-theme="dark"] .outline-item {
     color: var(--text-secondary);
 }
-
 :root[data-theme="dark"] .outline-item:hover {
     background-color: var(--hover-bg);
     color: var(--text-primary);
 }
-
 :root[data-theme="dark"] .outline-item-h1 {
     color: var(--text-primary);
 }
-
-/* 控制图标图片的大小和对齐 */
-.icon-img {
-    width: 20px; /* 或者你期望的宽度 */
-    height: 20px; /* 或者你期望的高度 */
-    vertical-align: middle; /* 尝试垂直居中对齐文本 */
-    margin-right: 4px; /* 在图标和文本之间添加一点间距 */
-    /* 如果你的按钮或列表项使用 flex 布局，可能需要调整对齐方式 */
-    /* 例如：align-self: center; */
-}
-
-/* 可能需要调整按钮内图标的样式 */
-.icon-btn .icon-img {
-    margin-right: 0; /* 按钮内通常只有图标，不需要右边距 */
-}
-
-/* 可能需要微调右键菜单列表项内图标的垂直对齐 */
-.context-menu ul li .icon-img {
-    vertical-align: text-bottom; /* 或其他值，根据视觉效果调整 */
-    margin-right: 6px;
-}
-
-.outline-back-btn {
-    padding: 4px 6px; /* 调整内边距使按钮更小 */
-    font-size: 16px;  /* 调整字体大小 */
-    /* 可以添加更多样式，例如移除边框、调整颜色等 */
-    border: none;
-    background: none;
-}
-.outline-popover .sidebar-section-header {
-    display: flex;
-    justify-content: space-between; /* 让元素分布在两端和中间 */
-    align-items: center;
-    padding: 5px 10px; /* 调整内边距 */
-    border-bottom: 1px solid var(--border-color); /* 保持分隔线 */
-}
- .outline-popover .sidebar-section-header h3 {
-    margin: 0; /* 移除标题的默认外边距 */
-    text-align: center; /* 尝试居中标题 */
-    flex-grow: 1; /* 让标题占据剩余空间 */
-}
-
-/* ========================================
-   首页 Tab 切换按钮优化
-   ======================================== */
-
-.homepage-header {
-    margin-bottom: 30px;
-    padding: 0;
-}
-
-.homepage-tabs {
-    display: flex;
-    gap: 30px;  /* ✅ 更大的间距 */
-    background: var(--bg-secondary);  /* ✅ 整体背景 */
-    padding: 8px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-/* ✅ 按钮样式 - 更大更突出 */
-.homepage-tab {
-    padding: 14px 28px;           /* ✅ 更大的内边距 */
-    font-size: 16px;              /* ✅ 更大的字体 */
-    font-weight: 600;
-    border: 2px solid transparent;
-    background: transparent;
-    border-radius: 10px;
-    cursor: pointer;
-    color: var(--text-secondary);
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    min-width: 140px;             /* ✅ 更宽的按钮 */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.homepage-tab:hover {
-    background: rgba(255, 255, 255, 0.5);
-    color: var(--text-primary);
-   
-}
-
-
-/* ✅ 置顶按钮激活状态 - 简约灰色 */
-.homepage-tab.active {
-    background: #e9ecef; /* 主要修改这里 (一个淡灰色) */
-    color: #333; /* 文字颜色需要改成深色才能看清 */
-    border-color: #ced4da; /* 相应修改边框色 */
-    box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.1), /* 相应修改阴影色 (一个通用的淡阴影) */
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-
