@@ -37,6 +37,7 @@ class MilkdownEditorManager {
         this.onContentChange = null;
         this.isLoading = false;
         this.enableWikilinkJump = true;
+		this.isSourceMode = false; // 新增:标识当前是否为源码模式
         
         MilkdownEditorManager.instance = this;
     }
@@ -128,6 +129,12 @@ class MilkdownEditorManager {
 			
 			this.applyTheme(themeManager.getCurrentTheme());
 			
+			// 初始化为 WYSIWYG 模式
+			// ✅ 初始化为 WYSIWYG 模式
+			const editorContainer = document.querySelector(containerSelector);
+			if (editorContainer) {
+				editorContainer.classList.add('wysiwyg-mode');
+			}
 			
 			// 设置 Wikilink 处理器
 			this.setupWikilinkHandler(containerSelector);
@@ -142,6 +149,48 @@ class MilkdownEditorManager {
 			console.error('❌ Milkdown 编辑器初始化失败:', error);
 			throw error;
 		}
+	}
+	/**
+	* 切换源码模式
+	*/
+	toggleSourceMode() {
+		if (!this.editor) {
+			console.warn('⚠️ 编辑器未初始化');
+			return;
+		}
+		
+		this.isSourceMode = !this.isSourceMode;
+		console.log('🔄 切换源码模式:', this.isSourceMode ? '源码' : 'WYSIWYG');
+		
+		try {
+			this.editor.action((ctx) => {
+				const view = ctx.get(editorViewCtx);
+				const container = view.dom.closest('#milkdown-editor');
+				
+				if (this.isSourceMode) {
+					// 切换到源码模式
+					container.classList.add('source-mode');
+					container.classList.remove('wysiwyg-mode');
+				} else {
+					// 切换到 WYSIWYG 模式
+					container.classList.remove('source-mode');
+					container.classList.add('wysiwyg-mode');
+				}
+			});
+			
+			// 发布事件通知 UI 更新按钮状态
+			eventBus.emit('editor:source-mode-changed', this.isSourceMode);
+			
+		} catch (error) {
+			console.error('❌ 切换源码模式失败:', error);
+		}
+	}
+	
+	/**
+	* 获取当前是否为源码模式
+	*/
+	isInSourceMode() {
+		return this.isSourceMode;
 	}
 	
 	/**

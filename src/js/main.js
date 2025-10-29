@@ -38,7 +38,7 @@ import { pluginContext } from './plugin-context.js';
 
 import { searchManager } from './search.js';  // ⭐ 新增
 import { contextMenuManager } from './context-menu.js';  // ⭐ 新增
-import { handleSaveFile, toggleViewMode, loadFileToEditor } from './editor.js';  // ⭐ 保留编辑器相关
+import { handleSaveFile, loadFileToEditor } from './editor.js';  // ⭐ 保留编辑器相关
 import { tabManager } from './tab_manager.js';
 import { outlineManager } from './outline.js'; // <--- 导入大纲管理器
 
@@ -166,13 +166,6 @@ async function initApp() {
         bindRootActions();
         
 		
-		// 绑定视图切换按钮
-		const viewToggleBtn = document.getElementById('view-toggle-btn');
-		if (viewToggleBtn) {
-			viewToggleBtn.addEventListener('click', () => {
-				eventBus.emit('editor:toggle-view');
-			});
-		}
 		
 		// [重构] 步骤 3: 封装原生 window 事件
 		// 在 main.js 中统一监听, 然后发布到 eventBus
@@ -216,7 +209,20 @@ function bindRootActions() {
             eventBus.emit('editor:save');
         });
     }
-    
+    // 🆕 绑定源码模式切换按钮
+	if (domElements.sourceModeToggleBtn) {
+		domElements.sourceModeToggleBtn.addEventListener('click', () => {
+			console.log('🖱️ [源码模式切换按钮] 被点击');
+			eventBus.emit('editor:toggle-source-mode');
+		});
+	}
+	// 🆕 监听源码模式状态变化,更新按钮文本
+	eventBus.on('editor:source-mode-changed', (isSourceMode) => {
+		if (domElements.sourceModeToggleBtn) {
+			domElements.sourceModeToggleBtn.textContent = isSourceMode ? '👁️ 预览模式' : '📝 源码';
+			domElements.sourceModeToggleBtn.title = isSourceMode ? '切换到预览模式' : '切换到源码模式';
+		}
+	});
     // 快捷键
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 'n' && !e.shiftKey) {

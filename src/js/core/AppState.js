@@ -20,7 +20,6 @@ class AppState {
         this.searchInactivityTimer = null;
 
         // 编辑器状态
-        this.currentViewMode = 'edit';
         this.hasUnsavedChanges = false;
 
         // 文件树状态
