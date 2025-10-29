@@ -154,12 +154,28 @@ async function handleSaveFile() {
     }
 }
 
-
-// 在 toggleViewMode() 函数之后添加此函数
-function toggleSourceMode() {
-    if (milkdownEditor) {
-        milkdownEditor.toggleSourceMode();
+/**
+ * 切换视图模式
+ */
+function toggleViewMode() {
+    const newMode = appState.currentViewMode === 'edit' ? 'preview' : 'edit';
+    appState.currentViewMode = newMode;
+    
+    const viewToggleBtn = document.getElementById('view-toggle-btn');
+    
+    if (newMode === 'edit') {
+        if (viewToggleBtn) viewToggleBtn.innerHTML = '👁️ 预览';
+        if (milkdownEditor) {
+            milkdownEditor.setReadonly(false);
+        }
+    } else {
+        if (viewToggleBtn) viewToggleBtn.innerHTML = '📝 编辑';
+        if (milkdownEditor) {
+            milkdownEditor.setReadonly(true);
+        }
     }
+    
+    console.log(`🔄 切换视图模式: ${newMode}`);
 }
 
 // ========================================
@@ -178,13 +194,10 @@ eventBus.on('editor:save', async () => {
     await handleSaveFile();
 });
 
-
-// 订阅源码模式切换事件
-eventBus.on('editor:toggle-source-mode', () => {
-    console.log('🔧 [editor.js] 收到 editor:toggle-source-mode 事件');
-    if (milkdownEditor) {
-        milkdownEditor.toggleSourceMode();
-    }
+// 订阅视图切换事件
+eventBus.on('editor:toggle-view', () => {
+    console.log('👁️ [editor.js] 收到 editor:toggle-view 事件');
+    toggleViewMode();
 });
 
 console.log('✅ editor.js 已订阅编辑器事件');
@@ -195,8 +208,7 @@ console.log('✅ editor.js 已订阅编辑器事件');
 export {
     loadFileToEditor,
     handleSaveFile,
-    toggleSourceMode  // 新增导出
+    toggleViewMode
 };
-
 
 console.log('✅ editor.js 加载完成');

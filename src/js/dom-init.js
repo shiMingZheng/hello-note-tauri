@@ -62,7 +62,7 @@ export const domElements = {
     editorWrapper: null,
     editorContainer: null,
     saveBtn: null,
-	sourceModeToggleBtn: null,  // 🆕 新增:源码模式切换按钮
+    viewToggleBtn: null,
     
     // 标签页
     tabHome: null,
@@ -163,7 +163,7 @@ export function initializeDOMElements() {
         domElements.editorWrapper = getElement('editor-wrapper');
         domElements.editorContainer = getElement('editor-container');
         domElements.saveBtn = getElement('save-btn');
-		domElements.sourceModeToggleBtn = getElement('source-mode-toggle-btn');  // 🆕 新增
+        domElements.viewToggleBtn = getElement('view-toggle-btn');
         
         // 标签页
         domElements.tabHome = getElement('tab-home');
