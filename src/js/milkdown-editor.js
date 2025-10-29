@@ -18,6 +18,8 @@ import { themeManager } from './theme.js';
 import { lineNumbersPlugin } from './milkdown-linenumbers-plugin.js'; // <--- 导入行号插件
 import { Slice } from '@milkdown/prose/model';             // <--- 导入 Slice 用于跳转
 import { TextSelection } from '@milkdown/prose/state'; // <--- 新增这行导入
+
+
 console.log('📜 milkdown-editor.js 开始加载...');
 
 /**
@@ -130,10 +132,50 @@ class MilkdownEditorManager {
 			// 设置 Wikilink 处理器
 			this.setupWikilinkHandler(containerSelector);
 			
+			// ✅ 新增：监听插入文本事件
+			eventBus.on('editor:insert-text', (text) => {
+				this.insertText(text);
+			});
+			
 			return this.editor;
 		} catch (error) {
 			console.error('❌ Milkdown 编辑器初始化失败:', error);
 			throw error;
+		}
+	}
+	
+	/**
+	* 在光标位置插入文本
+	*/
+	insertText(text) {
+		if (!this.editor) {
+			console.error('❌ 编辑器未初始化');
+			return;
+		}
+		
+		try {
+			this.editor.action((ctx) => {
+				const view = ctx.get(editorViewCtx);
+				const { state, dispatch } = view;
+				const { selection } = state;
+				
+				// 在光标位置插入文本
+				const transaction = state.tr.insertText(text, selection.from, selection.to);
+				dispatch(transaction);
+				
+				// 光标移到插入文本之后
+				const newPos = selection.from + text.length;
+				const newTransaction = view.state.tr.setSelection(
+					TextSelection.create(view.state.doc, newPos)
+				);
+				view.dispatch(newTransaction);
+				
+				view.focus();
+				
+				console.log('✅ 已插入文本:', text);
+			});
+		} catch (error) {
+			console.error('❌ 插入文本失败:', error);
 		}
 	}
 

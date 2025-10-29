@@ -20,6 +20,7 @@ class DragDropManager {
         this.dragGhost = null; // 拖拽时的视觉反馈元素
         this.startX = 0;
         this.startY = 0;
+		this.wasOverEditor = false; // ✅ 添加这一行
         
         DragDropManager.instance = this;
     }
@@ -40,8 +41,83 @@ class DragDropManager {
         document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
         
+		// ✅ 新增：监听编辑器的拖放（用于插入链接）
+		this.initEditorDrop();
+    
         console.log('✅ 拖拽功能已初始化（模拟模式）');
     }
+	/**
+	* 初始化编辑器拖放功能（用于插入链接）
+	*/
+	initEditorDrop() {
+		// 获取编辑器容器
+		const editorContainer = document.getElementById('milkdown-editor');
+		
+		if (!editorContainer) {
+			console.warn('⚠️ 编辑器容器未找到，延迟初始化拖放功能');
+			setTimeout(() => this.initEditorDrop(), 500);
+			return;
+		}
+		
+		// 阻止编辑器的默认拖放行为
+		editorContainer.addEventListener('dragover', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			
+			// 如果正在从文件列表拖拽
+			if (this.isDragging && this.draggedItem) {
+				e.dataTransfer.dropEffect = 'link';
+				editorContainer.style.outline = '2px dashed var(--primary-color)';
+			}
+		});
+		
+		editorContainer.addEventListener('dragleave', (e) => {
+			editorContainer.style.outline = '';
+		});
+		
+		editorContainer.addEventListener('drop', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			editorContainer.style.outline = '';
+			
+			// 如果正在从文件列表拖拽
+			if (this.isDragging && this.draggedItem) {
+				this.insertWikilinkToEditor(this.draggedItem);
+			}
+		});
+		
+		console.log('✅ 编辑器拖放功能已初始化');
+	}
+	
+	/**
+	* 在编辑器中插入 Wikilink
+	*/
+	/**
+	* 在编辑器中插入 Wikilink
+	*/
+	async insertWikilinkToEditor(draggedItem) {
+		console.log('📝 插入 Wikilink:', draggedItem.name);
+		
+		// 只处理 .md 文件
+		if (draggedItem.isDir) {
+			showError('不能链接文件夹');
+			return;
+		}
+		
+		if (!draggedItem.path.endsWith('.md')) {
+			showError('只能链接 Markdown 文件');
+			return;
+		}
+		
+		// ✅ 只使用文件名，去掉路径和 .md 后缀
+		const fileName = draggedItem.name.replace(/\.md$/, '');
+		const wikilink = `[[${fileName}]]`;
+		
+		// 通过事件总线通知编辑器插入文本
+		eventBus.emit('editor:insert-text', wikilink);
+		
+		console.log('✅ 已插入 Wikilink:', wikilink);
+	}
     
     makeDraggable(li, item) {
         li.classList.add('draggable-item');
@@ -70,21 +146,24 @@ class DragDropManager {
         console.log('🖱️ 鼠标按下:', this.potentialDragItem.name);
     }
     
-    handleMouseMove(e) {
-        if (!this.potentialDragItem && !this.isDragging) return;
-        
-        const deltaX = Math.abs(e.clientX - this.startX);
-        const deltaY = Math.abs(e.clientY - this.startY);
-        
-        // 移动超过 5px 才开始拖拽（避免误触）
-        if (!this.isDragging && (deltaX > 5 || deltaY > 5)) {
-            this.startDrag(e);
-        }
-        
-        if (this.isDragging) {
-            this.updateDrag(e);
-        }
-    }
+	handleMouseMove(e) {
+		// ✅ 保存最后的鼠标位置（供 endDrag 使用）
+		window.lastMouseMoveEvent = e;
+		
+		if (!this.potentialDragItem && !this.isDragging) return;
+		
+		const deltaX = Math.abs(e.clientX - this.startX);
+		const deltaY = Math.abs(e.clientY - this.startY);
+		
+		// 移动超过 5px 才开始拖拽（避免误触）
+		if (!this.isDragging && (deltaX > 5 || deltaY > 5)) {
+			this.startDrag(e);
+		}
+		
+		if (this.isDragging) {
+			this.updateDrag(e);
+		}
+	}
     
     startDrag(e) {
         if (!this.potentialDragItem) return;
@@ -123,16 +202,40 @@ class DragDropManager {
 		this.dragGhost.style.pointerEvents = 'none';
 		const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
 		
-		const targetLi = elementBelow?.closest('li');
+		// ✅ 检查是否在编辑器上
+		const editorContainer = document.getElementById('milkdown-editor');
+		const isOverEditor = editorContainer?.contains(elementBelow);
 		
-		// ✅ 添加调试日志
-		if (targetLi) {
-			console.log('🎯 鼠标下的元素:', {
-				name: targetLi.dataset.name,
-				isDir: targetLi.dataset.isDir,
-				path: targetLi.dataset.path
+		if (isOverEditor) {
+			// 清除文件夹高亮
+			document.querySelectorAll('.drag-over').forEach(el => {
+				el.classList.remove('drag-over');
 			});
+			
+			// ✅ 高亮编辑器
+			editorContainer.style.outline = '2px dashed var(--primary-color)';
+			editorContainer.style.outlineOffset = '-2px';
+			
+			this.dropTarget = null;
+			this.dragGhost.style.cursor = 'copy'; // ✅ 显示复制图标
+			
+			// 不需要每次都打印日志
+			if (!this.wasOverEditor) {
+				console.log('📝 进入编辑器区域');
+				this.wasOverEditor = true;
+			}
+			return;
 		}
+		
+		// ✅ 离开编辑器区域
+		if (this.wasOverEditor) {
+			editorContainer.style.outline = '';
+			console.log('📝 离开编辑器区域');
+			this.wasOverEditor = false;
+		}
+		
+		// 原有的文件夹检测逻辑
+		const targetLi = elementBelow?.closest('li');
 		
 		// 清除之前的高亮
 		document.querySelectorAll('.drag-over').forEach(el => {
@@ -142,7 +245,6 @@ class DragDropManager {
 		if (targetLi && targetLi.dataset.isDir === 'true') {
 			const targetPath = targetLi.dataset.path;
 			
-			// 检查是否可以放置
 			if (this.canDropOn(targetPath)) {
 				targetLi.classList.add('drag-over');
 				this.dropTarget = {
@@ -150,10 +252,8 @@ class DragDropManager {
 					path: targetPath,
 					name: targetLi.dataset.name
 				};
-				console.log('✅ 可以放置到:', this.dropTarget.name);
-				this.dragGhost.style.cursor = 'copy';
+				this.dragGhost.style.cursor = 'move'; // ✅ 显示移动图标
 			} else {
-				console.log('❌ 不能放置到:', targetPath);
 				this.dropTarget = null;
 				this.dragGhost.style.cursor = 'not-allowed';
 			}
@@ -203,7 +303,25 @@ class DragDropManager {
 		const dropTargetCopy = this.dropTarget;
 		const draggedItemCopy = this.draggedItem;
 		
-		// 清理视觉效果（立即清理，不影响对话框）
+		// ✅ 检测鼠标最终位置是否在编辑器上
+		const lastMouseEvent = window.lastMouseMoveEvent; // 需要保存最后的鼠标位置
+		let isOverEditor = false;
+		
+		if (lastMouseEvent) {
+			const editorContainer = document.getElementById('milkdown-editor');
+			const elementAtMouse = document.elementFromPoint(
+				lastMouseEvent.clientX, 
+				lastMouseEvent.clientY
+			);
+			isOverEditor = editorContainer?.contains(elementAtMouse);
+		}
+		
+		console.log('🎯 结束位置检测:', {
+			isOverEditor,
+			hasDropTarget: !!dropTargetCopy
+		});
+		
+		// 清理视觉效果
 		if (this.dragGhost) {
 			this.dragGhost.remove();
 			this.dragGhost = null;
@@ -217,15 +335,26 @@ class DragDropManager {
 			el.classList.remove('drag-over');
 		});
 		
+		// ✅ 清除编辑器高亮
+		const editorContainer = document.getElementById('milkdown-editor');
+		if (editorContainer) {
+			editorContainer.style.outline = '';
+		}
+		
 		document.body.style.cursor = '';
 		
-		// 执行放置操作（异步，但不会再被打断）
-		if (dropTargetCopy && draggedItemCopy) {
-			console.log('✅ 执行放置操作...');
-			// ✅ 使用保存的副本
+		// ✅ 判断执行哪种操作
+		if (isOverEditor && draggedItemCopy) {
+			// 拖拽到编辑器：插入链接
+			console.log('✅ 插入 Wikilink 到编辑器');
+			await this.insertWikilinkToEditor(draggedItemCopy);
+		} else if (dropTargetCopy && draggedItemCopy) {
+			// 拖拽到文件夹：移动文件
+			console.log('✅ 执行文件移动操作');
 			await this.performDropWithData(draggedItemCopy, dropTargetCopy);
 		} else {
-			console.log('⚠️ 无法放置:', {
+			console.log('⚠️ 无操作:', {
+				isOverEditor,
 				hasDropTarget: !!dropTargetCopy,
 				hasDraggedItem: !!draggedItemCopy
 			});

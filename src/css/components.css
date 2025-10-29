@@ -416,7 +416,6 @@
 }
 
 .file-list li {
-    cursor: pointer;
     padding: 0 15px;
     transition: background-color 0.15s ease;
     white-space: nowrap;
@@ -433,9 +432,9 @@
      font-weight: 400;
 }
 
-/* 文件/文件夹名称 */
+/* 文件/文件夹名称;inline-flex靠底部 */
 .file-list .item-name {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     flex: 1;
     overflow: visible; /* 允许输入框溢出显示 */
