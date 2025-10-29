@@ -18,7 +18,7 @@ import { themeManager } from './theme.js';
 import { lineNumbersPlugin } from './milkdown-linenumbers-plugin.js'; // <--- 导入行号插件
 import { Slice } from '@milkdown/prose/model';             // <--- 导入 Slice 用于跳转
 import { TextSelection } from '@milkdown/prose/state'; // <--- 新增这行导入
-import { boldSyntaxPlugin } from './plugins/milkdown-bold-syntax-plugin.js';
+
 
 console.log('📜 milkdown-editor.js 开始加载...');
 
@@ -38,7 +38,6 @@ class MilkdownEditorManager {
         this.isLoading = false;
         this.enableWikilinkJump = true;
 		this.isSourceMode = false; // 新增:标识当前是否为源码模式
-		this.sourceTextarea = null; // ⭐ 新增：源码模式的 textarea
         
         MilkdownEditorManager.instance = this;
     }
@@ -118,7 +117,6 @@ class MilkdownEditorManager {
 					this.handleWikilinkClick(target);
 				}))
 				.use(lineNumbersPlugin()) // <--- 在这里使用行号插件
-				.use(boldSyntaxPlugin()) // ⭐ 新增粗体语法插件
 				.create();
 			
 			console.log('✅ Milkdown 编辑器初始化成功');
@@ -155,114 +153,39 @@ class MilkdownEditorManager {
 	/**
 	* 切换源码模式
 	*/
-	async toggleSourceMode() {
-		const container = document.querySelector('#milkdown-editor');
-		if (!container) return;
+	toggleSourceMode() {
+		if (!this.editor) {
+			console.warn('⚠️ 编辑器未初始化');
+			return;
+		}
 		
 		this.isSourceMode = !this.isSourceMode;
+		console.log('🔄 切换源码模式:', this.isSourceMode ? '源码' : 'WYSIWYG');
 		
-		if (this.isSourceMode) {
-			// 切换到源码模式
-			console.log('📝 切换到源码模式');
-			
-			// ⭐ 新增：清除所有激活的语法装饰
-			if (this.editor) {
-				this.editor.action((ctx) => {
-					const view = ctx.get(editorViewCtx);
-					const { tr } = view.state;
-					
-					// 发送清除激活状态的事务
-					const transaction = tr.setMeta('boldSyntax', {
-						action: 'clearActive'
-					});
-					view.dispatch(transaction);
-				});
-			}
-			
-			// 1. 获取当前 Markdown 内容
-			const markdown = this.getMarkdown();
-			
-			// 2. 隐藏 Milkdown 编辑器
-			const milkdownContainer = container.querySelector('.milkdown');
-			if (milkdownContainer) {
-				milkdownContainer.style.display = 'none';
-			}
-			
-			// 3. 创建并显示 textarea
-			this.sourceTextarea = document.createElement('textarea');
-			this.sourceTextarea.className = 'source-mode-textarea';
-			this.sourceTextarea.value = markdown;
-			this.sourceTextarea.style.cssText = `
-				width: 100%;
-				height: 100%;
-				padding: 20px;
-				border: none;
-				outline: none;
-				resize: none;
-				font-family: 'Consolas', 'Monaco', monospace;
-				font-size: 14px;
-				line-height: 1.6;
-				background-color: var(--bg-primary);
-				color: var(--text-primary);
-				box-sizing: border-box;
-			`;
-			
-			container.appendChild(this.sourceTextarea);
-			this.sourceTextarea.focus();
-			
-			// 4. 监听内容变化
-			this.sourceTextarea.addEventListener('input', () => {
-				this.hasUnsavedChanges = true;
-				if (this.onContentChange) {
-					this.onContentChange(this.sourceTextarea.value);
+		try {
+			this.editor.action((ctx) => {
+				const view = ctx.get(editorViewCtx);
+				const container = view.dom.closest('#milkdown-editor');
+				
+				if (this.isSourceMode) {
+					// 切换到源码模式
+					container.classList.add('source-mode');
+					container.classList.remove('wysiwyg-mode');
+				} else {
+					// 切换到 WYSIWYG 模式
+					container.classList.remove('source-mode');
+					container.classList.add('wysiwyg-mode');
 				}
 			});
 			
-		} else {
-			// 切换回所见即所得模式
-			console.log('👁️ 切换到所见即所得模式');
+			// 发布事件通知 UI 更新按钮状态
+			eventBus.emit('editor:source-mode-changed', this.isSourceMode);
 			
-			// 1. 获取 textarea 的内容
-			const markdown = this.sourceTextarea ? this.sourceTextarea.value : '';
-			
-			// 2. 移除 textarea
-			if (this.sourceTextarea) {
-				this.sourceTextarea.remove();
-				this.sourceTextarea = null;
-			}
-			
-			// 3. 显示 Milkdown 编辑器
-			const milkdownContainer = container.querySelector('.milkdown');
-			if (milkdownContainer) {
-				milkdownContainer.style.display = 'block';
-			}
-			
-			// 4. 加载内容到 Milkdown
-			await this.loadContent(markdown);
-		}
-		
-		return this.isSourceMode;
-	}
-	/**
-	* 获取当前内容（兼容源码模式）
-	*/
-	getMarkdown() {
-		if (this.isSourceMode && this.sourceTextarea) {
-			return this.sourceTextarea.value;
-		}
-		
-		if (!this.editor) {
-			console.warn('⚠️ 编辑器未初始化');
-			return '';
-		}
-		
-		try {
-			return this.editor.action(getMarkdown());
 		} catch (error) {
-			console.error('❌ 获取内容失败:', error);
-			return this.currentContent;
+			console.error('❌ 切换源码模式失败:', error);
 		}
 	}
+	
 	/**
 	* 获取当前是否为源码模式
 	*/
@@ -429,7 +352,22 @@ class MilkdownEditorManager {
         }
     }
 
-	
+    /**
+     * 获取编辑器内容
+     */
+    getMarkdown() {
+        if (!this.editor) {
+            console.warn('⚠️ 编辑器未初始化');
+            return '';
+        }
+        
+        try {
+            return this.editor.action(getMarkdown());
+        } catch (error) {
+            console.error('❌ 获取内容失败:', error);
+            return this.currentContent;
+        }
+    }
 
     /**
      * 应用主题
@@ -478,7 +416,6 @@ class MilkdownEditorManager {
             this.hasUnsavedChanges = false;
         }
     }
-	
 	
 	   /**
      * 解析当前编辑器内容并发出 outline:updated 事件

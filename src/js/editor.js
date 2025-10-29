@@ -155,23 +155,11 @@ async function handleSaveFile() {
 }
 
 
-
-/**
- * 切换源码模式
- */
-async function toggleSourceMode() {
-    if (!milkdownEditor) {
-        showError('编辑器未初始化');
-        return;
+// 在 toggleViewMode() 函数之后添加此函数
+function toggleSourceMode() {
+    if (milkdownEditor) {
+        milkdownEditor.toggleSourceMode();
     }
-    
-    const isSourceMode = await milkdownEditor.toggleSourceMode();
-    
-    if (domElements.sourceModeToggleBtn) {
-       domElements.sourceModeToggleBtn.innerHTML = isSourceMode ? '👁️ 所见即所得' : '📝 源码模式';
-    }
-    
-    console.log(`🔄 切换模式: ${isSourceMode ? '源码' : '所见即所得'}`);
 }
 
 // ========================================
@@ -192,9 +180,11 @@ eventBus.on('editor:save', async () => {
 
 
 // 订阅源码模式切换事件
-eventBus.on('editor:toggle-source-mode', async () => {
-    console.log('📝 [editor.js] 收到 editor:toggle-source-mode 事件');
-    await toggleSourceMode();
+eventBus.on('editor:toggle-source-mode', () => {
+    console.log('🔧 [editor.js] 收到 editor:toggle-source-mode 事件');
+    if (milkdownEditor) {
+        milkdownEditor.toggleSourceMode();
+    }
 });
 
 console.log('✅ editor.js 已订阅编辑器事件');
