@@ -1,0 +1,107 @@
+/* src/css/codemirror-theme.css */
+
+/* ========================================
+   CodeMirror 编辑器容器样式
+   ======================================== */
+
+#codemirror-editor {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-primary);
+    display: none; /* 默认隐藏 */
+}
+
+#codemirror-editor.active {
+    display: block;
+}
+
+/* ========================================
+   CodeMirror 全局样式覆盖
+   ======================================== */
+
+.cm-editor {
+    height: 100%;
+    outline: none;
+}
+
+.cm-scroller {
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--bg-primary);
+}
+
+/* Webkit 浏览器滚动条 */
+.cm-scroller::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.cm-scroller::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+.cm-scroller::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+}
+
+.cm-scroller::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* ========================================
+   浅色主题特定样式
+   ======================================== */
+
+html[data-theme="light"] #codemirror-editor {
+    --primary-color-alpha: rgba(52, 152, 219, 0.2);
+}
+
+/* ========================================
+   深色主题特定样式
+   ======================================== */
+
+html[data-theme="dark"] #codemirror-editor {
+    --primary-color-alpha: rgba(52, 152, 219, 0.3);
+}
+
+/* ========================================
+   语法高亮增强 (补充)
+   ======================================== */
+
+/* 代码块背景 */
+.cm-line .cm-code {
+    background-color: var(--bg-secondary);
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+/* 链接悬停效果 */
+.cm-line .cm-link:hover {
+    opacity: 0.8;
+    cursor: pointer;
+}
+
+/* 标题行间距 */
+.cm-line:has(.cm-heading) {
+    margin-top: 12px;
+    margin-bottom: 8px;
+}
+
+/* ========================================
+   光标动画
+   ======================================== */
+
+.cm-cursor {
+    animation: blink 1.2s step-end infinite;
+}
+
+@keyframes blink {
+    0%, 50% {
+        opacity: 1;
+    }
+    50.1%, 100% {
+        opacity: 0;
+    }
+}

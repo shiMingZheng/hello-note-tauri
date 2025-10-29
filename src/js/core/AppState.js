@@ -19,8 +19,10 @@ class AppState {
         this.isSearching = false;
         this.searchInactivityTimer = null;
 
-        // 编辑器状态
+        // 编辑器状态，todo代删除
         this.currentViewMode = 'edit';
+		// 编辑器模式: 'wysiwyg' | 'source' | 'preview'
+		this.editorMode = 'wysiwyg';
         this.hasUnsavedChanges = false;
 
         // 文件树状态

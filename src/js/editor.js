@@ -8,6 +8,7 @@ import { invoke } from './core/TauriApi.js';
 import { showError, showSuccessMessage } from './ui-utils.js';
 // ✅ 在文件顶部添加导入
 import { milkdownEditor } from './milkdown-editor.js';
+import { codemirrorEditor } from './codemirror-editor.js';
 
 console.log('📜 editor.js 开始加载...');
 
@@ -75,7 +76,11 @@ async function loadFileToEditor(relativePath) {
         milkdownEditor.setReadonly(false);
         
         console.log('📝 [loadFileToEditor] 加载内容到 Milkdown...');
-        await milkdownEditor.loadContent(content);
+        if (appState.editorMode === 'source') {
+			await codemirrorEditor.loadContent(content);
+		} else {
+			await milkdownEditor.loadContent(content);
+		}
         
         // 更新应用状态
         appState.activeFilePath = relativePath;
@@ -120,7 +125,15 @@ async function handleSaveFile() {
     try {
         // 1. 从编辑器导出 Markdown
         console.log('📝 [handleSaveFile] 从编辑器导出内容...');
-        const content = milkdownEditor?.getMarkdown() || '';
+		
+		// 修改为:
+		// 根据当前模式从对应编辑器获取内容
+		let content = '';
+		if (appState.editorMode === 'source') {
+			content = codemirrorEditor?.getContent() || '';
+		} else {
+			content = milkdownEditor?.getMarkdown() || '';
+		}
         
 		console.log('📄 [handleSaveFile] 导出的 Markdown 内容 (片段):', content.substring(0, 100));
         console.log('✅ [handleSaveFile] 内容导出成功，长度:', content.length);
@@ -154,28 +167,66 @@ async function handleSaveFile() {
     }
 }
 
+
 /**
- * 切换视图模式
+ * 切换编辑器模式
+ * @param {string} mode - 'wysiwyg' | 'source' | 'preview'
  */
-function toggleViewMode() {
-    const newMode = appState.currentViewMode === 'edit' ? 'preview' : 'edit';
-    appState.currentViewMode = newMode;
+function switchEditorMode(mode) {
+    console.log(`🔄 切换编辑器模式: ${mode}`);
     
+    const milkdownContainer = document.getElementById('milkdown-editor');
+    const codemirrorContainer = document.getElementById('codemirror-editor');
     const viewToggleBtn = document.getElementById('view-toggle-btn');
     
-    if (newMode === 'edit') {
-        if (viewToggleBtn) viewToggleBtn.innerHTML = '👁️ 预览';
-        if (milkdownEditor) {
-            milkdownEditor.setReadonly(false);
-        }
-    } else {
-        if (viewToggleBtn) viewToggleBtn.innerHTML = '📝 编辑';
-        if (milkdownEditor) {
-            milkdownEditor.setReadonly(true);
-        }
+    // 获取当前激活的编辑器内容
+    let currentContent = '';
+    if (appState.editorMode === 'wysiwyg' || appState.editorMode === 'preview') {
+        currentContent = milkdownEditor?.getMarkdown() || '';
+    } else if (appState.editorMode === 'source') {
+        currentContent = codemirrorEditor?.getContent() || '';
     }
     
-    console.log(`🔄 切换视图模式: ${newMode}`);
+    // 更新状态
+    appState.editorMode = mode;
+    appState.currentViewMode = mode === 'preview' ? 'preview' : 'edit';
+    
+    // 隐藏所有编辑器
+    if (milkdownContainer) milkdownContainer.classList.remove('active');
+    if (codemirrorContainer) codemirrorContainer.classList.remove('active');
+    
+    // 根据模式显示对应编辑器
+    switch (mode) {
+        case 'wysiwyg':
+            if (milkdownContainer) milkdownContainer.classList.add('active');
+            if (milkdownEditor) {
+                milkdownEditor.setReadonly(false);
+                milkdownEditor.loadContent(currentContent);
+            }
+            if (viewToggleBtn) viewToggleBtn.innerHTML = '📝 所见即所得';
+            break;
+            
+        case 'source':
+            if (codemirrorContainer) codemirrorContainer.classList.add('active');
+            if (codemirrorEditor) {
+                codemirrorEditor.setReadonly(false);
+                codemirrorEditor.loadContent(currentContent);
+                codemirrorEditor.focus();
+            }
+            if (viewToggleBtn) viewToggleBtn.innerHTML = '💻 源码模式';
+            break;
+            
+        case 'preview':
+            if (milkdownContainer) milkdownContainer.classList.add('active');
+            if (milkdownEditor) {
+                milkdownEditor.setReadonly(true);
+                milkdownEditor.loadContent(currentContent);
+            }
+            if (viewToggleBtn) viewToggleBtn.innerHTML = '👁️ 预览';
+            break;
+    }
+    
+    console.log(`✅ 已切换到 ${mode} 模式`);
 }
 
 // ========================================
@@ -195,9 +246,10 @@ eventBus.on('editor:save', async () => {
 });
 
 // 订阅视图切换事件
-eventBus.on('editor:toggle-view', () => {
-    console.log('👁️ [editor.js] 收到 editor:toggle-view 事件');
-    toggleViewMode();
+// 订阅模式切换事件
+eventBus.on('editor:switch-mode', (mode) => {
+    console.log('🔄 [editor.js] 收到 editor:switch-mode 事件:', mode);
+    switchEditorMode(mode);
 });
 
 console.log('✅ editor.js 已订阅编辑器事件');
@@ -208,7 +260,7 @@ console.log('✅ editor.js 已订阅编辑器事件');
 export {
     loadFileToEditor,
     handleSaveFile,
-    toggleViewMode
+    switchEditorMode  // 替换 toggleViewMode
 };
 
 console.log('✅ editor.js 加载完成');

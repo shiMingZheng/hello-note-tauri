@@ -38,14 +38,13 @@ import { pluginContext } from './plugin-context.js';
 
 import { searchManager } from './search.js';  // ⭐ 新增
 import { contextMenuManager } from './context-menu.js';  // ⭐ 新增
-import { handleSaveFile, toggleViewMode, loadFileToEditor } from './editor.js';  // ⭐ 保留编辑器相关
+import { handleSaveFile,  loadFileToEditor } from './editor.js';  // ⭐ 保留编辑器相关
 import { tabManager } from './tab_manager.js';
 import { outlineManager } from './outline.js'; // <--- 导入大纲管理器
+import { codemirrorEditor } from './codemirror-editor.js';
 
 
-/**
- * 初始化 Milkdown 编辑器
- */
+
 /**
  * 初始化 Milkdown 编辑器
  */
@@ -82,11 +81,29 @@ async function initializeMilkdownEditor() {
 }
 
 /**
+ * 初始化 CodeMirror 编辑器
+ */
+async function initializeCodeMirrorEditor() {
+    console.log('🎨 [main.js] 开始初始化 CodeMirror 编辑器...');
+    
+    if (!codemirrorEditor) {
+        throw new Error('codemirrorEditor 模块未加载');
+    }
+    
+    try {
+        codemirrorEditor.init('#codemirror-editor');
+        console.log('✅ [main.js] CodeMirror 编辑器初始化完成');
+    } catch (error) {
+        console.error('❌ [main.js] CodeMirror 编辑器初始化失败:', error);
+        throw error;
+    }
+}
+
+/**
  * 应用初始化
  */
 // src/js/main.js
 
-// src/js/main.js
 
 async function initApp() {
     console.log('🎯 初始化应用...');
@@ -156,6 +173,8 @@ async function initApp() {
         // ⭐ 6. 【关键修复】最后初始化编辑器
         // 此时 startup() 应该已经切换了 Tab，使编辑器容器可见
         await initializeMilkdownEditor();
+	
+		await initializeCodeMirrorEditor();  // 新增这行
         console.log('✅ 编辑器初始化完毕');
 
         // ⭐ 7. 初始化依赖“数据”和“编辑器”的模块
@@ -165,14 +184,6 @@ async function initApp() {
         // 8. 绑定剩余的事件
         bindRootActions();
         
-		
-		// 绑定视图切换按钮
-		const viewToggleBtn = document.getElementById('view-toggle-btn');
-		if (viewToggleBtn) {
-			viewToggleBtn.addEventListener('click', () => {
-				eventBus.emit('editor:toggle-view');
-			});
-		}
 		
 		// [重构] 步骤 3: 封装原生 window 事件
 		// 在 main.js 中统一监听, 然后发布到 eventBus
@@ -208,6 +219,18 @@ function bindRootActions() {
             eventBus.emit('root-action:create-folder');
         });
     }
+	
+	// 修改为:
+	const viewToggleBtn = document.getElementById('view-toggle-btn');
+	if (viewToggleBtn) {
+		viewToggleBtn.addEventListener('click', () => {
+			// 循环切换: wysiwyg → source → preview → wysiwyg
+			const modes = ['wysiwyg', 'source', 'preview'];
+			const currentIndex = modes.indexOf(appState.editorMode);
+			const nextMode = modes[(currentIndex + 1) % modes.length];
+			eventBus.emit('editor:switch-mode', nextMode);
+		});
+	}
      // 绑定保存按钮
     const saveBtn = document.getElementById('save-btn');
     if (saveBtn) {
