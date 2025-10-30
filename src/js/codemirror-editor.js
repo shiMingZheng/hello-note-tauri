@@ -2,9 +2,10 @@
 'use strict';
 
 // ⭐ 使用 Skypack CDN 导入 CodeMirror 6
-import { EditorView, minimalSetup } from 'https://cdn.skypack.dev/codemirror@6.0.1';
-import { EditorState } from 'https://cdn.skypack.dev/@codemirror/state@6.4.1';
-import { markdown } from 'https://cdn.skypack.dev/@codemirror/lang-markdown@6.2.5';
+// ⭐ 修改这里的导入语句
+import { EditorView, minimalSetup } from 'codemirror'; // 从 'codemirror' 导入
+import { markdown } from '@codemirror/lang-markdown'; // 从 '@codemirror/lang-markdown' 导入
+import { EditorState, Compartment } from '@codemirror/state'; // 从 '@codemirror/state' 导入
 import { eventBus } from './core/EventBus.js';
 import { appState } from './core/AppState.js';
 
@@ -24,6 +25,7 @@ class CodeMirrorEditorManager {
         this.hasUnsavedChanges = false;
         this.isLoading = false;
         this.container = null;
+		this.editableCompartment = new Compartment(); // ⭐ 新增 Compartment 实例
         
         CodeMirrorEditorManager.instance = this;
     }
@@ -51,6 +53,8 @@ class CodeMirrorEditorManager {
                     this.createTheme(),
                     this.createUpdateListener(),
                     EditorView.lineWrapping, // 自动换行
+					// ⭐ 在这里包含 Compartment，并设置初始可编辑状态 (true)
+                    this.editableCompartment.of(EditorView.editable.of(true)),
                 ]
             });
 
@@ -224,12 +228,15 @@ class CodeMirrorEditorManager {
      * 设置只读模式
      */
     setReadonly(readonly) {
-        if (!this.view) return;
+        if (!this.view || !this.editableCompartment) return; // ⭐ 增加检查
 
         try {
+            // ⭐ 使用 Compartment 来切换可编辑状态
+            // readonly 为 true 时， editable 为 false
             this.view.dispatch({
-                effects: EditorState.readOnly.of(readonly)
+                effects: this.editableCompartment.reconfigure(EditorView.editable.of(!readonly))
             });
+            console.log(`✅ CodeMirror Readonly 设置为: ${readonly}`); // 添加日志
         } catch (error) {
             console.error('❌ 设置只读模式失败:', error);
         }
