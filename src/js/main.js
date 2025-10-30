@@ -136,6 +136,9 @@ async function initApp() {
         
         tabManager.init();
        
+        // ★★★ [优化] 步骤 5：调整初始化顺序 ★★★
+        // 确保 sidebar.init() 在 workspaceManager.startup() 之前调用
+        sidebar.init();
         
         // ⭐ 5. 实例化并启动 WorkspaceManager
         // (这会加载数据, 并使用已就绪的 tabManager 切换视图)
@@ -177,8 +180,7 @@ async function initApp() {
 		await initializeCodeMirrorEditor();  // 新增这行
         console.log('✅ 编辑器初始化完毕');
 
-        // ⭐ 7. 初始化依赖“数据”和“编辑器”的模块
-        sidebar.init();           
+      
           
         
         // 8. 绑定剩余的事件

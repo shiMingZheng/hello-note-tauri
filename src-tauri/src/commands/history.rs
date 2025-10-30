@@ -77,19 +77,41 @@ pub async fn get_history(
         
         let limit_value = limit.unwrap_or(50);
         
+        // ★★★ [优化] 修改 SQL 查询 ★★★
+        // 1. 使用 WITH 语句和 ROW_NUMBER() 来为每个文件每天的记录进行排序
+        // 2. 选取 rn = 1 的记录（即每个文件每天的最新记录）
+        // 3. 按日期和时间倒序排列
         let mut stmt = conn.prepare(
-            "SELECT 
-                h.id,
-                h.file_id,
-                f.path,
-                COALESCE(f.title, '未命名'),
-                h.event_type,
-                h.event_date,
-                h.event_datetime
-             FROM history h
-             INNER JOIN files f ON h.file_id = f.id
-             ORDER BY h.event_datetime DESC
-             LIMIT ?1"
+            "
+            WITH RankedHistory AS (
+                SELECT 
+                    h.id,
+                    h.file_id,
+                    f.path,
+                    COALESCE(f.title, '未命名') AS file_title,
+                    h.event_type,
+                    h.event_date,
+                    h.event_datetime,
+                    ROW_NUMBER() OVER(
+                        PARTITION BY h.file_id, h.event_date 
+                        ORDER BY h.event_datetime DESC
+                    ) as rn
+                FROM history h
+                INNER JOIN files f ON h.file_id = f.id
+            )
+            SELECT 
+                id,
+                file_id,
+                path,
+                file_title,
+                event_type,
+                event_date,
+                event_datetime
+            FROM RankedHistory
+            WHERE rn = 1
+            ORDER BY event_date DESC, event_datetime DESC
+            LIMIT ?1
+            "
         ).map_err(|e| e.to_string())?;
         
         let entries = stmt.query_map(params![limit_value], |row| {

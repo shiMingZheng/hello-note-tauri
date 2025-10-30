@@ -44,7 +44,11 @@ class Sidebar {
         if (domElements.clearFilterBtn) {
             domElements.clearFilterBtn.addEventListener('click', () => this.handleClearTagFilter());
         }
-       
+       // ★★★ [优化] 在这里订阅事件 ★★★
+        eventBus.on('ui:updateFileTags', (filePath) => {
+        console.log('🔄 [sidebar] 收到 ui:updateFileTags 事件:', filePath);
+        this.loadFileTags(filePath); // 调用加载和更新UI的函数
+        });
         
         console.log('✅ 侧边栏模块初始化完成');
     }
@@ -312,7 +316,7 @@ class Sidebar {
         }
         
         try {
-            const tags = await invoke('get_file_tags', { relativePath: filePath });
+            const tags = await invoke('get_tags_for_file', { relativePath: filePath });
             appState.currentFileTags = tags.sort();
             
             this.updateCurrentFileTagsUI(filePath);
