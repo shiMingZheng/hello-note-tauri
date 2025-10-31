@@ -1,7 +1,6 @@
 // src/js/theme.js
 'use strict';
-// [重构] 步骤 2: 导入 milkdownEditor
-import { milkdownEditor } from './milkdown-editor.js';
+
 console.log('📜 theme.js 开始加载...');
 
 class ThemeManager {
@@ -77,10 +76,7 @@ class ThemeManager {
         // 保存到 localStorage
         localStorage.setItem('cheetah_theme', theme);
         
-        // 同步 Milkdown 编辑器主题
-        if (milkdownEditor && milkdownEditor.setTheme) {
-            milkdownEditor.setTheme(theme);
-        }
+
         
         console.log(`🎨 主题已切换: ${theme}`);
     }

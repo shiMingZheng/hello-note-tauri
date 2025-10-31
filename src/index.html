@@ -8,8 +8,6 @@
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/utils.css">
-	    <!-- ⭐ Milkdown 编辑器样式 -->
-    <link rel="stylesheet" href="css/milkdown-theme.css">
 	<!-- ⭐【新增】插件系统样式 -->
 	<link rel="stylesheet" href="css/plugin-ui.css">
 	<link rel="stylesheet" href="css/codemirror-theme.css">
@@ -156,11 +154,8 @@
                 
                 <div id="editor-wrapper" class="tab-content">
 				     <div id="editor-container" class="editor-container">
-						  <!-- 移除旧的 textarea 和 预览区 -->
-						<!-- 替换为 Milkdown 容器 -->
-						<div id="milkdown-editor" class="milkdown-container"></div>
 						<!-- CodeMirror 编辑器 (源码模式) -->
-						<div id="codemirror-editor"></div>
+						<div id="codemirror-editor" class="cm-editor-wrapper"></div>
 					</div>
                                       
                 </div>
@@ -213,8 +208,7 @@
 	
 	<!-- ⭐ 统一入口 -->
 	<script type="module" src="js/main.js"></script>
-	<!-- Milkdown 编辑器 -->
-	<script type="module" src="js/milkdown-editor.js"></script>
+
 	<!-- 插件系统 -->
 	<script type="module" src="js/plugin-context.js"></script>
 	<script type="module" src="js/plugin-manager.js"></script>

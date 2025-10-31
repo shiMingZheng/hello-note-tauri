@@ -22,8 +22,9 @@ class AppState {
 
         // 编辑器状态，todo代删除
         this.currentViewMode = 'preview';
-		// 编辑器模式: 'wysiwyg' | 'source' | 'preview'
-		this.editorMode = 'preview';
+		
+        // ⭐ 改造：编辑器模式: 'live-preview' | 'source'
+        this.editorMode = 'live-preview'; // 默认使用实时预览
         this.hasUnsavedChanges = false;
         this.isFirstFileLoad = true;  // ✅ 新增:标记是否首次加载文件
 

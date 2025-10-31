@@ -9,11 +9,7 @@
     height: 100%;
     overflow: hidden;
     background-color: var(--bg-primary);
-    display: none; /* 默认隐藏 */
-}
-
-#codemirror-editor.active {
-    display: block;
+    display: block; /* 默认隐藏 */
 }
 
 /* ========================================

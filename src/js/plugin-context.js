@@ -4,7 +4,8 @@
 import { appState } from './core/AppState.js';
 import { showSuccessMessage, showError } from './ui-utils.js';
 import { invoke,IS_TAURI_APP } from './core/TauriAPI.js';
-import { milkdownEditor } from './milkdown-editor.js';
+// ⭐ 改造：导入 CodeMirror 核心
+import { codemirrorEditor } from './codemirror-editor.js';
 
 console.log('📜 plugin-context.js 开始加载...');
 
@@ -31,37 +32,39 @@ class PluginContext {
          * 获取当前编辑器内容
          */
         getContent() {
-            if (!milkdownEditor) {
+            // ⭐ 改造：使用 CodeMirror
+            if (!codemirrorEditor) {
                 console.warn('⚠️ 编辑器未初始化');
                 return '';
             }
-            return milkdownEditor.getMarkdown();
+            return codemirrorEditor.getContent();
         },
 
         /**
          * 设置编辑器内容
          */
         async setContent(content) {
-            if (!milkdownEditor) {
+            // ⭐ 改造：使用 CodeMirror
+            if (!codemirrorEditor) {
                 console.warn('⚠️ 编辑器未初始化');
                 return;
             }
-            await milkdownEditor.loadContent(content);
+            await codemirrorEditor.loadContent(content);
         },
 
         /**
          * 在光标位置插入文本
          */
         insertText(text) {
-            if (!milkdownEditor || !milkdownEditor.editor) {
+            // ⭐ 改造：使用 CodeMirror
+            if (!codemirrorEditor || !codemirrorEditor.view) {
                 console.warn('⚠️ 编辑器未初始化');
                 return;
             }
-
+            
             try {
-                const currentContent = this.getContent();
-                const newContent = currentContent + '\n' + text;
-                milkdownEditor.loadContent(newContent);
+                // (我们将在 codemirror-editor.js 中实现这个 insertText 方法)
+                codemirrorEditor.insertText(text);
             } catch (error) {
                 console.error('❌ 插入文本失败:', error);
             }
@@ -79,8 +82,13 @@ class PluginContext {
          * 获取当前选中的文本
          */
         getSelection() {
-            // TODO: 实现获取选中文本的逻辑
-            return '';
+            // ⭐ 改造：使用 CodeMirror
+            if (!codemirrorEditor || !codemirrorEditor.view) {
+                return '';
+            }
+            const { state } = codemirrorEditor.view;
+            const { from, to } = state.selection.main;
+            return state.doc.sliceString(from, to);
         }
     };
 

@@ -14,18 +14,6 @@
     "@codemirror/lang-markdown": "^6.5.0",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.38.6",
-    "@milkdown/core": "^7.3.6",
-    "@milkdown/ctx": "^7.3.6",
-    "@milkdown/plugin-clipboard": "^7.3.6",
-    "@milkdown/plugin-cursor": "^7.3.6",
-    "@milkdown/plugin-history": "^7.3.6",
-    "@milkdown/plugin-listener": "^7.3.6",
-    "@milkdown/preset-commonmark": "^7.3.6",
-    "@milkdown/preset-gfm": "^7.3.6",
-    "@milkdown/prose": "^7.3.6",
-    "@milkdown/theme-nord": "^7.3.6",
-    "@milkdown/transformer": "^7.3.6",
-    "@milkdown/utils": "^7.3.6",
     "codemirror": "^6.0.2"
   },
   "devDependencies": {

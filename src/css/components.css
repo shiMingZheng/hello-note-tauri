@@ -1076,19 +1076,6 @@
     height: 100%;
 }
 
-.milkdown-container {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    position: relative;
-    flex: 1; /* 占满剩余空间 */
-    min-height: 0; /* 允许 flex 子元素缩小 */
-}
-
-/* 4.5. 旧版预览区样式 (保留) */
-.markdown-editor {
-    display: none; /* 不再使用 */
-}
 
 .html-preview {
     display: none; /* 保留用于兼容性 */
@@ -1148,21 +1135,6 @@
 .html-preview li {
     margin-bottom: 8px;
 }
-
-/* ========================================
-   编辑器容器切换
-   ======================================== */
-
-#milkdown-editor,
-#codemirror-editor {
-    display: none;
-}
-
-#milkdown-editor.active,
-#codemirror-editor.active {
-    display: block;
-}
-
 
 
 /* 4.6. 内部链接样式 (编辑器内) */
@@ -1451,15 +1423,6 @@ a.internal-link:hover {
 /* ========================================
    6. 响应式调整 (Responsive)
    ======================================== */
-@media (max-width: 768px) {
-    .milkdown-container {
-        padding: 10px;
-    }
-    
-    #milkdown-editor {
-        padding: 15px;
-    }
-}
 
 /* ========================================
    7. 主题适配 (Theme Adapts)

@@ -1,19 +1,29 @@
 // src/js/codemirror-editor.js
 'use strict';
 
-// ⭐ 使用 Skypack CDN 导入 CodeMirror 6
-// ⭐ 修改这里的导入语句
-import { EditorView, minimalSetup } from 'codemirror'; // 从 'codemirror' 导入
-import { markdown } from '@codemirror/lang-markdown'; // 从 '@codemirror/lang-markdown' 导入
-import { EditorState, Compartment } from '@codemirror/state'; // 从 '@codemirror/state' 导入
+import { EditorView, minimalSetup } from 'codemirror';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { EditorState, Compartment } from '@codemirror/state';
 import { eventBus } from './core/EventBus.js';
 import { appState } from './core/AppState.js';
 
-console.log('📜 codemirror-editor.js 开始加载...');
+// ⭐ 最终修正：只导入 GFM。GFM 扩展包已经包含了表格。
+import { GFM } from '@lezer/markdown';
 
-/**
- * CodeMirror 6 编辑器管理器 (源码模式)
- */
+import { defaultKeymap, history, indentWithTab } from '@codemirror/commands';
+import {
+    keymap,
+    highlightActiveLine,
+    lineNumbers,
+    drawSelection,
+    placeholder,
+    highlightActiveLineGutter
+} from '@codemirror/view';
+// ⭐ 修正：导入 EditorSelection
+import { EditorSelection } from '@codemirror/state';
+
+console.log('📜 codemirror-editor.js (重构版) 开始加载...');
+
 class CodeMirrorEditorManager {
     constructor() {
         if (CodeMirrorEditorManager.instance) {
@@ -25,16 +35,35 @@ class CodeMirrorEditorManager {
         this.hasUnsavedChanges = false;
         this.isLoading = false;
         this.container = null;
-		this.editableCompartment = new Compartment(); // ⭐ 新增 Compartment 实例
+        this.outlineTimer = null; 
+
+        this.editableCompartment = new Compartment();
+        this.modeCompartment = new Compartment();
+
+        // “源码”模式扩展
+        this.sourceModeExtensions = [
+            markdown({
+                base: markdownLanguage,
+                codeLanguages: [],
+                addKeymap: true
+            }),
+        ];
+
+        // “实时预览”模式扩展
+        this.livePreviewExtensions = [
+            markdown({
+                base: markdownLanguage,
+                codeLanguages: [], 
+                // ⭐ 最终修正：只使用 GFM，它已包含表格
+                extensions: [GFM] 
+            }),
+        ];
         
         CodeMirrorEditorManager.instance = this;
     }
 
-    /**
-     * 初始化编辑器
-     */
     init(containerSelector) {
-        console.log('🎨 初始化 CodeMirror 编辑器...');
+        console.log('🎨 初始化 CodeMirror 编辑器 (双模式版)...');
         
         this.container = document.querySelector(containerSelector);
         
@@ -44,25 +73,35 @@ class CodeMirrorEditorManager {
         }
 
         try {
-            // 创建编辑器状态
             const startState = EditorState.create({
-                doc: '',
+                doc: '# 欢迎使用\n\n请在左侧打开文件',
                 extensions: [
                     minimalSetup,
-                    markdown(),
+                    history(),
+                    keymap.of(defaultKeymap),
+                    keymap.of([indentWithTab]),
+                    lineNumbers(),
+                    highlightActiveLineGutter(),
+                    drawSelection(),
+                    highlightActiveLine(),
+                    placeholder('开始写作...'),
+                    
                     this.createTheme(),
                     this.createUpdateListener(),
-                    EditorView.lineWrapping, // 自动换行
-					// ⭐ 在这里包含 Compartment，并设置初始可编辑状态 (true)
-                    this.editableCompartment.of(EditorView.editable.of(true)),
+                    EditorView.lineWrapping, 
+
+                    this.editableCompartment.of(EditorView.editable.of(false)),
+                    this.modeCompartment.of(this.livePreviewExtensions)
                 ]
             });
 
-            // 创建编辑器视图
             this.view = new EditorView({
                 state: startState,
                 parent: this.container
             });
+
+            eventBus.on('outline:request-update', () => this.parseAndEmitOutline());
+            eventBus.on('editor:scroll-to-pos', (pos) => this.scrollToPos(pos));
 
             console.log('✅ CodeMirror 编辑器初始化成功');
         } catch (error) {
@@ -71,86 +110,64 @@ class CodeMirrorEditorManager {
         }
     }
 
-    /**
-     * 创建主题扩展
-     */
+    setMode(mode) {
+        if (!this.view || !this.modeCompartment) return;
+        console.log(`🔄 CodeMirror 切换模式: ${mode}`);
+        
+        let extensions = (mode === 'source') 
+            ? this.sourceModeExtensions 
+            : this.livePreviewExtensions;
+
+        try {
+            this.view.dispatch({
+                effects: this.modeCompartment.reconfigure(extensions)
+            });
+            console.log(`✅ CodeMirror 模式已切换`);
+        } catch(error) {
+            console.error(`❌ 切换 CodeMirror 模式失败:`, error);
+        }
+    }
+
     createTheme() {
         return EditorView.theme({
-            // 编辑器容器
             "&": {
                 height: "100%",
-                fontSize: "14px",
+                fontSize: "16px",
                 backgroundColor: "var(--bg-primary)",
                 color: "var(--text-primary)"
             },
-            // 内容区域
             ".cm-content": {
                 caretColor: "var(--primary-color)",
-                fontFamily: "'Consolas', 'Monaco', monospace",
-                padding: "20px"
+                fontFamily: "var(--font-family-serif, 'Georgia', 'Times New Roman', serif)", 
+                padding: "20px 40px",
+                maxWidth: "800px", 
+                margin: "0 auto",
             },
-            // 光标
-            ".cm-cursor": {
-                borderLeftColor: "var(--primary-color)"
+            ".cm-meta": {
+                color: "var(--text-secondary)",
+                opacity: 0.7,
+                fontFamily: "var(--font-family-mono, 'Consolas', 'Monaco', monospace)"
             },
-            // 选中文本
-            "&.cm-focused .cm-selectionBackground, ::selection": {
-                backgroundColor: "rgba(52, 152, 219, 0.2)"
+            ".cm-line": {
+                 fontFamily: "var(--font-family-serif, 'Georgia', 'Times New Roman', serif)",
             },
-            // 滚动条
-            ".cm-scroller": {
-                overflow: "auto",
-                fontFamily: "'Consolas', 'Monaco', monospace"
+            ".cm-source-mode-active .cm-line": {
+                fontFamily: "var(--font-family-mono, 'Consolas', 'Monaco', monospace)"
             },
-            // 行号
             ".cm-gutters": {
                 backgroundColor: "var(--bg-secondary)",
                 color: "var(--text-secondary)",
                 border: "none"
             },
-            // 活动行
             ".cm-activeLine": {
-                backgroundColor: "var(--bg-secondary)"
+                backgroundColor: "var(--active-bg, var(--bg-secondary))"
             },
-            // 语法高亮样式
-            ".cm-strong": {
-                fontWeight: "bold"
-            },
-            ".cm-em": {
-                fontStyle: "italic"
-            },
-            ".cm-link": {
-                color: "var(--primary-color)",
-                textDecoration: "underline"
-            },
-            ".cm-heading": {
-                fontWeight: "bold"
-            },
-            ".cm-heading1": {
-                fontSize: "1.8em"
-            },
-            ".cm-heading2": {
-                fontSize: "1.5em"
-            },
-            ".cm-heading3": {
-                fontSize: "1.3em"
-            },
-            ".cm-code, .cm-monospace": {
-                backgroundColor: "var(--bg-secondary)",
-                padding: "2px 4px",
-                borderRadius: "3px",
-                fontFamily: "'Consolas', 'Monaco', monospace"
-            },
-            ".cm-quote": {
-                color: "var(--text-secondary)",
-                fontStyle: "italic"
+            ".cm-activeLineGutter": {
+                backgroundColor: "var(--active-bg, var(--bg-secondary))"
             }
         });
     }
 
-    /**
-     * 创建内容变更监听器
-     */
     createUpdateListener() {
         return EditorView.updateListener.of((update) => {
             if (update.docChanged && !this.isLoading) {
@@ -158,31 +175,101 @@ class CodeMirrorEditorManager {
                 this.hasUnsavedChanges = true;
                 appState.hasUnsavedChanges = true;
                 
-                console.log('📝 CodeMirror 内容已变更');
-                
-                // 发布内容变更事件
                 eventBus.emit('editor:content-changed', {
                     content: this.currentContent,
                     mode: 'source'
                 });
+
+                clearTimeout(this.outlineTimer);
+                this.outlineTimer = setTimeout(() => {
+                    this.parseAndEmitOutline();
+                }, 500);
             }
         });
     }
 
-    /**
-     * 加载内容到编辑器
-     */
+    parseAndEmitOutline() {
+        if (!this.view) return;
+
+        console.log('🔍 [CM6] 解析大纲...');
+        const outlineData = [];
+        const headingRegex = /^(#+)\s+(.*)/;
+
+        try {
+            for (let i = 1; i <= this.view.state.doc.lines; i++) {
+                const line = this.view.state.doc.line(i);
+                const match = line.text.match(headingRegex);
+                
+                if (match) {
+                    const level = match[1].length;
+                    const text = match[2].trim() || '空标题';
+                    const pos = line.from; 
+
+                    outlineData.push({
+                        level: level,
+                        text: text,
+                        pos: pos 
+                    });
+                }
+            }
+            eventBus.emit('outline:updated', outlineData);
+        } catch (error) {
+            console.error('❌ [CM6] 解析大纲失败:', error);
+            eventBus.emit('outline:updated', []);
+        }
+    }
+
+    insertText(text) {
+        if (!this.view) return;
+
+        try {
+            const { state, dispatch } = this.view;
+            const { selection } = state;
+            
+            const transaction = state.tr.replaceSelection(text);
+            dispatch(transaction);
+            
+            const newPos = selection.main.from + text.length;
+            const newTransaction = this.view.state.tr.setSelection(
+                EditorSelection.cursor(newPos) 
+            );
+            this.view.dispatch(newTransaction);
+            
+            this.view.focus();
+            console.log('✅ [CM6] 已插入文本:', text);
+            
+        } catch (error) {
+            console.error('❌ [CM6] 插入文本失败:', error);
+        }
+    }
+    
+    scrollToPos(pos) {
+        if (!this.view || typeof pos !== 'number') return;
+        
+        try {
+            const tr = this.view.state.tr;
+            const resolvedPos = Math.min(pos, tr.doc.length - 1);
+            
+            const selection = EditorSelection.cursor(resolvedPos);
+            tr.setSelection(selection);
+            
+            tr.scrollIntoView();
+            this.view.dispatch(tr);
+            this.view.focus();
+            
+            console.log(`✅ [CM6] 已滚动到位置: ${pos}`);
+        } catch (error) {
+            console.error('❌ [CM6] 滚动/移动光标失败:', pos, error);
+        }
+    }
+
     loadContent(content) {
         if (!this.view) {
             console.warn('⚠️ CodeMirror 编辑器未初始化');
             return;
         }
-
-        console.log('📄 加载内容到 CodeMirror...');
         this.isLoading = true;
-
         try {
-            // 替换整个文档内容
             this.view.dispatch({
                 changes: {
                     from: 0,
@@ -190,9 +277,10 @@ class CodeMirrorEditorManager {
                     insert: content || ''
                 }
             });
-
             this.currentContent = content || '';
             this.hasUnsavedChanges = false;
+            
+            this.parseAndEmitOutline();
             
             console.log('✅ 内容加载完成');
         } catch (error) {
@@ -204,56 +292,29 @@ class CodeMirrorEditorManager {
         }
     }
 
-    /**
-     * 获取编辑器内容
-     */
     getContent() {
-        if (!this.view) {
-            console.warn('⚠️ CodeMirror 编辑器未初始化');
-            return '';
-        }
-
+        if (!this.view) return '';
         return this.view.state.doc.toString();
     }
 
-    /**
-     * 应用主题
-     */
-    applyTheme(themeName) {
-        console.log('🎨 应用 CodeMirror 主题:', themeName);
-        // 主题通过 CSS 变量控制
-    }
-
-    /**
-     * 设置只读模式
-     */
     setReadonly(readonly) {
-        if (!this.view || !this.editableCompartment) return; // ⭐ 增加检查
-
+        if (!this.view || !this.editableCompartment) return;
         try {
-            // ⭐ 使用 Compartment 来切换可编辑状态
-            // readonly 为 true 时， editable 为 false
             this.view.dispatch({
                 effects: this.editableCompartment.reconfigure(EditorView.editable.of(!readonly))
             });
-            console.log(`✅ CodeMirror Readonly 设置为: ${readonly}`); // 添加日志
+            console.log(`✅ CodeMirror Readonly 设置为: ${readonly}`);
         } catch (error) {
             console.error('❌ 设置只读模式失败:', error);
         }
     }
 
-    /**
-     * 聚焦编辑器
-     */
     focus() {
         if (this.view) {
             this.view.focus();
         }
     }
 
-    /**
-     * 销毁编辑器
-     */
     destroy() {
         if (this.view) {
             console.log('🗑️ 销毁 CodeMirror 编辑器');
@@ -268,4 +329,4 @@ class CodeMirrorEditorManager {
 // 导出单例
 export const codemirrorEditor = new CodeMirrorEditorManager();
 
-console.log('✅ codemirror-editor.js 加载完成');
+console.log('✅ codemirror-editor.js (重构版) 加载完成');

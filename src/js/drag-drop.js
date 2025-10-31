@@ -20,7 +20,7 @@ class DragDropManager {
         this.dragGhost = null; // 拖拽时的视觉反馈元素
         this.startX = 0;
         this.startY = 0;
-		this.wasOverEditor = false; // ✅ 添加这一行
+		this.wasOverEditor = false;
         
         DragDropManager.instance = this;
     }
@@ -41,17 +41,18 @@ class DragDropManager {
         document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
         
-		// ✅ 新增：监听编辑器的拖放（用于插入链接）
+		// ✅ 监听编辑器的拖放（用于插入链接）
 		this.initEditorDrop();
     
         console.log('✅ 拖拽功能已初始化（模拟模式）');
     }
+
 	/**
 	* 初始化编辑器拖放功能（用于插入链接）
 	*/
 	initEditorDrop() {
-		// 获取编辑器容器
-		const editorContainer = document.getElementById('milkdown-editor');
+		// ⭐ 改造：获取 CodeMirror 容器
+		const editorContainer = document.getElementById('codemirror-editor');
 		
 		if (!editorContainer) {
 			console.warn('⚠️ 编辑器容器未找到，延迟初始化拖放功能');
@@ -92,13 +93,9 @@ class DragDropManager {
 	/**
 	* 在编辑器中插入 Wikilink
 	*/
-	/**
-	* 在编辑器中插入 Wikilink
-	*/
 	async insertWikilinkToEditor(draggedItem) {
 		console.log('📝 插入 Wikilink:', draggedItem.name);
 		
-		// 只处理 .md 文件
 		if (draggedItem.isDir) {
 			showError('不能链接文件夹');
 			return;
@@ -109,7 +106,6 @@ class DragDropManager {
 			return;
 		}
 		
-		// ✅ 只使用文件名，去掉路径和 .md 后缀
 		const fileName = draggedItem.name.replace(/\.md$/, '');
 		const wikilink = `[[${fileName}]]`;
 		
@@ -125,13 +121,11 @@ class DragDropManager {
     }
     
     handleMouseDown(e) {
-        // 只响应左键
         if (e.button !== 0) return;
         
         const li = e.target.closest('li.draggable-item');
         if (!li) return;
         
-        // 如果点击的是输入框，不启动拖拽
         if (e.target.closest('.rename-input')) return;
         
         this.startX = e.clientX;
@@ -147,7 +141,6 @@ class DragDropManager {
     }
     
 	handleMouseMove(e) {
-		// ✅ 保存最后的鼠标位置（供 endDrag 使用）
 		window.lastMouseMoveEvent = e;
 		
 		if (!this.potentialDragItem && !this.isDragging) return;
@@ -155,7 +148,6 @@ class DragDropManager {
 		const deltaX = Math.abs(e.clientX - this.startX);
 		const deltaY = Math.abs(e.clientY - this.startY);
 		
-		// 移动超过 5px 才开始拖拽（避免误触）
 		if (!this.isDragging && (deltaX > 5 || deltaY > 5)) {
 			this.startDrag(e);
 		}
@@ -172,7 +164,6 @@ class DragDropManager {
         this.draggedItem = this.potentialDragItem;
         this.potentialDragItem = null;
         
-        // 创建拖拽幽灵元素
         this.dragGhost = this.draggedItem.element.cloneNode(true);
         this.dragGhost.style.position = 'fixed';
         this.dragGhost.style.pointerEvents = 'none';
@@ -184,7 +175,6 @@ class DragDropManager {
         this.dragGhost.style.width = this.draggedItem.element.offsetWidth + 'px';
         document.body.appendChild(this.dragGhost);
         
-        // 原始元素添加样式
         this.draggedItem.element.style.opacity = '0.4';
         document.body.style.cursor = 'grabbing';
         
@@ -194,32 +184,27 @@ class DragDropManager {
     updateDrag(e) {
 		if (!this.dragGhost) return;
 		
-		// 更新幽灵元素位置
 		this.dragGhost.style.left = (e.clientX + 10) + 'px';
 		this.dragGhost.style.top = (e.clientY + 10) + 'px';
 		
-		// 检测鼠标下的目标元素
 		this.dragGhost.style.pointerEvents = 'none';
 		const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
 		
-		// ✅ 检查是否在编辑器上
-		const editorContainer = document.getElementById('milkdown-editor');
+		// ⭐ 改造：检查 CodeMirror 容器
+		const editorContainer = document.getElementById('codemirror-editor');
 		const isOverEditor = editorContainer?.contains(elementBelow);
 		
 		if (isOverEditor) {
-			// 清除文件夹高亮
 			document.querySelectorAll('.drag-over').forEach(el => {
 				el.classList.remove('drag-over');
 			});
 			
-			// ✅ 高亮编辑器
 			editorContainer.style.outline = '2px dashed var(--primary-color)';
 			editorContainer.style.outlineOffset = '-2px';
 			
 			this.dropTarget = null;
-			this.dragGhost.style.cursor = 'copy'; // ✅ 显示复制图标
+			this.dragGhost.style.cursor = 'copy';
 			
-			// 不需要每次都打印日志
 			if (!this.wasOverEditor) {
 				console.log('📝 进入编辑器区域');
 				this.wasOverEditor = true;
@@ -227,17 +212,17 @@ class DragDropManager {
 			return;
 		}
 		
-		// ✅ 离开编辑器区域
 		if (this.wasOverEditor) {
-			editorContainer.style.outline = '';
+            // ⭐ 改造：确保 editorContainer 存在
+            if (editorContainer) {
+			    editorContainer.style.outline = '';
+            }
 			console.log('📝 离开编辑器区域');
 			this.wasOverEditor = false;
 		}
 		
-		// 原有的文件夹检测逻辑
 		const targetLi = elementBelow?.closest('li');
 		
-		// 清除之前的高亮
 		document.querySelectorAll('.drag-over').forEach(el => {
 			el.classList.remove('drag-over');
 		});
@@ -252,7 +237,7 @@ class DragDropManager {
 					path: targetPath,
 					name: targetLi.dataset.name
 				};
-				this.dragGhost.style.cursor = 'move'; // ✅ 显示移动图标
+				this.dragGhost.style.cursor = 'move';
 			} else {
 				this.dropTarget = null;
 				this.dragGhost.style.cursor = 'not-allowed';
@@ -264,13 +249,8 @@ class DragDropManager {
     
     canDropOn(targetPath) {
         if (!this.draggedItem) return false;
-        
-        // 不能拖到自己
         if (targetPath === this.draggedItem.path) return false;
-        
-        // 不能拖到自己的子文件夹
         if (targetPath.startsWith(this.draggedItem.path + '/')) return false;
-        
         return true;
     }
     
@@ -283,32 +263,24 @@ class DragDropManager {
     }
     
     async endDrag() {
-		// ✅ 防止重复调用
 		if (!this.isDragging) {
 			console.log('⏭️ 已经结束拖拽，跳过');
 			return;
 		}
 		
 		console.log('🏁 结束拖拽');
-		console.log('📊 拖拽状态:', {
-			isDragging: this.isDragging,
-			draggedItem: this.draggedItem?.name,
-			dropTarget: this.dropTarget?.name
-		});
 		
-		// ✅ 立即设置为 false，防止重复调用
 		this.isDragging = false;
 		
-		// ✅ 先保存状态副本
 		const dropTargetCopy = this.dropTarget;
 		const draggedItemCopy = this.draggedItem;
 		
-		// ✅ 检测鼠标最终位置是否在编辑器上
-		const lastMouseEvent = window.lastMouseMoveEvent; // 需要保存最后的鼠标位置
+		const lastMouseEvent = window.lastMouseMoveEvent;
 		let isOverEditor = false;
 		
 		if (lastMouseEvent) {
-			const editorContainer = document.getElementById('milkdown-editor');
+            // ⭐ 改造：检查 CodeMirror 容器
+			const editorContainer = document.getElementById('codemirror-editor');
 			const elementAtMouse = document.elementFromPoint(
 				lastMouseEvent.clientX, 
 				lastMouseEvent.clientY
@@ -321,7 +293,6 @@ class DragDropManager {
 			hasDropTarget: !!dropTargetCopy
 		});
 		
-		// 清理视觉效果
 		if (this.dragGhost) {
 			this.dragGhost.remove();
 			this.dragGhost = null;
@@ -335,21 +306,18 @@ class DragDropManager {
 			el.classList.remove('drag-over');
 		});
 		
-		// ✅ 清除编辑器高亮
-		const editorContainer = document.getElementById('milkdown-editor');
+		// ⭐ 改造：清除 CodeMirror 容器高亮
+		const editorContainer = document.getElementById('codemirror-editor');
 		if (editorContainer) {
 			editorContainer.style.outline = '';
 		}
 		
 		document.body.style.cursor = '';
 		
-		// ✅ 判断执行哪种操作
 		if (isOverEditor && draggedItemCopy) {
-			// 拖拽到编辑器：插入链接
 			console.log('✅ 插入 Wikilink 到编辑器');
 			await this.insertWikilinkToEditor(draggedItemCopy);
 		} else if (dropTargetCopy && draggedItemCopy) {
-			// 拖拽到文件夹：移动文件
 			console.log('✅ 执行文件移动操作');
 			await this.performDropWithData(draggedItemCopy, dropTargetCopy);
 		} else {
@@ -360,7 +328,6 @@ class DragDropManager {
 			});
 		}
 		
-		// 最后清空状态
 		this.draggedItem = null;
 		this.dropTarget = null;
 	}
@@ -389,7 +356,6 @@ class DragDropManager {
 			
 			console.log('✅ 移动成功:', result);
 			
-			// 更新标签页路径
 			if (draggedItem.isDir) {
 				const oldPrefix = draggedItem.path;
 				const newPrefix = result.new_path;
