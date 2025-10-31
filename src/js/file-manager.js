@@ -60,19 +60,6 @@ async function refreshFileTree(relativePath = "") {
         console.warn('⚠️ rootPath 未设置，无法刷新文件树');
         return;
     }
-	// ⭐ 新增:如果是根目录刷新,先恢复展开状态。在 updateVirtualScrollData() 之前,确保 expandedFolders 状态已从 localStorage 恢复。
-    if (relativePath === "" && appState.expandedFolders.size === 0) {
-        try {
-            const expandedStr = localStorage.getItem('cheetah_expanded_folders');
-            if (expandedStr) {
-                const expandedArray = JSON.parse(expandedStr);
-                appState.expandedFolders = new Set(expandedArray);
-                console.log('🔄 从 localStorage 恢复展开状态:', expandedArray);
-            }
-        } catch (error) {
-            console.warn('恢复展开状态失败:', error);
-        }
-    }
 
     console.log(`🔄 刷新文件树: ${relativePath || '(根目录)'}`);
     
@@ -84,24 +71,55 @@ async function refreshFileTree(relativePath = "") {
 
         console.log(`  ✅ 获取到 ${nodes.length} 个节点`);
 
+        // --- [修改] ---
         if (relativePath === "") {
-            console.log('  📂 更新根目录');
-            appState.fileTreeRoot = nodes;
-            appState.fileTreeMap.clear();
+            console.log('  📂 更新根目录 (创建虚拟根节点)');
             
-            // ✅ 调试:显示根目录的节点(可选,完成后删除)
-            console.log('📋 根目录节点列表:');
-            nodes.forEach(node => {
-                console.log(`  - ${node.is_dir ? '📁' : '📄'} ${node.name} (${node.path})`);
-            });
+            // 1. 恢复展开状态 (如果需要)
+            if (appState.expandedFolders.size === 0) {
+                 try {
+                    const expandedStr = localStorage.getItem('cheetah_expanded_folders');
+                    if (expandedStr) {
+                        const expandedArray = JSON.parse(expandedStr);
+                        appState.expandedFolders = new Set(expandedArray);
+                        console.log('🔄 从 localStorage 恢复展开状态:', expandedArray);
+                    }
+                } catch (error) {
+                    console.warn('恢复展开状态失败:', error);
+                }
+            }
             
-            // ✅ 关键修改:自动加载所有展开文件夹的子节点
+            // 2. 创建虚拟根节点
+            const virtualRoot = {
+                name: appState.rootName || "工作区", // 使用 appState 中的 rootName
+                path: "", // 根目录的相对路径是 ""
+                is_dir: true,
+                has_children: nodes.length > 0,
+                level: 0 // 将在 buildVisibleList 中设置
+            };
+            
+            // 3. 将虚拟根节点设置为文件树的唯一根
+            appState.fileTreeRoot = [virtualRoot];
+            
+            // 4. 将实际的根目录内容存入 fileTreeMap
+            appState.fileTreeMap.clear(); // 清空旧数据
+            appState.fileTreeMap.set("", nodes); // 键是根目录的相对路径 ""
+
+            // 5. 默认展开根目录
+            if (!appState.expandedFolders.has("")) {
+                appState.expandedFolders.add("");
+                saveExpandedFolders();
+            }
+            
+            // 6. 自动加载已展开的子文件夹
             for (const node of nodes) {
                 if (node.is_dir && appState.expandedFolders.has(node.path)) {
                     console.log(`  🔄 自动加载展开的文件夹: ${node.name}`);
-                    await loadFolderChildren(node.path);
+                    await loadFolderChildren(node.path); // (递归加载)
                 }
             }
+            // --- [修改结束] ---
+
         } else {
             console.log(`  📁 更新子目录: ${relativePath}`);
             appState.fileTreeMap.set(relativePath, nodes);
@@ -268,7 +286,11 @@ async function handleCreateNote() {
     if (!fileName || fileName.trim() === '') return;
     
     try {
+        // --- [修改] ---
+        // contextTarget.path 现在可能是 "" (代表根目录)
         const relativeDirPath = appState.contextTarget.path;
+        // --- [修改结束] ---
+        
         const newRelativePath = await invoke('create_new_file', { 
             rootPath: appState.rootPath, 
             relativeDirPath, 
@@ -276,12 +298,12 @@ async function handleCreateNote() {
         });
         showSuccessMessage('笔记已创建');
         
+        // --- [修改] ---
+        // 确保父目录 (根目录 "" 或其他目录) 是展开的
         appState.expandedFolders.add(relativeDirPath);
-        const children = await invoke('list_dir_lazy', { rootPath: appState.rootPath, relativePath: relativeDirPath });
-        appState.fileTreeMap.set(relativeDirPath, children);
-        
-        saveExpandedFolders();
-        updateVirtualScrollData();
+        // 刷新父目录
+        await refreshFileTree(relativeDirPath);
+        // --- [修改结束] ---
         
         if (newRelativePath) {
 			 // 修改这里 👇
@@ -298,7 +320,11 @@ async function handleCreateFolder() {
     if (!folderName || folderName.trim() === '') return;
     
     try {
+        // --- [修改] ---
+        // contextTarget.path 现在可能是 "" (代表根目录)
         const relativeParentPath = appState.contextTarget.path;
+        // --- [修改结束] ---
+
         await invoke('create_new_folder', { 
             rootPath: appState.rootPath, 
             relativeParentPath, 
@@ -306,12 +332,12 @@ async function handleCreateFolder() {
         });
         showSuccessMessage('文件夹已创建');
         
+        // --- [修改] ---
+        // 确保父目录 (根目录 "" 或其他目录) 是展开的
         appState.expandedFolders.add(relativeParentPath);
-        const children = await invoke('list_dir_lazy', { rootPath: appState.rootPath, relativePath: relativeParentPath });
-        appState.fileTreeMap.set(relativeParentPath, children);
-        
-        saveExpandedFolders();
-        updateVirtualScrollData();
+        // 刷新父目录
+        await refreshFileTree(relativeParentPath);
+        // --- [修改结束] ---
     } catch (error) {
         showError('创建文件夹失败: ' + error);
     }
@@ -322,6 +348,14 @@ async function handleDeleteFile() {
     const target = appState.contextTarget;
     if (!target) return;
     
+    // --- [修改] ---
+    // 增加对根目录的保护，不允许删除根目录
+    if (target.path === "") {
+        showError("不能删除整个工作区根目录");
+        return;
+    }
+    // --- [修改结束] ---
+
     const confirmed = await showCustomConfirm(`删除`, `确定要删除 "${target.name}" 吗？`);
     if (!confirmed) return;
     
@@ -378,6 +412,14 @@ function handleRenameItem() {
     hideContextMenu();
     const targetItem = appState.contextTarget;
     if (!targetItem) return;
+
+    // --- [修改] ---
+    // 增加对根目录的保护，不允许重命名根目录
+    if (targetItem.path === "") {
+        showError("不能重命名工作区根目录");
+        return;
+    }
+    // --- [修改结束] ---
 
     const li = document.querySelector(`li[data-path="${CSS.escape(targetItem.path)}"]`);
     if (!li) return;
@@ -513,74 +555,16 @@ async function handleCreateNoteInRoot() {
         return;
     }
 
-    // 创建内联输入框
-    const inputWrapper = document.createElement('li');
-    inputWrapper.className = 'file-tree-inline-input';
-    inputWrapper.style.cssText = `
-        height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px;
-        line-height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px;
-        padding-left: 12px;
-        display: flex;
-        align-items: center;
-        background: #f0f8ff;
-    `;
-    
-    inputWrapper.innerHTML = `
-        <span>📄 </span>
-        <input type="text" 
-               class="inline-file-input" 
-               placeholder="笔记名称" 
-               autocomplete="off"
-               style="flex: 1; border: 1px solid #4a9eff; padding: 2px 6px; outline: none; background: white; border-radius: 2px;">
-    `;
-    
-    // 插入到文件树顶部
-    domElements.fileListElement.insertBefore(inputWrapper, domElements.fileListElement.firstChild);
-    
-    const input = inputWrapper.querySelector('input');
-    input.focus();
-    
-    const finishCreate = async () => {
-        const fileName = input.value.trim();
-        inputWrapper.remove();
-        
-        if (!fileName) return;
-        
-        try {
-            const newRelativePath = await invoke('create_new_file', { 
-                rootPath: appState.rootPath, 
-                relativeDirPath: "",
-                fileName: fileName.replace(/\.md$/, '')
-            });
-            
-            showSuccessMessage('笔记已创建');
-            await refreshFileTree("");
-            
-            if (newRelativePath) {
-                tabManager.openTab(newRelativePath);
-            }
-        } catch (error) {
-            showError('创建笔记失败: ' + error);
-        }
+    // --- [修改] ---
+    // 移除内联输入框逻辑，改为调用 handleCreateNote
+    console.log('➕ 在根目录创建笔记...');
+    appState.contextTarget = {
+        path: "", // 根目录的相对路径
+        is_dir: true,
+        name: appState.rootName
     };
-    
-    input.addEventListener('blur', () => {
-        setTimeout(() => {
-            if (inputWrapper.parentNode) {
-                inputWrapper.remove();
-            }
-        }, 200);
-    });
-    
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            finishCreate();
-        } else if (e.key === 'Escape') {
-            e.preventDefault();
-            inputWrapper.remove();
-        }
-    });
+    await handleCreateNote();
+    // --- [修改结束] ---
 }
 
 /**
@@ -592,72 +576,16 @@ async function handleCreateFolderInRoot() {
         return;
     }
 
-    const inputWrapper = document.createElement('li');
-    inputWrapper.className = 'file-tree-inline-input';
-    inputWrapper.style.cssText = `
-        height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px;
-        line-height: ${VIRTUAL_SCROLL_CONFIG.ITEM_HEIGHT}px;
-        padding-left: 12px;
-        display: flex;
-        align-items: center;
-        background: #f0f8ff;
-    `;
-    
-    inputWrapper.innerHTML = `
-        <span>📁 </span>
-        <input type="text" 
-               class="inline-file-input" 
-               placeholder="文件夹名称" 
-               autocomplete="off"
-               style="flex: 1; border: 1px solid #4a9eff; padding: 2px 6px; outline: none; background: white; border-radius: 2px;">
-    `;
-    
-    domElements.fileListElement.insertBefore(inputWrapper, domElements.fileListElement.firstChild);
-    
-    const input = inputWrapper.querySelector('input');
-    input.focus();
-    
-    const finishCreate = async () => {
-        const folderName = input.value.trim();
-        inputWrapper.remove();
-        
-        if (!folderName) return;
-        
-        try {
-            await invoke('create_new_folder', { 
-                rootPath: appState.rootPath, 
-                relativeParentPath: "",
-                folderName: folderName
-            });
-            
-            showSuccessMessage('文件夹已创建');
-            await refreshFileTree("");
-            
-            
-            updateVirtualScrollData();
-            
-        } catch (error) {
-            showError('创建文件夹失败: ' + error);
-        }
+    // --- [修改] ---
+    // 移除内联输入框逻辑，改为调用 handleCreateFolder
+    console.log('➕ 在根目录创建文件夹...');
+    appState.contextTarget = {
+        path: "", // 根目录的相对路径
+        is_dir: true,
+        name: appState.rootName
     };
-    
-    input.addEventListener('blur', () => {
-        setTimeout(() => {
-            if (inputWrapper.parentNode) {
-                inputWrapper.remove();
-            }
-        }, 200);
-    });
-    
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            finishCreate();
-        } else if (e.key === 'Escape') {
-            e.preventDefault();
-            inputWrapper.remove();
-        }
-    });
+    await handleCreateFolder();
+    // --- [修改结束] ---
 }
 
 // ============================================
@@ -740,7 +668,11 @@ eventBus.on('file:renamed', async (data) => {
     console.log('📝 处理重命名事件:', data);
     
     // 1. 刷新文件树
-    await refreshFileTree();
+    // --- [修改] ---
+    // 刷新父目录
+    const parentPath = data.oldPath.substring(0, data.oldPath.lastIndexOf('/'));
+    await refreshFileTree(parentPath);
+    // --- [修改结束] ---
     
     // 2. 如果是文件,更新标签页
     if (!data.isDir) {
@@ -774,7 +706,11 @@ eventBus.on('file:deleted', async (data) => {
     }
     
     // 2. 刷新文件树
-    await refreshFileTree();
+    // --- [修改] ---
+    // 刷新父目录
+    const parentPath = data.path.substring(0, data.path.lastIndexOf('/'));
+    await refreshFileTree(parentPath);
+    // --- [修改结束] ---
     
     // 3. 刷新标签列表
     eventBus.emit('ui:refreshAllTags');

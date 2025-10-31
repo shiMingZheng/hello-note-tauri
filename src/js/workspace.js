@@ -105,7 +105,7 @@ export class WorkspaceManager {
         }
     }
 
-    /**
+	/**
      * 打开工作区
      * @param {string} path - 工作区路径
      * @returns {Promise<string|null>} 打开的路径
@@ -115,8 +115,13 @@ export class WorkspaceManager {
         console.log('🔍 检查工作区:', path);
 
 		try {
-			  // ✅ 关键：先设置 rootPath
+            // --- [修改] ---
+			// ✅ 关键：先设置 rootPath 和 rootName
+            const rootName = path.split(/[/\\]/).pop(); // 提取根目录名称
 			appState.rootPath = path;
+            appState.rootName = rootName; // <-- [新增] 设置根目录名称
+            // --- [修改结束] ---
+
 			appState.dbInitialized = true; // 假设打开即初始化DB连接
 			this.saveWorkspace(path); // 保存当前工作区路径
 
@@ -139,6 +144,7 @@ export class WorkspaceManager {
 			console.error('❌ 打开/初始化工作区失败:', error);
 			showError('打开工作区失败: ' + error);
             appState.rootPath = null; // 打开失败，重置 rootPath
+            appState.rootName = null; // <-- [新增] 重置 rootName
             appState.dbInitialized = false;
             this.clearWorkspace(); // 清除保存的路径
 			return null; // 返回 null 表示失败

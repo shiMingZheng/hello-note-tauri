@@ -11,6 +11,7 @@ class AppState {
 
         // 工作区状态
         this.rootPath = null;
+        this.rootName = null;
         this.activeFilePath = null;
         this.dbInitialized = false;
 
