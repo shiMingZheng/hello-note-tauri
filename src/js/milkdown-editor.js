@@ -58,31 +58,7 @@ class MilkdownEditorManager {
 			throw error;
 		}
 		
-		// ⭐ 检查容器是否可见
-		const isVisible = container.offsetParent !== null;
-		console.log('👁️ [MilkdownEditor] 容器是否可见:', isVisible);
-		
-		if (!isVisible) {
-			console.warn('⚠️ [MilkdownEditor] 容器不可见，等待可见后初始化...');
-			
-			// 等待容器可见
-			await new Promise((resolve) => {
-				const checkVisibility = setInterval(() => {
-					if (container.offsetParent !== null) {
-						console.log('✅ [MilkdownEditor] 容器已可见');
-						clearInterval(checkVisibility);
-						resolve();
-					}
-				}, 50);
-				
-				// 超时保护
-				setTimeout(() => {
-					clearInterval(checkVisibility);
-					console.warn('⚠️ [MilkdownEditor] 等待容器可见超时，强制初始化');
-					resolve();
-				}, 3000);
-			});
-		}
+	
 		
 		this.onContentChange = onContentChangeCallback;
 		
@@ -290,6 +266,9 @@ class MilkdownEditorManager {
         this.isLoading = true;
         
         try {
+            // 【优化】先清空再加载,确保内容完全替换
+            this.editor.action(replaceAll(''));
+            await new Promise(resolve => setTimeout(resolve, 50));
             this.editor.action(replaceAll(content));
             this.currentContent = content;
             this.hasUnsavedChanges = false;

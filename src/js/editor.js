@@ -46,8 +46,10 @@ async function loadFileToEditor(relativePath) {
 
         // [修复] 步骤 2: 检查是否为 "空白页签"
         if (relativePath.startsWith('untitled-')) {
+             // 【关键】先清空编辑器内容,避免显示上一个文件的内容
+           
             console.log('📄 [loadFileToEditor] 检测到空白页签, 加载空白状态...');
-            
+
             // 加载空白内容
             await milkdownEditor.loadContent("# 空白页签\n\n您可以在左侧文件树中新建或打开一个笔记进行编辑。");
             
@@ -76,15 +78,42 @@ async function loadFileToEditor(relativePath) {
         milkdownEditor.setReadonly(false);
         
         console.log('📝 [loadFileToEditor] 加载内容到 Milkdown...');
-        if (appState.editorMode === 'source') {
-			await codemirrorEditor.loadContent(content);
-		} else {
-			await milkdownEditor.loadContent(content);
-		}
+    
         
         // 更新应用状态
         appState.activeFilePath = relativePath;
         appState.hasUnsavedChanges = false;
+
+        // ✅ 关键修复: 只在首次加载文件时,强制切换到默认模式
+        // 之后保持用户选择的模式
+        if (appState.isFirstFileLoad) {
+            console.log('🎬 [loadFileToEditor] 首次加载文件,切换到默认模式:', appState.editorMode);
+            
+            // 先加载内容到对应编辑器
+            if (appState.editorMode === 'source') {
+                await codemirrorEditor.loadContent(content);
+            } else {
+                await milkdownEditor.loadContent(content);
+            }
+            
+            // 触发模式切换,确保UI正确更新.
+            //eventBus.emit('editor:switch-mode', appState.editorMode);
+            switchEditorMode(appState.editorMode);
+            
+            // 标记已完成首次加载
+            appState.isFirstFileLoad = false;
+            console.log('✅ [loadFileToEditor] 首次模式切换完成,后续将保持用户选择的模式');
+        } else {
+            console.log('📝 [loadFileToEditor] 非首次加载,使用当前模式:', appState.editorMode);
+            
+            // 直接加载内容到当前激活的编辑器
+            if (appState.editorMode === 'source') {
+                await codemirrorEditor.loadContent(content);
+            } else {
+                await milkdownEditor.loadContent(content);
+            }
+        }
+        
         
         console.log('✅ [loadFileToEditor] 文件加载完成');
         

@@ -139,7 +139,28 @@ async function initApp() {
         // ★★★ [优化] 步骤 5：调整初始化顺序 ★★★
         // 确保 sidebar.init() 在 workspaceManager.startup() 之前调用
         sidebar.init();
-        
+
+        //⭐ 5. 【关键修复】先显示编辑器容器,再初始化编辑器
+
+        const editorWrapper = document.getElementById('editor-wrapper');
+        const homepage = document.getElementById('homepage');
+
+        // 临时显示编辑器容器(用于正确初始化 Milkdown)
+        if (editorWrapper) {
+            editorWrapper.style.display = 'flex';
+        }
+
+        await initializeMilkdownEditor();
+        await initializeCodeMirrorEditor();
+
+        // 初始化完成后,恢复默认状态:显示首页,隐藏编辑器
+        if (editorWrapper) {
+            editorWrapper.style.display = 'none';
+        }
+        if (homepage) {
+            homepage.style.display = 'flex';
+        }
+
         // ⭐ 5. 实例化并启动 WorkspaceManager
         // (这会加载数据, 并使用已就绪的 tabManager 切换视图)
         const workspaceManager = new WorkspaceManager();
@@ -173,13 +194,7 @@ async function initApp() {
 		
 		
 
-        // ⭐ 6. 【关键修复】最后初始化编辑器
-        // 此时 startup() 应该已经切换了 Tab，使编辑器容器可见
-        await initializeMilkdownEditor();
-	
-		await initializeCodeMirrorEditor();  // 新增这行
-        console.log('✅ 编辑器初始化完毕');
-
+      
       
           
         
@@ -227,7 +242,7 @@ function bindRootActions() {
 	if (viewToggleBtn) {
 		viewToggleBtn.addEventListener('click', () => {
 			// 循环切换: wysiwyg → source → preview → wysiwyg
-			const modes = ['wysiwyg', 'source', 'preview'];
+			const modes = ['preview', 'wysiwyg', 'source'];
 			const currentIndex = modes.indexOf(appState.editorMode);
 			const nextMode = modes[(currentIndex + 1) % modes.length];
 			eventBus.emit('editor:switch-mode', nextMode);

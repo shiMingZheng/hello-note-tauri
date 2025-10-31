@@ -21,10 +21,11 @@ class AppState {
         this.searchInactivityTimer = null;
 
         // 编辑器状态，todo代删除
-        this.currentViewMode = 'edit';
+        this.currentViewMode = 'preview';
 		// 编辑器模式: 'wysiwyg' | 'source' | 'preview'
-		this.editorMode = 'wysiwyg';
+		this.editorMode = 'preview';
         this.hasUnsavedChanges = false;
+        this.isFirstFileLoad = true;  // ✅ 新增:标记是否首次加载文件
 
         // 文件树状态
         this.fileTreeRoot = [];
