@@ -1,42 +1,28 @@
 // src-tauri/src/file_watcher.rs
+// CheetahNote 外部文件监控系统 (已重构)
+
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher, EventKind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::time::Duration;
 use crate::indexing_jobs;
 use tauri::{AppHandle, Emitter};
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
-use crate::indexing_jobs::SAVE_TRACKER;
-use std::fs::metadata as fs_metadata;
-
-use std::time::UNIX_EPOCH;  // ✅ 添加这行
-use anyhow::Result;  // ✅ 添加这行
-use rusqlite::params;  // ✅ 添加这行
-use crate::commands::path_utils::{to_relative_path};  
-
-
-
-
+use crate::indexing_jobs::{SAVE_TRACKER, WatchedFileMetadata, DB_POOL_REF};
+use std::fs;
+use std::time::{SystemTime, UNIX_EPOCH};
+use anyhow::Result;
+use rusqlite::{params, Connection, OptionalExtension};
+use crate::commands::path_utils::to_relative_path;
+use crate::database::DbPool;
+use serde_json::json;
 
 // 获取当前时间的时:分:秒格式
 fn get_time_string() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    
-    let duration = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap();
-    
-    let total_secs = duration.as_secs();
-    let hours = (total_secs / 3600) % 24;
-    let minutes = (total_secs / 60) % 60;
-    let seconds = total_secs % 60;
-    let millis = duration.subsec_millis();
-    
-    // 加8小时转换为北京时间
-    let hours = (hours + 8) % 24;
-    
-    format!("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds, millis)
+    use chrono::{Local, Timelike};
+    let now = Local::now();
+    format!("{:02}:{:02}:{:02}.{:03}", now.hour(), now.minute(), now.second(), now.nanosecond() / 1_000_000)
 }
 
 // 带时间戳的日志宏
@@ -56,270 +42,164 @@ pub fn start_file_watcher(
     log_with_time!("👀 [文件监听] 正在启动,监控路径: {}", workspace_path);
     
     let (tx, rx) = channel();
-    
-    // 创建 watcher
     let mut watcher = RecommendedWatcher::new(
         tx,
         Config::default().with_poll_interval(Duration::from_secs(2))
     )?;
-    
-    // 开始监控
     watcher.watch(Path::new(&workspace_path), RecursiveMode::Recursive)?;
     
-    log_with_time!("✅ [文件监听] Watcher 已创建并开始监控");
-    
-    // ✅ 将 watcher 保存到全局变量
     *WATCHER.lock().unwrap() = Some(watcher);
     
-    // 启动事件处理线程
+    // ★★★ 核心修改: 必须克隆 DB 连接池并移入线程 ★★★
+    let db_pool = match DB_POOL_REF.lock().unwrap().clone() {
+        Some(pool) => pool,
+        None => {
+            log_with_time!("❌ [文件监听] 启动失败: DB_POOL_REF 未初始化!");
+            return Err(notify::Error::generic("DB Pool not initialized"));
+        }
+    };
+    
     std::thread::spawn(move || {
         log_with_time!("👀 [文件监听] 事件处理线程已启动");
         
         for res in rx {
+            // ★★★ 核心修改 (点 2): 在每次事件循环开始时，清理过期的 L4 源 ★★★
+            let deleted_metas = SAVE_TRACKER.cleanup_expired_sources();
+            if !deleted_metas.is_empty() {
+                log_with_time!("🧹 清理 {} 个外部删除的文件...", deleted_metas.len());
+                for meta in deleted_metas {
+                    handle_external_delete(&workspace_path, &meta.path, &app_handle, &db_pool);
+                }
+            }
+            
             match res {
                 Ok(event) => {
                     let kind = event.kind;
                     let paths = event.paths.clone();
                     
-                    //log_with_time!("📢 [文件监听] 收到事件: {:?}, 路径数: {}", kind, paths.len());
-                    
-                    // 只处理 .md 文件
                     for path in &paths {
-                        //log_with_time!("  🔍 检查路径: {:?}", path);
-                        
-                        // 跳过隐藏文件和 .cheetah-note 目录
+                        // (跳过 .cheetah-note 和隐藏文件)
                         if let Some(path_str) = path.to_str() {
-							// 跳过 .cheetah-note 目录
-							if path_str.contains(".cheetah-note") {
-								//log_with_time!("  ⏭️ 跳过 .cheetah-note 目录");
-								continue;
-							}
-                            if path_str.contains("\\.") || path_str.contains("/.") {
-                                log_with_time!("  ⏭️ 跳过隐藏文件");
+                            if path_str.contains(".cheetah-note") || path_str.contains("/.") || path_str.contains("\\.") {
                                 continue;
                             }
                         }
-						
 						if path.extension().and_then(|s| s.to_str()) != Some("md") {
-                            log_with_time!("  ⏭️ 跳过非 .md 文件");
                             continue;
                         }
                         
-                        // 计算相对路径
-                        let relative_path = path.strip_prefix(&workspace_path)
-                            .ok()
-                            .and_then(|p| p.to_str())
-                            .map(|s| s.replace('\\', "/"));
-                        
-                        if let Some(rel_path) = relative_path {
-                            log_with_time!("  ✅ 相对路径: {}", rel_path);
-							//从日志可以看到外部重命名的实际事件序列是：
-
-//Modify 事件（旧文件） → 家人.md → 文件已不存在 → 跳过
-//Modify 事件（新文件） → 家人2.md → 通过 Layer 3 → 尝试索引 → 报错
-
-//所以重命名检测的触发条件应该是：连续的两个 Modify 事件，第一个文件不存在，第二个文件存在且无已知时间戳。
+                        let relative_path_opt = to_relative_path(Path::new(&workspace_path), path);
+                        if let Some(rel_path) = relative_path_opt {
                             
+                            // ★★★ 核心修改 (点 1): 分离事件类型 ★★★
                             match kind {
-                                EventKind::Create(_) | EventKind::Modify(_) => {
-									 // ✅ 提前检查文件是否存在
-									let absolute_path = Path::new(&workspace_path).join(&rel_path);
-									if !absolute_path.exists() {
-										log_with_time!("⏭️ [文件不存在] 检测到: {} (可能是重命名的旧路径)", rel_path);
-										
-										// ✅ 标记为潜在的重命名源
-										indexing_jobs::SAVE_TRACKER.mark_potential_rename_source(rel_path.clone());
-										
-										continue;
-									}
-                                    let event_type = if matches!(kind, EventKind::Create(_)) { "创建" } else { "修改" };
-									log_with_time!("👀 [文件监听] 检测到{}: {}", event_type, rel_path);
-								// ✅ Layer 1: 检查瞬时锁
-									{
-										let saving = SAVE_TRACKER.files_currently_saving.lock().unwrap();
-										if saving.contains(&rel_path) {
-											log_with_time!("⏭️ [Layer 1] 跳过: {} (正在保存中)", rel_path);
-											continue; // 忽略此事件,不分发索引,不通知前端
-										}
-									}
-									
-									// ✅ Layer 2: 检查索引标记
-									{
-										let indexing = SAVE_TRACKER.files_currently_indexing.lock().unwrap();
-										if indexing.contains(&rel_path) {
-											log_with_time!("⏭️ [Layer 2] 跳过: {} (正在索引中)", rel_path);
-											continue; // 忽略此事件
-										}
-									}
-									
-									// ✅ Layer 3: 时间戳对比
-									let absolute_path = Path::new(&workspace_path).join(&rel_path);
-									let should_ignore = {
-										let known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
-										
-										if let Some(known_time) = known_times.get(&rel_path) {
-											if let Ok(meta) = fs_metadata(&absolute_path) {
-												if let Ok(disk_time) = meta.modified() {
-													// 时间戳容差: 5秒 (兼容 FAT32)
-													let tolerance = std::time::Duration::from_secs(5);
-													
-													// 磁盘时间 <= 已知时间 + 容差 → 内部修改
-													if disk_time <= *known_time + tolerance {
-														log_with_time!("⏭️ [Layer 3] 跳过: {} (时间戳匹配,内部修改)", rel_path);
-														true
-													} else {
-														log_with_time!("✅ [Layer 3] 通过: {} (时间戳不匹配,外部修改)", rel_path);
-														false
-													}
-												} else {
-													false
-												}
-											} else {
-												false
-											}
-										} else {
-											// 没有已知时间戳,可能是外部创建的文件
-											log_with_time!("✅ [Layer 3] 通过: {} (无已知时间戳)", rel_path);
-											false
-										}
-									};
-									
-									if should_ignore {
-										continue; // 忽略此事件
-									}
-									
-									// ✅ 三层检查都通过 → 确认是外部修改
-									log_with_time!("🔔 [外部修改] 检测到外部{}文件: {}", event_type, rel_path);
-									
-									// ✅ 先清理过期的重命名源标记
-									indexing_jobs::SAVE_TRACKER.cleanup_expired_rename_sources();
-									
-									// ✅ 检查是否为重命名操作
-									if let Some(old_path) = indexing_jobs::SAVE_TRACKER.find_recent_rename_source() {
-										log_with_time!("🔄 [重命名检测] 检测到外部重命名: {} -> {}", old_path, rel_path);
-										
-										// 确认重命名并移除标记
-										indexing_jobs::SAVE_TRACKER.confirm_rename(&old_path);
-										
-										// 更新数据库记录（保留元数据）
-										if let Err(e) = update_file_path_in_db(&workspace_path, &old_path, &rel_path) {
-											eprintln!("❌ [文件监听] 更新数据库路径失败: {}", e);
-											
-											// 失败则按新建处理
-											if let Err(e2) = ensure_file_record_exists(&workspace_path, &rel_path) {
-												eprintln!("❌ [文件监听] 创建数据库记录失败: {}: {}", rel_path, e2);
-												continue;
-											}
-											
-											if let Err(e2) = indexing_jobs::dispatch_update_job(
-												workspace_path.clone(),
-												rel_path.clone()
-											) {
-												log_with_time!("⚠️ 分发索引任务失败: {}", e2);
-											}
-											
-											// 发送创建事件到前端（降级处理）
-											if let Some(ref handle) = app_handle {
-												let _ = handle.emit("file-changed", serde_json::json!({
-													"type": "created",
-													"path": rel_path
-												}));
-											}
-										} else {
-											// 成功更新数据库，分发重命名索引任务
-											if let Err(e) = indexing_jobs::dispatch_rename_job(
-												workspace_path.clone(),
-												old_path.clone(),
-												rel_path.clone()
-											) {
-												log_with_time!("⚠️ 分发重命名索引任务失败: {}", e);
-											}
-											
-											// ✅ 发送重命名事件到前端
-											if let Some(ref handle) = app_handle {
-												log_with_time!("🔍 [调试] old_path内容: '{}'", old_path);
-												log_with_time!("🔍 [调试] rel_path内容: '{}'", rel_path);
-												log_with_time!("🔍 [调试] workspace_path: '{}'", workspace_path);
-												log_with_time!("📤 [前端事件] 发送重命名事件: {} -> {}", old_path, rel_path);
-												let _ = handle.emit("file-changed", serde_json::json!({
-													"type": "renamed",
-													"oldPath": old_path,
-													"newPath": rel_path
-												}));
-											}
-										}
-										
-										continue; // 处理完重命名，跳过后续逻辑
-									}
-									
-									// ✅ 不是重命名，是真正的外部创建或修改
-									log_with_time!("📝 [外部操作] {}文件: {}", event_type, rel_path);
-									
-									// 如果是 Create 事件或无已知时间戳（可能是新建），需要先创建数据库记录
-									if matches!(kind, EventKind::Create(_)) || !SAVE_TRACKER.known_write_times.lock().unwrap().contains_key(&rel_path) {
-										if let Err(e) = ensure_file_record_exists(&workspace_path, &rel_path) {
-											eprintln!("❌ [文件监听] 创建数据库记录失败: {}: {}", rel_path, e);
-											continue;
-										}
-									}
-									
-									// 分发索引任务
-									if let Err(e) = indexing_jobs::dispatch_update_job(
-										workspace_path.clone(),
-										rel_path.clone()
-									) {
-										log_with_time!("⚠️ 分发索引任务失败: {}", e);
-									}
-									
-									// 发送事件到前端
-									if let Some(ref handle) = app_handle {
-										let event_type_str = if matches!(kind, EventKind::Create(_)) {
-											"created"
-										} else {
-											"modified"
-										};
-										
-										log_with_time!("📤 [前端事件] 发送{}事件: {}", event_type_str, rel_path);
-										let _ = handle.emit("file-changed", serde_json::json!({
-											"type": event_type_str,
-											"path": rel_path
-										}));
-									}
-								}
-                                EventKind::Remove(_) => {
-                                    log_with_time!("👀 [文件监听] 检测到删除: {}", rel_path);
+                                // --- 1. CREATE (处理外部 Create 和 外部 Move-Target) ---
+                                EventKind::Create(_) => {
+                                    log_with_time!("👀 [监听] 检测到 Create: {}", rel_path);
+
+                                    // L1/L2 检查 (内部 Create/Move)
+                                    if SAVE_TRACKER.app_activity_locks.lock().unwrap().contains(&rel_path) {
+                                        log_with_time!("⏭️ [L1/L2] 跳过: {} (内部创建/移动)", rel_path);
+                                        continue;
+                                    }
+
+                                    // ★★★ 核心 (点 5): 读取新文件内容以计算元数据 ★★★
+                                    let content = fs::read_to_string(path).unwrap_or_default();
+                                    let new_size = content.len() as i64;
+                                    let new_word_count = content.split_whitespace().count() as i64;
+                                    let new_title = Path::new(&rel_path).file_stem().unwrap_or_default().to_string_lossy().to_string();
+
+                                    // L4b (移动) 检测: 检查 Remove 列表 (文件名匹配)
+                                    if let Some((old_path, _)) = SAVE_TRACKER.find_recent_move_source(&new_title) {
+                                        log_with_time!("🔄 [L4b 移动] 检测到外部移动: {} -> {}", old_path, rel_path);
+                                        handle_external_rename_move(&workspace_path, &old_path, &rel_path, &app_handle, &db_pool);
+                                        continue;
+                                    }
+
+                                    // L4a (重命名) 检测: 检查 Modify(!exists) 列表 (Size/字数 匹配)
+                                    if let Some((old_path, _)) = SAVE_TRACKER.find_recent_rename_source(new_size, new_word_count) {
+                                        log_with_time!("🔄 [L4a 重命名] 检测到外部重命名: {} -> {}", old_path, rel_path);
+                                        handle_external_rename_move(&workspace_path, &old_path, &rel_path, &app_handle, &db_pool);
+                                        continue;
+                                    }
+
+                                    // --- 确认为 外部新建 ---
+                                    log_with_time!("🔔 [外部创建] 确认为: {}", rel_path);
+                                    handle_external_create(&workspace_path, &rel_path, new_size, new_word_count, &app_handle, &db_pool);
+                                }
+
+                                // --- 2. MODIFY (处理外部 Modify 和 外部 Rename) ---
+                                EventKind::Modify(_) => {
+                                    log_with_time!("👀 [监听] 检测到 Modify: {}", rel_path);
+                                    let absolute_path = Path::new(&workspace_path).join(&rel_path);
+
+                                    // --- A. 处理 Rename-Source (Modify + !exists) ---
+                                    if !absolute_path.exists() {
+                                        // L1/L2 检查 (如果是内部重命名/移动，L1/L2锁会包含old_path，应跳过)
+                                        if SAVE_TRACKER.app_activity_locks.lock().unwrap().contains(&rel_path) {
+                                            log_with_time!("⏭️ [L1/L2] 跳过: {} (内部重命名源)", rel_path);
+                                            continue;
+                                        }
+                                        log_with_time!("⏭️ [L4a 源] 路径不存在: {} (标记为重命名源)", rel_path);
+                                        // ★★★ 核心 (点 5): 从 DB 查询元数据 ★★★
+                                        if let Some(meta) = get_metadata_from_db(&db_pool, &rel_path) {
+                                            SAVE_TRACKER.mark_potential_rename_source(rel_path.clone(), meta);
+                                        }
+                                        continue;
+                                    }
+
+                                    // --- B. 处理 Rename-Target 和 外部 Modify (Modify + exists) ---
                                     
-                                    // ✅ 处理删除事件（新增三层检查）
-									for path in &paths {
-										//Path::new(&workspace_path).join(&rel_path);
-										if let Some(relative_path) = to_relative_path(Path::new(&workspace_path), &path) {
-											// ⭐ 三层检查：判断是否为内部删除
-											if should_skip_delete_event(&relative_path) {
-												println!("⏭️ [文件监听器] 跳过内部删除: {}", relative_path);
-												continue;
-											}
-											
-											// 确认为外部删除，发送事件到前端
-											println!("📢 [文件监听器] 检测到外部删除: {}", relative_path);
-											//emit_file_changed(app_handle, "deleted", &relative_path, None);
-											// 发送删除事件到前端
-											if let Some(ref handle) = app_handle {
-												log_with_time!("📤 [前端事件] 发送deleted事件: {}", relative_path);
-												let _ = handle.emit("file-changed", serde_json::json!({
-													"type": "deleted",
-													"path": relative_path
-												}));
-											}
-										}
-									}
-									
+                                    // L1/L2 检查 (内部 Save/Rename-Target)
+                                    if SAVE_TRACKER.app_activity_locks.lock().unwrap().contains(&rel_path) {
+                                        log_with_time!("⏭️ [L1/L2] 跳过: {} (内部保存/重命名目标)", rel_path);
+                                        continue;
+                                    }
+
+                                    // L3 检查 (时间戳回声)
+                                    if should_skip_by_timestamp(&rel_path, &absolute_path) {
+                                        log_with_time!("⏭️ [L3] 跳过: {} (时间戳匹配)", rel_path);
+                                        continue;
+                                    }
+                                    
+                                    // ★★★ 核心 (点 5): 读取新文件内容以计算元数据 ★★★
+                                    let content = fs::read_to_string(&absolute_path).unwrap_or_default();
+                                    let new_size = content.len() as i64;
+                                    let new_word_count = content.split_whitespace().count() as i64;
+
+                                    // L4a (重命名) 检测: (Size/字数 匹配)
+                                    if let Some((old_path, _)) = SAVE_TRACKER.find_recent_rename_source(new_size, new_word_count) {
+                                        log_with_time!("🔄 [L4a 重命名] 检测到外部重命名: {} -> {}", old_path, rel_path);
+                                        handle_external_rename_move(&workspace_path, &old_path, &rel_path, &app_handle, &db_pool);
+                                        continue;
+                                    }
+                                    
+                                    // --- 确认为 外部修改 ---
+                                    log_with_time!("🔔 [外部修改] 确认为: {}", rel_path);
+                                    handle_external_modify(&workspace_path, &rel_path, new_size, new_word_count, &app_handle, &db_pool);
                                 }
-                                _ => {
-                                    log_with_time!("  ⏭️ 忽略其他类型事件: {:?}", kind);
+
+                                // --- 3. REMOVE (处理外部 Delete 和 外部 Move-Source) ---
+                                EventKind::Remove(_) => {
+                                    log_with_time!("👀 [监听] 检测到 Remove: {}", rel_path);
+
+                                    // L1/L2 检查 (内部 Delete/Move-Source)
+                                    if SAVE_TRACKER.app_activity_locks.lock().unwrap().contains(&rel_path) {
+                                        log_with_time!("⏭️ [L1/L2] 跳过: {} (内部删除/移动源)", rel_path);
+                                        continue;
+                                    }
+
+                                    // ★★★ 核心 (点 5): 从 DB 查询元数据 ★★★
+                                    if let Some(meta) = get_metadata_from_db(&db_pool, &rel_path) {
+                                        log_with_time!("🔔 [L4b 源] 标记为潜在移动源/删除源: {}", rel_path);
+                                        SAVE_TRACKER.mark_potential_move_source(rel_path.clone(), meta);
+                                    } else {
+                                        log_with_time!("⏭️ [L4b 源] DB中无此记录，忽略 Remove: {}", rel_path);
+                                    }
+                                    // (此时不做任何事，等待 cleanup_expired_sources 或 Create 事件来处理)
                                 }
+                                _ => {}
                             }
-                        } else {
-                            log_with_time!("  ⚠️ 无法计算相对路径");
                         }
                     }
                 }
@@ -343,185 +223,184 @@ pub fn stop_file_watcher() {
     log_with_time!("✅ [文件监听] 已停止");
 }
 
+// ============================================================================
+// ★★★ 核心修改 ★★★
+// 5. Watcher 辅助函数 (处理外部事件)
+// ============================================================================
 
-
-/// 确保文件记录存在（用于外部创建）
-fn ensure_file_record_exists(root_path: &str, relative_path: &str) -> anyhow::Result<()> {
-    let db_pool_lock = indexing_jobs::DB_POOL_REF.lock().unwrap();
-    let db_pool = db_pool_lock.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("数据库连接池未初始化"))?;
-    
-    let conn = db_pool.get()?;
-    
-    // 检查记录是否已存在
-    let exists: bool = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM files WHERE path = ?1)",
-        params![relative_path],
-        |row| row.get(0),
-    )?;
-    
-    if !exists {
-        let title = relative_path
-            .split('/')
-            .last()
-            .unwrap_or(relative_path)
-            .trim_end_matches(".md");
-        
-        let absolute_path = Path::new(root_path).join(relative_path);
-        let mtime = if let Ok(meta) = fs_metadata(&absolute_path) {
-            if let Ok(modified) = meta.modified() {
-                modified.duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as i64
-            } else {
-                0
-            }
-        } else {
-            0
-        };
-        
-        conn.execute(
-            "INSERT INTO files (path, title, is_dir, indexed, last_modified) 
-             VALUES (?1, ?2, 0, 0, ?3)",
-            params![relative_path, title, mtime],
-        )?;
-        
-        println!("✅ [文件监听] 已创建数据库记录: {}", relative_path);
-    }
-    
-    Ok(())
-}
-
-/// 更新文件路径（用于重命名）
-fn update_file_path_in_db(root_path: &str, old_path: &str, new_path: &str) -> anyhow::Result<()> {
-    let db_pool_lock = indexing_jobs::DB_POOL_REF.lock().unwrap();
-    let db_pool = db_pool_lock.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("数据库连接池未初始化"))?;
-    
-    let conn = db_pool.get()?;
-    
-    let new_title = new_path
-        .split('/')
-        .last()
-        .unwrap_or(new_path)
-        .trim_end_matches(".md");
-    
-    let absolute_path = Path::new(root_path).join(new_path);
-    let mtime = if let Ok(meta) = fs_metadata(&absolute_path) {
-        if let Ok(modified) = meta.modified() {
-            modified.duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs() as i64
-        } else {
-            0
-        }
-    } else {
-        0
-    };
-    
-    let updated = conn.execute(
-        "UPDATE files SET path = ?1, title = ?2, indexed = 0, last_modified = ?3 
-         WHERE path = ?4",
-        params![new_path, new_title, mtime, old_path],
-    )?;
-    
-    if updated > 0 {
-        println!("✅ [文件监听] 已更新数据库路径: {} -> {}", old_path, new_path);
-    } else {
-        println!("⚠️ [文件监听] 未找到旧路径记录: {}", old_path);
-    }
-    
-    Ok(())
-}
-
-/// ⭐ 新增：三层检查 - 判断删除事件是否应该跳过
-fn should_skip_delete_event(relative_path: &str) -> bool {
-    
-    // 【Layer 1: 瞬时锁检查】
-    {
-        let deleting = SAVE_TRACKER.files_currently_deleting.lock().unwrap();
-        
-        for deleting_path in deleting.iter() {
-            // 精确匹配
-            if relative_path == deleting_path {
-                println!("  ✅ Layer 1: 检测到瞬时锁（精确匹配）: {}", deleting_path);
-                return true;
-            }
-            
-            // 前缀匹配（文件夹删除场景）
-            if relative_path.starts_with(&format!("{}/", deleting_path)) {
-                println!("  ✅ Layer 1: 检测到瞬时锁（前缀匹配）: {} 属于 {}", relative_path, deleting_path);
-                return true;
-            }
-        }
-    }
-    
-    // 【Layer 2: IndexingJobs 检查】
-    if has_recent_delete_job(relative_path).unwrap_or(false)  {
-        println!("  ✅ Layer 2: 检测到近期删除任务: {}", relative_path);
-        return true;
-    }
-    
-    // 【Layer 3: 时间戳检查】
-    {
-        let delete_times = SAVE_TRACKER.known_delete_times.lock().unwrap();
-        
-        for (deleted_path, timestamp) in delete_times.iter() {
-            // 精确匹配
-            if relative_path == deleted_path {
-                if let Ok(elapsed) = timestamp.elapsed() {
-                    if elapsed < Duration::from_secs(5) {
-                        println!("  ✅ Layer 3: 检测到近期删除时间戳（精确匹配）: {} ({:?} 前)", deleted_path, elapsed);
-                        return true;
-                    }
-                }
-            }
-            
-            // 前缀匹配（文件夹删除场景）
-            if relative_path.starts_with(&format!("{}/", deleted_path)) {
-                if let Ok(elapsed) = timestamp.elapsed() {
-                    if elapsed < Duration::from_secs(5) {
-                        println!("  ✅ Layer 3: 检测到近期删除时间戳（前缀匹配）: {} 属于 {} ({:?} 前)", 
-                                 relative_path, deleted_path, elapsed);
-                        return true;
-                    }
+/// (辅助) L3 检查：时间戳对比
+fn should_skip_by_timestamp(rel_path: &str, absolute_path: &Path) -> bool {
+    let known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
+    if let Some(known_time) = known_times.get(rel_path) {
+        if let Ok(meta) = fs::metadata(absolute_path) {
+            if let Ok(disk_time) = meta.modified() {
+                // 5秒容差
+                let tolerance = std::time::Duration::from_secs(5);
+                if disk_time <= *known_time + tolerance {
+                    return true; // 内部修改，跳过
                 }
             }
         }
     }
-    
-    // 三层检查都未命中，确认为外部删除
-    false
+    false // 外部修改或无记录，不跳过
 }
 
-/// ⭐ Layer 2 辅助函数：检查 IndexingJobs 表是否有近期删除任务
-fn has_recent_delete_job(relative_path: &str) -> anyhow::Result<bool> {
-    use rusqlite::params;
+/// (辅助) 从数据库获取元数据
+fn get_metadata_from_db(db_pool: &DbPool, path: &str) -> Option<WatchedFileMetadata> {
+    let conn = db_pool.get().ok()?;
+    conn.query_row(
+        // ★★★ 依赖 `size` 和 `word_count` 字段 ★★★
+        "SELECT path, title, size, word_count FROM files WHERE path = ?1",
+        params![path],
+        |row| {
+            Ok(WatchedFileMetadata {
+                path: row.get(0)?,
+                title: row.get(1)?,
+                size: row.get(2)?,
+                word_count: row.get(3)?,
+            })
+        },
+    ).optional().unwrap_or(None)
+}
+
+/// (辅助) 处理外部删除 (由 cleanup_expired_sources 调用)
+/// ★★★ 修复点 2：外部删除现在会清理索引 ★★★
+fn handle_external_delete(workspace_path: &str, path: &str, app_handle: &Option<AppHandle>, db_pool: &DbPool) {
+    log_with_time!("🔔 [外部删除] 确认为: {}", path);
+
+    // 1. 清理 DB (如果存在)
+    if let Ok(conn) = db_pool.get() {
+        let _ = conn.execute("DELETE FROM files WHERE path = ?1", params![path]);
+    }
+
+    // 2. ★★★ L1/L2 加锁 (因为分发了任务) ★★★
+    SAVE_TRACKER.app_activity_locks.lock().unwrap().insert(path.to_string());
+
+    // 3. 清理索引 (异步)
+    if let Err(e) = indexing_jobs::dispatch_delete_job(path.to_string()) {
+        eprintln!("❌ 分发外部删除索引任务失败: {}", e);
+        // 失败也要释放锁
+        SAVE_TRACKER.app_activity_locks.lock().unwrap().remove(path);
+    }
+
+    // 4. 通知前端
+    if let Some(ref handle) = app_handle {
+         let _ = handle.emit("file-changed", json!({ "type": "deleted", "path": path }));
+    }
+}
+
+/// (辅助) 处理外部新建
+fn handle_external_create(
+    workspace_path: &str, 
+    path: &str, 
+    size: i64, 
+    word_count: i64, 
+    app_handle: &Option<AppHandle>, 
+    db_pool: &DbPool
+) {
+    // 1. 插入 DB
+    if let Ok(conn) = db_pool.get() {
+        let title = Path::new(path).file_stem().unwrap_or_default().to_string_lossy();
+        let _ = conn.execute(
+            // ★★★ 插入新元数据 ★★★
+            "INSERT INTO files (path, title, size, word_count, indexed, is_dir) VALUES (?1, ?2, ?3, ?4, 0, 0)",
+            params![path, title, size, word_count]
+        );
+    }
     
-	let db_pool_lock = indexing_jobs::DB_POOL_REF.lock().unwrap();
-    let db_pool = db_pool_lock.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("数据库连接池未初始化"))?;
-		
-    let conn = match db_pool.get() {
-        Ok(conn) => conn,
-        Err(_) => return Ok(false),
-    };
+    // 2. ★★★ L1/L2 加锁 ★★★
+    SAVE_TRACKER.app_activity_locks.lock().unwrap().insert(path.to_string());
     
-    // SQL 查询：检查是否有近期的删除任务
-    let sql = r#"
-        SELECT COUNT(*) 
-        FROM indexing_jobs 
-        WHERE (
-            file_path = ?1 
-            OR ?1 LIKE file_path || '/%'
-        )
-        AND operation = 'remove_document'
-        AND status IN ('pending', 'processing')
-        AND created_at > datetime('now', '-2 seconds')
-    "#;
+    // 3. 分发索引
+    if let Err(e) = indexing_jobs::dispatch_update_job(workspace_path.to_string(), path.to_string()) {
+         eprintln!("❌ 分发外部创建索引任务失败: {}", e);
+         SAVE_TRACKER.app_activity_locks.lock().unwrap().remove(path); // 失败释放锁
+    }
     
-    match conn.query_row(sql, params![relative_path], |row| row.get::<_, i64>(0)) {
-        Ok(count) => Ok(count > 0),
-        Err(_) => Ok(false),
+    // 4. 通知前端
+    if let Some(ref handle) = app_handle {
+         let _ = handle.emit("file-changed", json!({ "type": "created", "path": path }));
+    }
+}
+
+/// (辅助) 处理外部修改
+fn handle_external_modify(
+    workspace_path: &str, 
+    path: &str, 
+    size: i64, 
+    word_count: i64, 
+    app_handle: &Option<AppHandle>, 
+    db_pool: &DbPool
+) {
+    // 1. 更新 DB
+    if let Ok(conn) = db_pool.get() {
+        let _ = conn.execute(
+            // ★★★ 更新元数据并将 indexed 设为 0 ★★★
+            "UPDATE files SET size = ?1, word_count = ?2, indexed = 0, updated_at = CURRENT_TIMESTAMP 
+             WHERE path = ?3",
+            params![size, word_count, path]
+        );
+    }
+    
+    // 2. ★★★ L1/L2 加锁 ★★★
+    SAVE_TRACKER.app_activity_locks.lock().unwrap().insert(path.to_string());
+    
+    // 3. 分发索引
+    if let Err(e) = indexing_jobs::dispatch_update_job(workspace_path.to_string(), path.to_string()) {
+         eprintln!("❌ 分发外部修改索引任务失败: {}", e);
+         SAVE_TRACKER.app_activity_locks.lock().unwrap().remove(path); // 失败释放锁
+    }
+    
+    // 4. 通知前端
+    if let Some(ref handle) = app_handle {
+         let _ = handle.emit("file-changed", json!({ "type": "modified", "path": path }));
+    }
+}
+
+/// (辅助) 处理外部重命名或移动
+fn handle_external_rename_move(
+    workspace_path: &str, 
+    old_path: &str, 
+    new_path: &str, 
+    app_handle: &Option<AppHandle>, 
+    db_pool: &DbPool
+) {
+    // 1. 更新 DB (保留元数据，只改 path 和 title)
+    if let Ok(conn) = db_pool.get() {
+        let new_title = Path::new(new_path).file_stem().unwrap_or_default().to_string_lossy();
+        let _ = conn.execute(
+            // ★★★ indexed 设为 0 ★★★
+            "UPDATE files SET path = ?1, title = ?2, indexed = 0, updated_at = CURRENT_TIMESTAMP
+             WHERE path = ?3",
+            params![new_path, new_title, old_path]
+        );
+    }
+    
+    // 2. ★★★ L1/L2 加锁 (新旧路径) ★★★
+    {
+        let mut locks = SAVE_TRACKER.app_activity_locks.lock().unwrap();
+        locks.insert(old_path.to_string());
+        locks.insert(new_path.to_string());
+    }
+    
+    // 3. 分发索引
+    if let Err(e) = indexing_jobs::dispatch_rename_job(
+        workspace_path.to_string(), 
+        old_path.to_string(), 
+        new_path.to_string()
+    ) {
+         eprintln!("❌ 分发外部重命名索引任务失败: {}", e);
+         let mut locks = SAVE_TRACKER.app_activity_locks.lock().unwrap();
+         locks.remove(old_path);
+         locks.remove(new_path);
+    }
+    
+    // 4. 通知前端
+    if let Some(ref handle) = app_handle {
+         let _ = handle.emit("file-changed", json!({ 
+            "type": "renamed", 
+            "oldPath": old_path,
+            "newPath": new_path 
+        }));
     }
 }

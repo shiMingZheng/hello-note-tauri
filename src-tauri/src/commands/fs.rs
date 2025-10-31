@@ -1,4 +1,6 @@
 // src-tauri/src/commands/fs.rs
+// ★★★ 已根据新的 SaveTracker (app_activity_locks) 重构 ★★★
+
 use crate::commands::history::record_file_event;
 use crate::commands::links::update_links_for_file;
 use crate::commands::path_utils::{to_absolute_path, to_relative_path};  
@@ -25,66 +27,117 @@ pub struct FileNode {
 #[tauri::command]
 pub async fn move_item(
     root_path: String,
-    source_path: String,
-    target_dir: String,
+    source_path: String, // 旧的相对路径
+    target_dir: String,  // 新的父目录相对路径
+    state: State<'_, AppState>, // ★★★ 1. (重构) 添加 state ★★★
 ) -> Result<serde_json::Value, String> {
-    use std::path::{Path, PathBuf};
-    use std::fs;
+    use std::path::PathBuf;
 
-    // 构建完整路径
-    let source_full = PathBuf::from(&root_path).join(&source_path);
-    let target_dir_full = PathBuf::from(&root_path).join(&target_dir);
+    println!("📦 [fs::move_item] 开始移动: {} -> {}", source_path, target_dir);
+    let base_path = Path::new(&root_path);
+
+    // --- 1. 计算路径和元数据 ---
+    let source_full = to_absolute_path(base_path, Path::new(&source_path));
+    let target_dir_full = to_absolute_path(base_path, Path::new(&target_dir));
     
-    // 获取文件/文件夹名称
-    let item_name = source_full
-        .file_name()
-        .ok_or("无法获取文件名")?
-        .to_str()
-        .ok_or("文件名编码错误")?;
-    
-    // 构建目标路径
+    let item_name = source_full.file_name().ok_or("无法获取文件名")?.to_str().ok_or("文件名编码错误")?;
     let target_full = target_dir_full.join(item_name);
     
-    // 检查源路径是否存在
-    if !source_full.exists() {
-        return Err(format!("源路径不存在: {:?}", source_full));
-    }
+    // ★★★ 核心修改：计算新的相对路径 ★★★
+    let new_relative_path = to_relative_path(base_path, &target_full)
+        .ok_or_else(|| "无法生成新的相对路径".to_string())?;
+
+    // --- 2. 检查路径 ---
+    if !source_full.exists() { return Err(format!("源路径不存在: {:?}", source_full)); }
+    if !target_dir_full.exists() { return Err(format!("目标目录不存在: {:?}", target_dir_full)); }
+    if target_full.exists() { return Err(format!("目标位置已存在同名文件: {}", item_name)); }
     
-    // 检查目标目录是否存在
-    if !target_dir_full.exists() {
-        return Err(format!("目标目录不存在: {:?}", target_dir_full));
-    }
+    let is_dir = source_full.is_dir();
     
-    // 检查目标路径是否已存在
-    if target_full.exists() {
-        return Err(format!("目标位置已存在同名文件: {}", item_name));
+    // --- 3. 收集受影响的文件 ---
+    let affected_files = if is_dir {
+        collect_markdown_files(base_path, &source_path)?
+    } else {
+        vec![source_path.clone()]
+    };
+
+    let new_affected_files: Vec<String> = affected_files.iter()
+        .map(|old_file_path| old_file_path.replace(&source_path, &new_relative_path))
+        .collect();
+
+    // --- 4. ★★★ L1/L2 加锁 (新旧路径) ★★★
+    {
+        let mut locks = SAVE_TRACKER.app_activity_locks.lock().unwrap();
+        for path in &affected_files { locks.insert(path.clone()); }
+        for path in &new_affected_files { locks.insert(path.clone()); }
+        if is_dir {
+            locks.insert(source_path.clone());
+            locks.insert(new_relative_path.clone());
+        }
+        println!("   [fs::move_item] L1/L2: 添加了 {} 个活动锁", locks.len());
     }
-    
-    // 执行移动
+
+    // --- 5. L3 记录时间戳 ---
+    let move_timestamp = SystemTime::now();
+
+    // --- 6. 执行移动 ---
     fs::rename(&source_full, &target_full)
         .map_err(|e| format!("移动失败: {}", e))?;
+    println!("   [fs::move_item] 文件系统移动成功");
+
+    // --- 7. ★★★ L3 更新时间戳 ★★★
+    {
+        let mut known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
+        for old_path in &affected_files { known_times.remove(old_path); }
+        for new_path in &new_affected_files { known_times.insert(new_path.clone(), move_timestamp); }
+        println!("   [fs::move_item] L3: 更新了 {} 个时间戳", new_affected_files.len());
+    }
+
+    // --- 8. 更新数据库 ---
+    println!("   [fs::move_item] 📝 更新数据库 (移动)...");
+    {
+        let db_pool_lock = state.db_pool.lock().unwrap();
+        if let Some(pool) = db_pool_lock.as_ref() {
+            let mut conn = pool.get().map_err(|e| e.to_string())?;
+            update_paths_in_db(&mut conn, &source_path, &new_relative_path, is_dir)
+                .map_err(|e| format!("数据库更新失败: {}", e))?;
+        }
+    }
+    println!("   [fs::move_item] ✅ 数据库更新完成 (移动)");
+
+    // --- 9. 分发索引任务 (锁将在后台释放) ---
+    for (old_file_path, new_file_path) in affected_files.into_iter().zip(new_affected_files.into_iter()) {
+        if let Err(e) = indexing_jobs::dispatch_rename_job(
+            root_path.clone(),
+            old_file_path.clone(),
+            new_file_path.clone()
+        ) {
+            eprintln!("⚠️ [fs::move_item] 分发移动索引任务失败 ({} -> {}): {}", old_file_path, new_file_path, e);
+            // ★★★ 关键：如果分发失败，必须立即释放锁 ★★★
+            let mut locks = SAVE_TRACKER.app_activity_locks.lock().unwrap();
+            locks.remove(&old_file_path);
+            locks.remove(&new_file_path);
+        }
+    }
     
-    // 构建新的相对路径
-    let new_relative_path = PathBuf::from(&target_dir)
-        .join(item_name)
-        .to_str()
-        .ok_or("路径转换失败")?
-        .replace("\\", "/");  // 统一使用 /
-    
+    println!("✅ [fs::move_item] 移动完成: {} -> {}", source_path, new_relative_path);
+
+    // ★★★ 3. (重构) 更改返回值以匹配前端期望 ★★★
     Ok(serde_json::json!({
         "success": true,
         "old_path": source_path,
         "new_path": new_relative_path,
+        "is_dir": is_dir,
         "message": format!("已移动到 {}", target_dir)
     }))
 }
 
 /// 递归收集文件夹下的所有 .md 文件的相对路径
-/// [FIX] This function should now return Vec<String> and standardize paths
 fn collect_markdown_files(
     base_path: &Path,
     folder_relative_path: &str,
 ) -> Result<Vec<String>, String> {
+    // ... (函数内容不变) ...
     let folder_absolute_path = to_absolute_path(base_path, Path::new(folder_relative_path));
     let mut md_files = Vec::new();
 
@@ -99,7 +152,9 @@ fn collect_markdown_files(
     }
     Ok(md_files)
 }
+
 fn directory_has_children(dir: &Path) -> bool {
+    // ... (函数内容不变) ...
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             if let Some(name) = entry.file_name().to_str() {
@@ -118,6 +173,7 @@ fn directory_has_children(dir: &Path) -> bool {
 
 #[tauri::command]
 pub async fn list_dir_lazy(root_path: String, relative_path: String) -> Result<Vec<FileNode>, String> {
+    // ... (函数内容不变) ...
     let base_path = Path::new(&root_path);
     let dir_to_read = to_absolute_path(base_path, Path::new(&relative_path));
     if !dir_to_read.is_dir() { return Ok(vec![]); }
@@ -129,12 +185,10 @@ pub async fn list_dir_lazy(root_path: String, relative_path: String) -> Result<V
             if name.starts_with('.') { continue; }
         }
         if let Ok(metadata) = entry.metadata() {
-            // This `relative_node_path` is now an `Option<String>`
             if let Some(relative_node_path) = to_relative_path(base_path, &absolute_path) {
                 let node = if metadata.is_dir() {
                     FileNode {
                         name: entry.file_name().to_string_lossy().to_string(),
-                        // [FIX] Use the String directly
                         path: relative_node_path,
                         is_dir: true,
                         has_children: directory_has_children(&absolute_path),
@@ -142,7 +196,6 @@ pub async fn list_dir_lazy(root_path: String, relative_path: String) -> Result<V
                 } else if absolute_path.extension().and_then(|s| s.to_str()) == Some("md") {
                     FileNode {
                         name: entry.file_name().to_string_lossy().to_string(),
-                        // [FIX] Use the String directly
                         path: relative_node_path,
                         is_dir: false,
                         has_children: false,
@@ -163,22 +216,15 @@ pub async fn list_dir_lazy(root_path: String, relative_path: String) -> Result<V
 
 #[tauri::command]
 pub async fn read_file_content(root_path: String, relative_path: String) -> Result<String, String> {
+    // ... (函数内容不变) ...
     let absolute_path = to_absolute_path(Path::new(&root_path), Path::new(&relative_path));
-    
-    // [修复] 检查文件是否存在
-    if !absolute_path.exists() {
-        return Err(format!("文件不存在: {}", relative_path));
-    }
-    
-    if !absolute_path.is_file() {
-        return Err(format!("路径不是文件: {}", relative_path));
-    }
-    
+    if !absolute_path.exists() { return Err(format!("文件不存在: {}", relative_path)); }
+    if !absolute_path.is_file() { return Err(format!("路径不是文件: {}", relative_path)); }
     fs::read_to_string(&absolute_path).map_err(|e| format!("读取文件失败: {}", e))
 }
 
-/* 修改 */
-/* 修改 */
+
+/* ★★★ 重构 save_file ★★★ */
 #[tauri::command]
 pub async fn save_file(
     root_path: String,
@@ -188,61 +234,54 @@ pub async fn save_file(
 ) -> Result<(), String> {
     println!("💾 [fs::save_file] 开始保存: {}", relative_path);
 
-    // ✅ Layer 1: 添加瞬时锁
+    // ★★★ 步骤 1: L1/L2 加锁 ★★★
+    // (合并 L1/L2 锁，在操作*开始*时加锁)
     {
-        let mut saving = SAVE_TRACKER.files_currently_saving.lock().unwrap();
-        saving.insert(relative_path.clone());
-        println!("   [fs::save_file] Layer 1: 添加瞬时锁");
+        let mut locks = SAVE_TRACKER.app_activity_locks.lock().unwrap();
+        locks.insert(relative_path.clone());
+        println!("   [fs::save_file] L1/L2: 添加活动锁");
     }
 
     let base_path = Path::new(&root_path);
     let absolute_path = to_absolute_path(base_path, Path::new(&relative_path));
 
-    // 执行写入
+    // 步骤 2: 执行写入
     fs::write(&absolute_path, &content).map_err(|e| format!("保存文件失败: {}", e))?;
     println!("   [fs::save_file] 文件写入磁盘成功");
 
-    // ✅ Layer 3: 记录写入时间戳
+    // 步骤 3: L3 记录写入时间戳
     {
         if let Ok(meta) = metadata(&absolute_path) {
             if let Ok(modified) = meta.modified() {
                 let mut known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
                 known_times.insert(relative_path.clone(), modified);
-                println!("   [fs::save_file] Layer 3: 记录写入时间戳");
+                println!("   [fs::save_file] L3: 记录写入时间戳");
             } else {
-                 println!("   [fs::save_file] Layer 3: 获取修改时间失败");
+                 println!("   [fs::save_file] L3: 获取修改时间失败");
             }
         } else {
-             println!("   [fs::save_file] Layer 3: 获取元数据失败");
+             println!("   [fs::save_file] L3: 获取元数据失败");
         }
     }
-
-    // ✅ Layer 1: 释放瞬时锁
-    {
-        let mut saving = SAVE_TRACKER.files_currently_saving.lock().unwrap();
-        saving.remove(&relative_path);
-        println!("   [fs::save_file] Layer 1: 释放瞬时锁");
-    }
+    
+    // (L1/L2 锁*不*在这里释放，将由 process_job 在索引完成后释放)
 
     // --- 记录历史事件 (移到获取 db_pool_lock 之前) ---
-    println!("   [fs::save_file] 准备记录编辑历史..."); // 添加日志
-    // 确保 await 不在锁内
+    println!("   [fs::save_file] 准备记录编辑历史...");
     let _ = record_file_event(root_path.clone(), relative_path.clone(), "edited".to_string(), state.clone()).await;
-    println!("   [fs::save_file] 记录编辑历史完成 (或已尝试)"); // 添加日志
+    println!("   [fs::save_file] 记录编辑历史完成 (或已尝试)");
 
 
     // --- 数据库链接更新 ---
     let root_path_clone_for_links = root_path.clone();
     let relative_path_clone_for_links = relative_path.clone();
 
-    // 在独立作用域内处理数据库连接和链接更新
-    { // <--- 开始新的作用域
+    { 
         let db_pool_lock = state.db_pool.lock().unwrap();
         if let Some(db_pool) = db_pool_lock.as_ref() {
             let mut conn = db_pool.get().map_err(|e| format!("获取数据库连接失败: {}", e))?;
             println!("   [fs::save_file] 获取数据库连接成功 (用于链接更新)");
 
-            // ★★★ 更新双向链接 ★★★
             println!("   [fs::save_file] 开始更新双向链接...");
             if let Err(e) = update_links_for_file(&mut conn, &root_path_clone_for_links, &relative_path_clone_for_links) {
                 eprintln!("⚠️ [fs::save_file] 更新双向链接失败: {}", e);
@@ -252,29 +291,28 @@ pub async fn save_file(
         } else {
             eprintln!("⚠️ [fs::save_file] 数据库连接池未初始化，无法更新链接");
         }
-        // db_pool_lock 在这里自动 drop
-    } // <--- 结束新的作用域
+    }
 
 
-    // --- 异步更新索引 ---
-    // 这个操作不依赖上面的数据库连接，可以放在后面
+    // 步骤 4: 异步更新索引
     println!("   [fs::save_file] 准备分发索引更新任务...");
     if let Err(e) = indexing_jobs::dispatch_update_job(
         root_path.clone(),
         relative_path.clone()
     ) {
         eprintln!("⚠️ [fs::save_file] 分发索引任务失败: {}", e);
+        // ★★★ 关键：如果分发失败，必须立即释放锁 ★★★
+        SAVE_TRACKER.app_activity_locks.lock().unwrap().remove(&relative_path);
+        eprintln!("   [fs::save_file] L1/L2: 因分发失败，释放锁");
     } else {
-         println!("   [fs::save_file] 索引更新任务已分发");
+         println!("   [fs::save_file] 索引更新任务已分发 (锁将在后台释放)");
     }
-
-    // --- (记录历史事件已移到前面) ---
-
 
     println!("✅ [fs::save_file] 保存完成: {}", relative_path);
     Ok(())
 }
 
+/* ★★★ 重构 create_new_file ★★★ */
 #[tauri::command]
 pub async fn create_new_file(
     root_path: String,
@@ -293,31 +331,62 @@ pub async fn create_new_file(
     if absolute_file_path.exists() {
         return Err(format!("文件已存在: {}", absolute_file_path.display()));
     }
+    
+    // ★★★ 核心修改：计算元数据 ★★★
     let initial_content = format!("# {}\n\n", file_name_str.trim_end_matches(".md"));
+    let content_size = initial_content.len() as i64;
+    let word_count = initial_content.split_whitespace().count() as i64;
+    
+    // 步骤 1: 写入磁盘
     fs::write(&absolute_file_path, &initial_content).map_err(|e| format!("创建文件失败: {}", e))?;
 
-	// [修改] 使用新的 to_relative_path，它已经标准化了路径
     let new_relative_path_str = to_relative_path(base_path, &absolute_file_path)
         .ok_or_else(|| "无法生成相对路径".to_string())?;
 		
+    // ★★★ 步骤 2: L1/L2 加锁 ★★★
+    SAVE_TRACKER.app_activity_locks.lock().unwrap().insert(new_relative_path_str.clone());
+    println!("   [fs::create_new_file] L1/L2: 添加活动锁");
     
-    // [修复] 在独立作用域中处理数据库，确保锁被释放
+    // ★★★ 步骤 3: L3 记录时间戳 ★★★
+    if let Ok(meta) = metadata(&absolute_file_path) {
+        if let Ok(modified) = meta.modified() {
+            SAVE_TRACKER.known_write_times.lock().unwrap().insert(new_relative_path_str.clone(), modified);
+            println!("   [fs::create_new_file] L3: 记录写入时间戳");
+        }
+    }
+    
+    // 步骤 4: 数据库操作
     {
         let db_pool_lock = state.db_pool.lock().unwrap();
         if let Some(pool) = db_pool_lock.as_ref() {
             let conn = pool.get().map_err(|e| e.to_string())?;
             let title = file_name_str.trim_end_matches(".md");
+            
+            // ★★★ 核心修改：插入时包含 size 和 word_count, indexed = 0 ★★★
             conn.execute(
-                "INSERT OR IGNORE INTO files (path, title, is_dir, created_at, updated_at) 
-                 VALUES (?1, ?2, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-                params![new_relative_path_str.clone(), title],
+                "INSERT OR IGNORE INTO files (path, title, is_dir, created_at, updated_at, size, word_count, indexed) 
+                 VALUES (?1, ?2, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?3, ?4, 0)",
+                params![new_relative_path_str.clone(), title, content_size, word_count],
             ).map_err(|e| e.to_string())?;
         }
-    } // db_pool_lock 在这里被释放
+    }
     
-    // 现在可以安全地 await 了
+    // 步骤 5: 记录历史事件
     let _ = record_file_event(root_path.clone(), new_relative_path_str.clone(), "created".to_string(), state.clone()).await; 
     
+    // 步骤 6: 分发索引任务 (锁将在后台释放)
+    if let Err(e) = indexing_jobs::dispatch_update_job(
+        root_path.clone(),
+        new_relative_path_str.clone()
+    ) {
+        eprintln!("⚠️ [fs::create_new_file] 分发索引任务失败: {}", e);
+        // ★★★ 关键：如果分发失败，必须立即释放锁 ★★★
+        SAVE_TRACKER.app_activity_locks.lock().unwrap().remove(&new_relative_path_str);
+        eprintln!("   [fs::create_new_file] L1/L2: 因分发失败，释放锁");
+    } else {
+        println!("   [fs::create_new_file] 索引更新任务已分发");
+    }
+
     Ok(new_relative_path_str)
 	
 }
@@ -329,7 +398,7 @@ pub async fn create_new_folder(
     folder_name: String,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    
+    // ... (函数内容不变, 文件夹操作不需要 L1/L2 锁) ...
     let base_path = Path::new(&root_path);
     let absolute_parent_path = to_absolute_path(base_path, Path::new(&relative_parent_path));
     if !absolute_parent_path.exists() || !absolute_parent_path.is_dir() {
@@ -344,7 +413,6 @@ pub async fn create_new_folder(
     let new_relative_path_str = to_relative_path(base_path, &absolute_folder_path)
         .ok_or_else(|| "无法生成相对路径".to_string())?;
 
-    // [修复] 在独立作用域中处理数据库
     {
         let db_pool_lock = state.db_pool.lock().unwrap();
         if let Some(pool) = db_pool_lock.as_ref() {
@@ -357,19 +425,17 @@ pub async fn create_new_folder(
         }
     }
     
-    // ✅ 注意: 文件夹不需要记录时间戳,因为我们只监控 .md 文件
-    
     Ok(new_relative_path_str)
 }
+
+/* ★★★ 重构 delete_item ★★★ */
 #[tauri::command]
 pub async fn delete_item(
     root_path: String, 
     relative_path: String, 
     state: State<'_, AppState>
 ) -> Result<(), String> {
-	 // ✅ Layer 1: 添加瞬时锁
-    SAVE_TRACKER.files_currently_deleting.lock().unwrap().insert(relative_path.clone());
-
+	
     let base_path = Path::new(&root_path);
     let absolute_path = to_absolute_path(base_path, Path::new(&relative_path));
     
@@ -377,27 +443,35 @@ pub async fn delete_item(
         return Err(format!("路径不存在: {}", absolute_path.display()));
     }
 	
-
     let is_dir = absolute_path.is_dir();
     
-    // 1. [关键修改] 收集需要删除索引的所有文件
+    // 1. 收集需要删除索引的所有 .md 文件
     let paths_to_delete = if is_dir {
-        // 文件夹：收集所有 .md 子文件
         println!("📁 正在收集文件夹中的所有文件: {}", relative_path);
         collect_markdown_files(base_path, &relative_path)?
     } else {
-        // 单文件
         vec![relative_path.clone()]
     };
 
     println!("🗑️ 准备删除 {} 个文件的索引", paths_to_delete.len());
+
+    // ★★★ 步骤 1: L1/L2 加锁 (为所有子文件加锁) ★★★
+    {
+        let mut locks = SAVE_TRACKER.app_activity_locks.lock().unwrap();
+        for path in &paths_to_delete {
+            locks.insert(path.clone());
+        }
+        if is_dir {
+            locks.insert(relative_path.clone()); // 锁文件夹本身
+        }
+        println!("   [fs::delete_item] L1/L2: 添加了 {} 个活动锁", locks.len());
+    }
 
     // 2. 删除数据库记录
     {
         let db_pool_lock = state.db_pool.lock().unwrap();
         if let Some(pool) = db_pool_lock.as_ref() {
             let conn = pool.get().map_err(|e| e.to_string())?;
-           // [修改] 硬编码分隔符为 '/'
             let separator = "/";
             conn.execute(
                 "DELETE FROM files WHERE path = ?1 OR path LIKE ?2",
@@ -408,30 +482,30 @@ pub async fn delete_item(
         }
     }
 
-    // 4. 删除文件系统对象
-    //if absolute_path.is_file() {
-      //  fs::remove_file(&absolute_path).map_err(|e| format!("删除文件失败: {}", e))?;
-   // } else {
-     //   fs::remove_dir_all(&absolute_path).map_err(|e| format!("删除文件夹失败: {}", e))?;
-    //}
-	// 4. 移动到回收站(而不是永久删除)
+	// 3. 移动到回收站
 	trash::delete(&absolute_path).map_err(|e| format!("移动到回收站失败: {}", e))?;
-	//【Layer 3】记录时间戳
-	let now = SystemTime::now();
-	SAVE_TRACKER.known_delete_times.lock().unwrap().insert(relative_path.to_string(), now);
 	
-	//【Layer 1】释放瞬时锁（关键：必须在 dispatch_remove_job 之前）
-    SAVE_TRACKER.files_currently_deleting.lock().unwrap().remove(&relative_path.to_string());
-	    // 3. [关键修改] 异步删除索引 - 为每个文件分发删除任务
+    // 4. ★★★ L3 清理时间戳 ★★★
+    {
+        let mut known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
+        for path in &paths_to_delete {
+            known_times.remove(path);
+        }
+         println!("   [fs::delete_item] L3: 清理了 {} 个时间戳", paths_to_delete.len());
+    }
+	
+	// (L1/L2 锁*不*在这里释放)
+	
+    // 5. 异步删除索引 (锁将在后台释放)
     for path in paths_to_delete {
         if let Err(e) = indexing_jobs::dispatch_delete_job(path.clone()) {
             eprintln!("⚠️ 分发删除索引任务失败 ({}): {}", path, e);
+            // ★★★ 关键：如果分发失败，必须立即释放锁 ★★★
+            SAVE_TRACKER.app_activity_locks.lock().unwrap().remove(&path);
         }
     }
 
-
 	println!("🗑️ 已移动到回收站: {}", absolute_path.display());
-
     println!("✅ 删除操作完成");
     Ok(())
 }
@@ -447,73 +521,51 @@ fn update_paths_in_db(
     new_prefix: &str,
     is_dir: bool,
 ) -> Result<(), rusqlite::Error> {
-    
+    // ... (函数内容不变) ...
     if is_dir {
-        //let separator = if cfg!(windows) { "\\" } else { "/" };
-				 // [修复] 这里应该总是使用 '/', 因为数据库中存储的是标准化后的路径
         let separator = "/"; 
         let pattern = format!("{}{}%", old_prefix, separator);
-		
-        let tx = conn.transaction()?;
-        
-       // [修复] 先获取需要更新的所有路径
-	   
-	   // 👇 **使用新的作用域来限制 stmt 的生命周期**
+		let tx = conn.transaction()?;
 		let paths_to_update: Vec<(i64, String)> = {
 			let mut stmt = tx.prepare(
 				"SELECT id, path FROM files WHERE path = ?1 OR path LIKE ?2"
 			)?;
-			
-			// 👇 **应用编译器的修复建议**
 			let x = stmt.query_map(params![old_prefix, pattern], |row| {
 				Ok((row.get(0)?, row.get(1)?))
 			})?
 			.collect::<Result<Vec<_>, _>>()?;
 			x
-		}; // <-- stmt 在此销毁，此时已无任何对它的借用
-    
-        
-        // 更新每个路径
+		};
         for (id, old_path) in &paths_to_update {
             let new_path = old_path.replace(old_prefix, new_prefix);
-            
-            // 提取文件名作为 title
             let title = new_path
                 .split('/')
                 .last()
                 .unwrap_or(&new_path)
                 .trim_end_matches(".md");
-            
             tx.execute(
                 "UPDATE files SET path = ?1, title = ?2, updated_at = CURRENT_TIMESTAMP WHERE id = ?3",
                 params![new_path, title, id],
             )?;
         }
-        
         tx.commit()?;
         println!("  更新了 {} 条记录", paths_to_update.len());
-        
     } else {
         let new_title = new_prefix
             .split('/')
             .last()
             .unwrap_or(new_prefix)
             .trim_end_matches(".md");
-        
         let updated = conn.execute(
             "UPDATE files 
-             SET path = ?1, 
-                 title = ?2,
-                 updated_at = CURRENT_TIMESTAMP 
+             SET path = ?1, title = ?2, updated_at = CURRENT_TIMESTAMP 
              WHERE path = ?3",
             params![new_prefix, new_title, old_prefix],
         )?;
-        
         if updated > 0 {
             println!("  更新了文件记录: {}", new_title);
         }
     }
-
     Ok(())
 }
 
@@ -525,6 +577,7 @@ pub struct RenameResult {
 }
 
 
+/* ★★★ 重构 rename_item ★★★ */
 #[tauri::command]
 pub async fn rename_item(
     root_path: String,
@@ -532,8 +585,6 @@ pub async fn rename_item(
     new_name: String,
     state: State<'_, AppState>,
 ) -> Result<RenameResult, String> {
-    use std::fs::metadata;
-
     
     println!("🔄 重命名请求: {} -> {}", old_relative_path, new_name);
     let old_relative_path = old_relative_path.replace('\\', "/");
@@ -541,92 +592,71 @@ pub async fn rename_item(
     let base_path = Path::new(&root_path);
     let old_abs_path = to_absolute_path(base_path, Path::new(&old_relative_path));
     
-    if !old_abs_path.exists() {
-        return Err(format!("目标不存在: {}", old_abs_path.display()));
-    }
-
-    if new_name.contains('/') || new_name.contains('\\') {
-        return Err("新名称不能包含路径分隔符".to_string());
-    }
+    if !old_abs_path.exists() { return Err(format!("目标不存在: {}", old_abs_path.display())); }
+    if new_name.contains('/') || new_name.contains('\\') { return Err("新名称不能包含路径分隔符".to_string()); }
 
     let is_dir = old_abs_path.is_dir();
     
-    // 收集受影响的文件 (文件夹情况)
+    // 1. 收集受影响的文件
     let affected_files = if is_dir {
         println!("📁 正在收集文件夹中的所有文件: {}", old_relative_path);
-        let mut files = collect_markdown_files(base_path, &old_relative_path)?;
-        files = files.into_iter()
-            .map(|path| path.replace('\\', "/"))
-            .collect();
-        files
+        collect_markdown_files(base_path, &old_relative_path)?
     } else {
         vec![old_relative_path.clone()]
     };
     
-    let parent_path = old_abs_path.parent()
-        .ok_or_else(|| "无法获取父目录".to_string())?;
+    let parent_path = old_abs_path.parent().ok_or_else(|| "无法获取父目录".to_string())?;
     let new_abs_path = parent_path.join(&new_name);
     
-    if new_abs_path.exists() {
-        return Err(format!("目标已存在: {}", new_name));
+    if new_abs_path.exists() { return Err(format!("目标已存在: {}", new_name)); }
+
+    // 2. ★★★ 计算新路径 ★★★
+    let new_relative_path = to_relative_path(base_path, &new_abs_path)
+        .ok_or_else(|| "无法生成新的相对路径".to_string())?;
+    
+    let new_affected_files: Vec<String> = affected_files.iter()
+        .map(|old_file_path| old_file_path.replace(&old_relative_path, &new_relative_path))
+        .collect();
+
+    // 3. ★★★ L1/L2 加锁 (为所有新旧路径加锁) ★★★
+    {
+        let mut locks = SAVE_TRACKER.app_activity_locks.lock().unwrap();
+        for path in &affected_files { locks.insert(path.clone()); }
+        for path in &new_affected_files { locks.insert(path.clone()); }
+        if is_dir {
+            locks.insert(old_relative_path.clone());
+            locks.insert(new_relative_path.clone());
+        }
+        println!("   [fs::rename_item] L1/L2: 添加了 {} 个活动锁", locks.len());
     }
 
-    // 🔧 关键修改 1: 重命名前,先记录当前时间
+    // 4. 记录时间戳
     let rename_timestamp = SystemTime::now();
     println!("⏰ 记录重命名时间戳: {:?}", rename_timestamp);
 
-    // 执行文件系统重命名
+    // 5. 执行文件系统重命名
     fs::rename(&old_abs_path, &new_abs_path)
         .map_err(|e| format!("重命名失败: {}", e))?;
     println!("✅ 文件系统重命名成功");
 
-    let new_relative_path = to_relative_path(base_path, &new_abs_path)
-        .ok_or_else(|| "无法生成新的相对路径".to_string())?;
-    
     println!("📍 旧路径: {}", old_relative_path);
     println!("📍 新路径: {}", new_relative_path);
 
-    // 🔧 关键修改 2: 立即更新追踪器 (使用预先记录的时间戳)
+    // 6. ★★★ L3 更新时间戳 ★★★
     {
-        let mut saving = SAVE_TRACKER.files_currently_saving.lock().unwrap();
-        let mut indexing = SAVE_TRACKER.files_currently_indexing.lock().unwrap();
-        let mut times = SAVE_TRACKER.indexing_start_times.lock().unwrap();
         let mut known_times = SAVE_TRACKER.known_write_times.lock().unwrap();
-        
         // 1. 清除旧路径的所有标记
-        saving.remove(&old_relative_path);
-        indexing.remove(&old_relative_path);
-        times.remove(&old_relative_path);
-        known_times.remove(&old_relative_path);
-        
-        // 2. 为新路径添加时间戳 (使用重命名时的时间戳 + 容差)
-        // ✅ 使用稍微提前一点的时间戳,确保 File Watcher 的事件能被识别为内部操作
-        known_times.insert(new_relative_path.clone(), rename_timestamp);
-        println!("✅ [追踪器] 已记录新路径时间戳: {}", new_relative_path);
-        
-        // 3. 如果是文件夹,为所有子文件更新时间戳
-        if is_dir {
-            let old_prefix = old_relative_path.clone();
-            let new_prefix = new_relative_path.clone();
-            let _separator  = "/";
-            
-            for old_file_path in &affected_files {
-                // 计算新路径
-                let new_file_path = if old_file_path.starts_with(&old_prefix) {
-                    format!("{}{}", new_prefix, &old_file_path[old_prefix.len()..])
-                } else {
-                    continue;
-                };
-                
-                // 清除旧路径,添加新路径
-                known_times.remove(old_file_path);
-                known_times.insert(new_file_path.clone(), rename_timestamp);
-                println!("  ✅ 更新子文件时间戳: {}", new_file_path);
-            }
+        for old_path in &affected_files {
+            known_times.remove(old_path);
         }
+        // 2. 为新路径添加时间戳
+        for new_path in &new_affected_files {
+            known_times.insert(new_path.clone(), rename_timestamp);
+        }
+        println!("   [fs::rename_item] L3: 更新了 {} 个时间戳", new_affected_files.len());
     }
 
-    // 更新数据库
+    // 7. 更新数据库
     println!("📝 更新数据库...");
     {
         let db_pool_lock = state.db_pool.lock().unwrap();
@@ -637,46 +667,23 @@ pub async fn rename_item(
         }
     }
     println!("✅ 数据库更新完成");
+    
+    // (L1/L2 锁*不*在这里释放)
 
-    // 分发重命名索引任务
-    if is_dir {
-        println!("📁 分发文件夹重命名索引任务...");
-        
-        let old_prefix = old_relative_path.clone();
-        let new_prefix = new_relative_path.clone();
-        
-        for old_file_path in affected_files {
-            let new_file_path = if old_file_path.starts_with(&old_prefix) {
-                format!("{}{}", new_prefix, &old_file_path[old_prefix.len()..])
-            } else if old_file_path == old_relative_path {
-                new_relative_path.clone()
-            } else {
-                eprintln!("⚠️ 意外的路径格式: {}", old_file_path);
-                continue;
-            };
-            
-            println!("  📄 {} -> {}", old_file_path, new_file_path);
-            
-            if let Err(e) = indexing_jobs::dispatch_rename_job(
-                root_path.clone(),
-                old_file_path.clone(),
-                new_file_path.clone()
-            ) {
-                eprintln!("⚠️ 分发重命名索引任务失败 ({} -> {}): {}", 
-                    old_file_path, new_file_path, e);
-            }
-        }
-        
-        println!("✅ 已分发所有重命名索引任务");
-    } else {
-        println!("📄 分发文件重命名索引任务: {} -> {}", old_relative_path, new_relative_path);
+    // 8. 分发重命名索引任务 (锁将在后台释放)
+    for (old_file_path, new_file_path) in affected_files.into_iter().zip(new_affected_files.into_iter()) {
+        println!("  📄 {} -> {}", old_file_path, new_file_path);
         
         if let Err(e) = indexing_jobs::dispatch_rename_job(
             root_path.clone(),
-            old_relative_path.clone(),
-            new_relative_path.clone()
+            old_file_path.clone(),
+            new_file_path.clone()
         ) {
-            eprintln!("⚠️ 分发重命名索引任务失败: {}", e);
+            eprintln!("⚠️ 分发重命名索引任务失败 ({} -> {}): {}", old_file_path, new_file_path, e);
+            // ★★★ 关键：如果分发失败，必须立即释放锁 ★★★
+            let mut locks = SAVE_TRACKER.app_activity_locks.lock().unwrap();
+            locks.remove(&old_file_path);
+            locks.remove(&new_file_path);
         }
     }
     

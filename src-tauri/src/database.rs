@@ -91,6 +91,40 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
 	println!("✅ 'is_favorited' 字段添加完成!");
 	}
 	
+    // === 迁移 6: 为 files 表添加 size 字段 (文件大小，字节) ===
+    let mut stmt = conn.prepare("PRAGMA table_info(files)")?;
+    let has_size = stmt.query_map([], |row| {
+        let column_name: String = row.get(1)?;
+        Ok(column_name)
+    })?.any(|col| col.as_deref() == Ok("size"));
+
+    if !has_size {
+        println!("🔀 迁移数据库：正在为 'files' 表添加 'size' 字段...");
+        conn.execute(
+            "ALTER TABLE files ADD COLUMN size INTEGER DEFAULT 0",
+            [],
+        )?;
+        // 可选：添加索引以便未来查询
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_files_size ON files (size);", [])?;
+        println!("✅ 'size' 字段添加完成！");
+    }
+
+    // === 迁移 7: 为 files 表添加 word_count 字段 (字数统计) ===
+    let mut stmt = conn.prepare("PRAGMA table_info(files)")?;
+    let has_word_count = stmt.query_map([], |row| {
+        let column_name: String = row.get(1)?;
+        Ok(column_name)
+    })?.any(|col| col.as_deref() == Ok("word_count"));
+
+    if !has_word_count {
+        println!("🔀 迁移数据库：正在为 'files' 表添加 'word_count' 字段...");
+        conn.execute(
+            "ALTER TABLE files ADD COLUMN word_count INTEGER DEFAULT 0",
+            [],
+        )?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_files_word_count ON files (word_count);", [])?;
+        println!("✅ 'word_count' 字段添加完成！");
+    }
 
     Ok(())
 }
