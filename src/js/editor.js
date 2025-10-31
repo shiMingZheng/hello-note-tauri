@@ -35,7 +35,7 @@ async function loadFileToEditor(relativePath) {
     }
 
     try {
-        // [修复] 步骤 1: 确保编辑器已初始化（必须在所有操作之前）
+        // [修复] 步骤 1: 确保编辑器已初始化（必须在所有操作之 前）
         if (!milkdownEditor || !milkdownEditor.editor) {
             console.log('🎨 [loadFileToEditor] 编辑器未初始化，开始初始化...');
             await milkdownEditor.init('#milkdown-editor', (content) => {
