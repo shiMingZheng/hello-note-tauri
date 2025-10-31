@@ -658,6 +658,9 @@ eventBus.on('context-menu:delete-item', handleDeleteFile);
 eventBus.on('context-menu:rename-item', handleRenameItem);
 eventBus.on('context-menu:pin-note', handlePinNote);
 eventBus.on('context-menu:unpin-note', handleUnpinNote);
+// --- [添加下面这两行] ---
+eventBus.on('context-menu:favorite-note', handleFavoriteNote);
+eventBus.on('context-menu:unfavorite-note', handleUnfavoriteNote);
 
 // ⭐ 订阅根目录操作事件
 eventBus.on('root-action:create-note', handleCreateNoteInRoot);
